@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors } from '../theme/colors';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Shadow } from '../theme/colors';
 import { useAuthStore, UserRole } from '../store/authStore';
 
 interface RoleHeaderProps {
@@ -9,44 +10,51 @@ interface RoleHeaderProps {
   onRefresh?: () => void;
 }
 
+const ROLE_COLORS: Record<UserRole, string> = {
+  owner: Colors.owner,
+  provider: Colors.provider,
+  officer: Colors.officer,
+  government: Colors.government,
+  admin: Colors.admin,
+};
+
 export const RoleHeader: React.FC<RoleHeaderProps> = ({ title, subtitle, onRefresh }) => {
-  const { user, role, logout, quickDemoLogin } = useAuthStore();
-
-  const roleColors: Record<UserRole, string> = {
-    owner: Colors.owner,
-    provider: Colors.provider,
-    officer: Colors.officer,
-    government: Colors.government,
-    admin: Colors.admin
-  };
-
-  const activeColor = role ? roleColors[role] : Colors.primary;
+  const { role, logout } = useAuthStore();
+  const activeColor = role ? ROLE_COLORS[role] : Colors.primary;
 
   return (
     <View style={styles.container}>
+      {/* Top bar */}
       <View style={styles.topRow}>
         <View style={styles.brandRow}>
-          <Text style={styles.brandTitle}>DRIVEDOCK</Text>
-          <View style={[styles.roleBadge, { backgroundColor: activeColor + '20', borderColor: activeColor }]}>
-            <Text style={[styles.roleBadgeText, { color: activeColor }]}>{role?.toUpperCase()}</Text>
-          </View>
+          <Text style={styles.brandDrive}>DRIVE</Text>
+          <Text style={styles.brandDock}>DOCK</Text>
         </View>
-
-        <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        <View style={styles.topRight}>
+          {onRefresh && (
+            <TouchableOpacity onPress={onRefresh} style={styles.iconBtn}>
+              <Ionicons name="refresh-outline" size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+            <Ionicons name="log-out-outline" size={14} color={Colors.primary} />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {/* Divider */}
+      <View style={styles.divider} />
+
+      {/* Page title row */}
       <View style={styles.titleRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.pageTitle}>{title}</Text>
+          <Text style={styles.pageTitle}>{title.toUpperCase()}</Text>
           {subtitle ? <Text style={styles.pageSubtitle}>{subtitle}</Text> : null}
         </View>
-        {onRefresh && (
-          <TouchableOpacity onPress={onRefresh} style={styles.refreshBtn}>
-            <Text style={styles.refreshBtnText}>↻ Refresh</Text>
-          </TouchableOpacity>
-        )}
+        <View style={[styles.rolePill, { borderColor: activeColor, backgroundColor: activeColor + '12' }]}>
+          <Text style={[styles.rolePillText, { color: activeColor }]}>{role?.toUpperCase()}</Text>
+        </View>
       </View>
     </View>
   );
@@ -54,79 +62,99 @@ export const RoleHeader: React.FC<RoleHeaderProps> = ({ title, subtitle, onRefre
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
     backgroundColor: Colors.surface,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border
+    borderBottomColor: Colors.border,
+    ...Shadow.card,
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
+    marginBottom: 10,
   },
   brandRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
+    alignItems: 'baseline',
+    gap: 0,
   },
-  brandTitle: {
-    fontSize: 16,
+  brandDrive: {
+    fontSize: 18,
     fontWeight: '900',
-    letterSpacing: 1.5,
-    color: Colors.textPrimary
+    letterSpacing: 1,
+    color: Colors.textPrimary,
   },
-  roleBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1
+  brandDock: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 1,
+    color: Colors.primary,
   },
-  roleBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5
+  topRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceAlt,
   },
   logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: Colors.surfaceLight
+    paddingVertical: 5,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceAlt,
   },
   logoutText: {
-    color: Colors.textSecondary,
     fontSize: 12,
-    fontWeight: '600'
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.divider,
+    marginBottom: 10,
   },
   titleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4
+    justifyContent: 'space-between',
   },
   pageTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.textPrimary
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    color: Colors.textPrimary,
   },
   pageSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 2
+    marginTop: 2,
+    fontWeight: '400',
   },
-  refreshBtn: {
-    backgroundColor: Colors.surfaceLight,
+  rolePill: {
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1.5,
   },
-  refreshBtnText: {
-    color: Colors.primary,
-    fontWeight: '700',
-    fontSize: 12
-  }
+  rolePillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
 });

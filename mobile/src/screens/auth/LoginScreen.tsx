@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, ScrollView, ActivityIndicator
 } from 'react-native';
-import { Colors } from '../../theme/colors';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Shadow, BorderRadius } from '../../theme/colors';
 import { useAuthStore, UserRole } from '../../store/authStore';
+
+const DEMO_ROLES: { role: UserRole; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
+  { role: 'owner',      label: 'Vehicle Owner',           desc: 'Vehicles, verified docs, rotating QR, renewals',      icon: 'car-outline',           color: Colors.owner },
+  { role: 'provider',   label: 'Approved Provider',       desc: 'PUC / Fitness center ó issue verified certificates',   icon: 'construct-outline',     color: Colors.provider },
+  { role: 'officer',    label: 'Traffic Police Officer',  desc: 'Scan rotating QR ó tamper-proof green / red result',  icon: 'shield-checkmark-outline', color: Colors.officer },
+  { role: 'government', label: 'Government / RTO',        desc: 'Regional compliance analytics, charts and trends',    icon: 'bar-chart-outline',     color: Colors.government },
+  { role: 'admin',      label: 'System Administrator',    desc: 'Approve pending providers ó gatekeeping checks',      icon: 'settings-outline',      color: Colors.admin },
+];
 
 export const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
@@ -18,9 +22,7 @@ export const LoginScreen = ({ navigation }: any) => {
 
   const handleLogin = async () => {
     if (!email || !password) return;
-    try {
-      await login(email, password);
-    } catch (err) {}
+    try { await login(email, password); } catch (err) {}
   };
 
   const handleDemo = async (role: UserRole) => {
@@ -32,11 +34,14 @@ export const LoginScreen = ({ navigation }: any) => {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Brand Header */}
       <View style={styles.brandHeader}>
-        <Text style={styles.kicker}>FINAL YEAR PROJECT ¬∑ PITCH DEMO</Text>
-        <Text style={styles.logoTitle}>DRIVEDOCK</Text>
+        <Text style={styles.kicker}>FINAL YEAR PROJECT ∑ PITCH DEMO</Text>
+        <View style={styles.logoRow}>
+          <Text style={styles.logoDrive}>DRIVE</Text>
+          <Text style={styles.logoDock}>DOCK</Text>
+        </View>
         <Text style={styles.tagline}>
           Other apps store your vehicle papers.{'\n'}
-          <Text style={styles.taglineHighlight}>DriveDock proves they are genuine.</Text>
+          <Text style={styles.taglineBlue}>DriveDock proves they are genuine.</Text>
         </Text>
         <Text style={styles.explainer}>
           One Vehicle Passport for RC, PUC, Insurance & Fitness. Providers certify genuine documents. Police scan a rotating QR that cannot be copied.
@@ -44,11 +49,12 @@ export const LoginScreen = ({ navigation }: any) => {
       </View>
 
       {/* Login Card */}
-      <View style={styles.card}>
+      <View style={[styles.card, Shadow.card]}>
         <Text style={styles.cardTitle}>Sign In</Text>
 
         {error && (
           <View style={styles.errorBox}>
+            <Ionicons name="alert-circle-outline" size={14} color={Colors.nonCompliant} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -70,7 +76,7 @@ export const LoginScreen = ({ navigation }: any) => {
           <Text style={styles.label}>Password</Text>
           <TextInput
             style={styles.input}
-            placeholder="‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢‚Ä¢"
+            placeholder="ïïïïïïïï"
             placeholderTextColor={Colors.textMuted}
             value={password}
             onChangeText={setPassword}
@@ -90,78 +96,42 @@ export const LoginScreen = ({ navigation }: any) => {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Signup')}
-          style={styles.signupLink}
-        >
+        <TouchableOpacity onPress={() => navigation.navigate('Signup')} style={styles.signupLink}>
           <Text style={styles.signupText}>
-            Don't have an account? <Text style={{ color: Colors.primary, fontWeight: '700' }}>Register here</Text>
+            Don't have an account?{' '}
+            <Text style={{ color: Colors.primary, fontWeight: '700' }}>Register here</Text>
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* 1-Tap Demo Switcher (Crucial for Viva Evaluation) */}
-      <View style={styles.demoSection}>
-        <View style={styles.demoSectionHeader}>
-          <Text style={styles.demoTitle}>‚ö° 1-TAP DEMO ROLES FOR EVALUATION</Text>
-          <Text style={styles.demoSubtitle}>Tap any role to immediately test real backend JWT session:</Text>
+      {/* 1-Tap Demo Section */}
+      <View style={[styles.demoSection, Shadow.card]}>
+        <View style={styles.demoHeader}>
+          <View style={styles.demoBadge}>
+            <Ionicons name="flash" size={11} color={Colors.primary} />
+            <Text style={styles.demoBadgeText}>1-TAP DEMO</Text>
+          </View>
+          <Text style={styles.demoTitle}>ROLE SWITCHER FOR EVALUATION</Text>
+          <Text style={styles.demoSubtitle}>Tap any role to instantly log in with a real backend JWT session:</Text>
         </View>
 
         <View style={styles.demoGrid}>
-          <TouchableOpacity
-            style={[styles.demoCard, { borderColor: Colors.owner }]}
-            onPress={() => handleDemo('owner')}
-          >
-            <Text style={styles.demoIcon}>üöó</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.demoCardTitle}>Vehicle Owner</Text>
-              <Text style={styles.demoCardDesc}>Vehicles, verified docs, rotating QR, renewals</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.demoCard, { borderColor: Colors.provider }]}
-            onPress={() => handleDemo('provider')}
-          >
-            <Text style={styles.demoIcon}>üîß</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.demoCardTitle}>Approved Provider</Text>
-              <Text style={styles.demoCardDesc}>PUC / Fitness center, issue verified certificates</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.demoCard, { borderColor: Colors.officer }]}
-            onPress={() => handleDemo('officer')}
-          >
-            <Text style={styles.demoIcon}>üëÆ</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.demoCardTitle}>Traffic Police Officer</Text>
-              <Text style={styles.demoCardDesc}>Scan rotating QR, tamper-proof green/red check</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.demoCard, { borderColor: Colors.government }]}
-            onPress={() => handleDemo('government')}
-          >
-            <Text style={styles.demoIcon}>üèõÔ∏è</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.demoCardTitle}>Government / RTO</Text>
-              <Text style={styles.demoCardDesc}>Regional compliance analytics, charts, trends</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.demoCard, { borderColor: Colors.admin }]}
-            onPress={() => handleDemo('admin')}
-          >
-            <Text style={styles.demoIcon}>üõ°Ô∏è</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.demoCardTitle}>System Administrator</Text>
-              <Text style={styles.demoCardDesc}>Approve pending providers, gatekeeping checks</Text>
-            </View>
-          </TouchableOpacity>
+          {DEMO_ROLES.map(({ role, label, desc, icon, color }) => (
+            <TouchableOpacity
+              key={role}
+              style={[styles.demoCard, { borderLeftColor: color }]}
+              onPress={() => handleDemo(role)}
+            >
+              <View style={[styles.demoIconWrap, { backgroundColor: color + '15' }]}>
+                <Ionicons name={icon} size={20} color={color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.demoCardTitle}>{label}</Text>
+                <Text style={styles.demoCardDesc}>{desc}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
     </ScrollView>
@@ -169,163 +139,90 @@ export const LoginScreen = ({ navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background
-  },
-  content: {
-    padding: 20,
-    paddingTop: 48,
-    paddingBottom: 60
-  },
-  brandHeader: {
-    marginBottom: 24
-  },
-  kicker: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-    color: Colors.textMuted,
-    marginBottom: 6
-  },
-  logoTitle: {
-    fontSize: 38,
-    fontWeight: '900',
-    letterSpacing: 2,
-    color: Colors.textPrimary,
-    marginBottom: 8
-  },
-  tagline: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    lineHeight: 24,
-    marginBottom: 8
-  },
-  taglineHighlight: {
-    color: Colors.primary
-  },
-  explainer: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    lineHeight: 18
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
+  content: { padding: 20, paddingTop: 52, paddingBottom: 60 },
+
+  // Brand
+  brandHeader: { marginBottom: 28 },
+  kicker: { fontSize: 10, fontWeight: '800', letterSpacing: 2, color: Colors.textMuted, marginBottom: 8 },
+  logoRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 12 },
+  logoDrive: { fontSize: 40, fontWeight: '900', letterSpacing: 1, color: Colors.textPrimary },
+  logoDock: { fontSize: 40, fontWeight: '900', letterSpacing: 1, color: Colors.primary },
+  tagline: { fontSize: 17, fontWeight: '700', color: Colors.textPrimary, lineHeight: 24, marginBottom: 8 },
+  taglineBlue: { color: Colors.primary, fontWeight: '800' },
+  explainer: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
+
+  // Login card
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 20,
-    marginBottom: 28
+    marginBottom: 24,
   },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-    marginBottom: 16
-  },
+  cardTitle: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, marginBottom: 16 },
   errorBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.nonCompliantBg,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.nonCompliant,
-    padding: 10,
-    marginBottom: 16
+    borderRadius: 8, borderWidth: 1, borderColor: Colors.nonCompliantBorder,
+    padding: 10, marginBottom: 14,
   },
-  errorText: {
-    color: Colors.nonCompliant,
-    fontSize: 12,
-    fontWeight: '600'
-  },
-  inputGroup: {
-    marginBottom: 14
-  },
+  errorText: { color: Colors.nonCompliant, fontSize: 12, fontWeight: '600', flex: 1 },
+  inputGroup: { marginBottom: 14 },
   label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5
+    fontSize: 11, fontWeight: '700', color: Colors.textSecondary,
+    marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
   },
   input: {
-    backgroundColor: Colors.surfaceLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: Colors.textPrimary,
-    fontSize: 14
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1, borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 14, paddingVertical: 12,
+    color: Colors.textPrimary, fontSize: 14,
   },
   primaryBtn: {
     backgroundColor: Colors.primary,
-    borderRadius: 10,
+    borderRadius: BorderRadius.md,
     paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8
+    alignItems: 'center', marginTop: 6,
   },
-  btnDisabled: {
-    opacity: 0.6
-  },
-  primaryBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 15,
-    letterSpacing: 0.5
-  },
-  signupLink: {
-    alignItems: 'center',
-    marginTop: 14
-  },
-  signupText: {
-    color: Colors.textSecondary,
-    fontSize: 13
-  },
+  btnDisabled: { opacity: 0.6 },
+  primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
+  signupLink: { alignItems: 'center', marginTop: 14 },
+  signupText: { color: Colors.textSecondary, fontSize: 13 },
+
+  // Demo section
   demoSection: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.borderHighlight,
-    padding: 16
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1, borderColor: Colors.border,
+    padding: 16,
   },
-  demoSectionHeader: {
-    marginBottom: 14
+  demoHeader: { marginBottom: 16 },
+  demoBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: Colors.primaryLight,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 4, marginBottom: 8,
   },
-  demoTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: Colors.primary,
-    marginBottom: 2
-  },
-  demoSubtitle: {
-    fontSize: 12,
-    color: Colors.textSecondary
-  },
-  demoGrid: {
-    gap: 10
-  },
+  demoBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 0.5 },
+  demoTitle: { fontSize: 13, fontWeight: '900', color: Colors.textPrimary, letterSpacing: 0.3, marginBottom: 4 },
+  demoSubtitle: { fontSize: 12, color: Colors.textSecondary },
+  demoGrid: { gap: 8 },
   demoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: 10,
-    borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1, borderColor: Colors.border,
+    borderLeftWidth: 3,
     padding: 12,
-    gap: 12
   },
-  demoIcon: {
-    fontSize: 24
+  demoIconWrap: {
+    width: 40, height: 40, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
-  demoCardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: Colors.textPrimary
-  },
-  demoCardDesc: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 1
-  }
+  demoCardTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
+  demoCardDesc: { fontSize: 11, color: Colors.textSecondary, lineHeight: 15 },
 });

@@ -1,54 +1,45 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
+
+type PillType = 'compliant' | 'nonCompliant' | 'warning' | 'pending';
 
 interface StatusPillProps {
   label: string;
-  type?: 'compliant' | 'nonCompliant' | 'warning' | 'primary' | 'muted';
-  verified?: boolean;
+  type: PillType;
 }
 
-export const StatusPill: React.FC<StatusPillProps> = ({ label, type = 'primary', verified }) => {
-  let bg = Colors.primaryLight;
-  let text = Colors.primary;
-  let border = Colors.primary;
+const CONFIG: Record<PillType, { bg: string; border: string; text: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  compliant:    { bg: Colors.compliantBg,    border: Colors.compliantBorder,    text: Colors.compliant,    icon: 'checkmark-circle' },
+  nonCompliant: { bg: Colors.nonCompliantBg, border: Colors.nonCompliantBorder, text: Colors.nonCompliant, icon: 'close-circle' },
+  warning:      { bg: Colors.warningBg,      border: Colors.warningBorder,      text: Colors.warning,      icon: 'alert-circle' },
+  pending:      { bg: '#EFF6FF',             border: '#BFDBFE',                 text: Colors.primary,      icon: 'time-outline' },
+};
 
-  if (type === 'compliant' || verified === true || label.toLowerCase() === 'green' || label.toLowerCase() === 'valid' || label.toLowerCase() === 'completed') {
-    bg = Colors.compliantBg;
-    text = Colors.compliant;
-    border = Colors.compliant;
-  } else if (type === 'nonCompliant' || verified === false || label.toLowerCase() === 'red' || label.toLowerCase() === 'expired' || label.toLowerCase() === 'unverified') {
-    bg = Colors.nonCompliantBg;
-    text = Colors.nonCompliant;
-    border = Colors.nonCompliant;
-  } else if (type === 'warning' || label.toLowerCase() === 'expiring_soon' || label.toLowerCase() === 'pending') {
-    bg = Colors.warningBg;
-    text = Colors.warning;
-    border = Colors.warning;
-  } else if (type === 'muted') {
-    bg = Colors.surfaceLight;
-    text = Colors.textSecondary;
-    border = Colors.border;
-  }
-
+export const StatusPill: React.FC<StatusPillProps> = ({ label, type }) => {
+  const cfg = CONFIG[type] ?? CONFIG.pending;
   return (
-    <View style={[styles.pill, { backgroundColor: bg, borderColor: border }]}>
-      <Text style={[styles.text, { color: text }]}>{label.toUpperCase()}</Text>
+    <View style={[styles.pill, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
+      <Ionicons name={cfg.icon} size={12} color={cfg.text} />
+      <Text style={[styles.text, { color: cfg.text }]}>{label}</Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   pill: {
-    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: 6,
     borderWidth: 1,
-    alignSelf: 'flex-start'
   },
   text: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.5
-  }
+    letterSpacing: 0.5,
+  },
 });
