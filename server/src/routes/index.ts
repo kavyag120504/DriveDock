@@ -10,6 +10,7 @@ import verificationRoutes from './verificationRoutes';
 import officerRoutes from './officerRoutes';
 import challanRoutes from './challanRoutes';
 import adminRoutes from './adminRoutes';
+import stationRoutes from './stationRoutes';
 import { updatePushToken } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
 
@@ -19,6 +20,7 @@ router.use('/auth', authRoutes);
 router.use('/vehicles', vehicleRoutes);
 router.use('/documents', documentRoutes);
 router.use('/providers', providerRoutes);
+router.use('/stations', stationRoutes);  // ← NEW: geo-proximity station search
 router.use('/bookings', bookingRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/reminders', reminderRoutes);

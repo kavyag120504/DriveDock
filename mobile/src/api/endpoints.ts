@@ -84,3 +84,10 @@ export const AdminAPI = {
   getByRegion: () => apiClient.get('/admin/stats/by-region'),
   getDocumentTrends: () => apiClient.get('/admin/stats/document-trends')
 };
+
+export const StationsAPI = {
+  nearby: (params: { lat: number; lng: number; radius?: number; type?: string }) =>
+    apiClient.get('/stations', { params }),
+  getById: (id: string) => apiClient.get(`/stations/${id}`),
+  getSlots: (id: string, date: string) => apiClient.get(`/stations/${id}/slots`, { params: { date } })
+};
