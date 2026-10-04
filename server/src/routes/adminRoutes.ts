@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  createStaffUser,
   getProvidersByAdmin,
   updateProviderStatus,
   getOverviewStats,
@@ -11,6 +12,9 @@ import { authenticate, authorizeRoles } from '../middleware/auth';
 const router = Router();
 
 router.use(authenticate);
+
+// Admin-only creation of officer, government and admin accounts
+router.post('/users', authorizeRoles('admin'), createStaffUser);
 
 // Admin Provider Gatekeeping (Trust Rule 3)
 router.get('/providers', authorizeRoles('admin'), getProvidersByAdmin);
