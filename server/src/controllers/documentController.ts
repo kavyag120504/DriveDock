@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { DocumentModel, DocumentType, DocumentStatus } from '../models/Document';
 import { Vehicle } from '../models/Vehicle';
 import { Reminder } from '../models/Reminder';
-import { processUploadedFile } from '../services/uploadService';
+import { processUploadedFile, discardUploadedFile } from '../services/uploadService';
+import { ownerScope } from '../services/accessService';
 
 const calculateStatus = (expiryDate: Date): DocumentStatus => {
   const now = new Date();
@@ -61,9 +62,10 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const vehicle = await Vehicle.findById(vehicleId);
+    const vehicle = await Vehicle.findOne({ _id: vehicleId, ...ownerScope(req.user!) });
     if (!vehicle) {
-      res.status(404).json({ success: false, message: 'Vehicle not found' });
+      discardUploadedFile(req.file);
+      res.status(404).json({ success: false, message: 'Vehicle not found or unauthorized' });
       return;
     }
 
@@ -128,6 +130,13 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
 export const getVehicleDocuments = async (req: Request, res: Response): Promise<void> => {
   try {
     const { vehicleId } = req.params;
+
+    const vehicle = await Vehicle.findOne({ _id: vehicleId, ...ownerScope(req.user!) });
+    if (!vehicle) {
+      res.status(404).json({ success: false, message: 'Vehicle not found or unauthorized' });
+      return;
+    }
+
     const documents = await DocumentModel.find({ vehicleId })
       .populate('issuedByProviderId', 'businessName address rating')
       .sort({ expiryDate: 1 });
@@ -149,17 +158,22 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Only the vehicle's owner (or admin) can edit its documents
+    const vehicle = await Vehicle.findOne({ _id: document.vehicleId, ...ownerScope(req.user!) });
+    if (!vehicle) {
+      res.status(404).json({ success: false, message: 'Document not found or unauthorized' });
+      return;
+    }
+
     if (issueDate) document.issueDate = new Date(issueDate);
     if (expiryDate) {
       document.expiryDate = new Date(expiryDate);
       document.status = calculateStatus(document.expiryDate);
     }
 
-    // Any manual edits by owner preserve or reset verified flag to false
-    if (req.user?.role !== 'provider') {
-      document.verified = false;
-      document.lastUpdatedBy = 'owner';
-    }
+    // A manual edit always resets the verified flag: only a completed booking can verify a document
+    document.verified = false;
+    document.lastUpdatedBy = 'owner';
 
     await document.save();
 

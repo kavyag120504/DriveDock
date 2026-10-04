@@ -37,6 +37,16 @@ export const upload = multer({
   }
 });
 
+/**
+ * Removes a file multer already wrote to disk when the request is then rejected,
+ * so refused uploads are not left behind in the publicly served uploads folder.
+ */
+export const discardUploadedFile = (file?: Express.Multer.File): void => {
+  if (file && fs.existsSync(file.path)) {
+    fs.unlinkSync(file.path);
+  }
+};
+
 export interface UploadResult {
   fileUrl: string;
   fileHash: string;

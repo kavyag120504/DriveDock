@@ -6,6 +6,7 @@ import { Vehicle } from '../models/Vehicle';
 import { DocumentModel, DocumentType } from '../models/Document';
 import { Reminder } from '../models/Reminder';
 import { processUploadedFile } from '../services/uploadService';
+import { ownerScope, canAccessBooking } from '../services/accessService';
 
 export const createBooking = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -13,6 +14,14 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
 
     if (!vehicleId || !providerId || !slotId || !documentType) {
       res.status(400).json({ success: false, message: 'vehicleId, providerId, slotId, and documentType are required' });
+      return;
+    }
+
+    // A booking can only be created for the caller's own vehicle (admin: any vehicle).
+    // Checked before the slot is claimed so a refused request never consumes a slot.
+    const vehicle = await Vehicle.findOne({ _id: vehicleId, ...ownerScope(req.user!) });
+    if (!vehicle) {
+      res.status(404).json({ success: false, message: 'Vehicle not found or unauthorized' });
       return;
     }
 
@@ -42,7 +51,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     }
 
     const booking = await Booking.create({
-      ownerId: req.user!.userId,
+      ownerId: vehicle.ownerId,
       vehicleId,
       providerId,
       slotId,
@@ -69,15 +78,16 @@ export const getBookings = async (req: Request, res: Response): Promise<void> =>
     const { role, userId } = req.user!;
     let query: Record<string, any> = {};
 
-    if (role === 'owner') {
-      query.ownerId = userId;
-    } else if (role === 'provider') {
+    if (role === 'provider') {
       const provider = await Provider.findOne({ userId });
       if (!provider) {
         res.status(200).json({ success: true, data: [] });
         return;
       }
       query.providerId = provider._id;
+    } else {
+      // Callers only see their own bookings; admin sees all
+      query = ownerScope(req.user!);
     }
 
     const bookings = await Booking.find(query)
@@ -96,16 +106,24 @@ export const getBookings = async (req: Request, res: Response): Promise<void> =>
 export const getBookingById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const booking = await Booking.findById(id)
-      .populate('vehicleId')
-      .populate('providerId')
-      .populate('slotId')
-      .populate('ownerId', 'name email phone');
+    const booking = await Booking.findById(id);
 
     if (!booking) {
       res.status(404).json({ success: false, message: 'Booking not found' });
       return;
     }
+
+    if (!(await canAccessBooking(req.user!, booking))) {
+      res.status(403).json({ success: false, message: 'Forbidden: you are not authorized to view this booking' });
+      return;
+    }
+
+    await booking.populate([
+      { path: 'vehicleId' },
+      { path: 'providerId' },
+      { path: 'slotId' },
+      { path: 'ownerId', select: 'name email phone' }
+    ]);
 
     res.status(200).json({ success: true, data: booking });
   } catch (error: any) {
