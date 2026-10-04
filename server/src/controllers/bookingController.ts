@@ -5,7 +5,7 @@ import { Provider } from '../models/Provider';
 import { Vehicle } from '../models/Vehicle';
 import { DocumentModel, DocumentType } from '../models/Document';
 import { Reminder } from '../models/Reminder';
-import { processUploadedFile } from '../services/uploadService';
+import { processUploadedFile, discardUploadedFile } from '../services/uploadService';
 import { ownerScope, canAccessBooking } from '../services/accessService';
 
 export const createBooking = async (req: Request, res: Response): Promise<void> => {
@@ -134,29 +134,78 @@ export const getBookingById = async (req: Request, res: Response): Promise<void>
 /**
  * CRITICAL TRUST RULE 1:
  * Provider completing a booking updates the document to verified: true with issuedByProviderId.
- * Only an approved provider completing a booking can make a document "verified".
+ * A document only becomes "verified" when all of these hold at the moment of completion:
+ * - the booking is confirmed (payment verified server-side)
+ * - the assigned provider is currently approved
+ * - a certificate file is uploaded (its SHA-256 is stored on the document)
  */
 export const updateBookingStatus = async (req: Request, res: Response): Promise<void> => {
+  // Removes the uploaded file before responding, so refused requests leave nothing in /uploads
+  const reject = (statusCode: number, message: string): void => {
+    discardUploadedFile(req.file);
+    res.status(statusCode).json({ success: false, message });
+  };
+
   try {
     const { id } = req.params;
     const { status, notes, expiryDate } = req.body;
 
     const booking = await Booking.findById(id);
     if (!booking) {
-      res.status(404).json({ success: false, message: 'Booking not found' });
+      reject(404, 'Booking not found');
       return;
     }
 
     // Verify caller is the assigned provider or admin
     const provider = await Provider.findById(booking.providerId);
     if (!provider) {
-      res.status(404).json({ success: false, message: 'Assigned provider not found' });
+      reject(404, 'Assigned provider not found');
       return;
     }
 
     if (req.user?.role !== 'admin' && provider.userId.toString() !== req.user?.userId) {
-      res.status(403).json({ success: false, message: 'Forbidden: you are not authorized to update this booking' });
+      reject(403, 'Forbidden: you are not authorized to update this booking');
       return;
+    }
+
+    let newExpiry: Date | null = null;
+
+    if (status) {
+      // "confirmed" is only ever set by server-side payment verification, never through this endpoint
+      if (status !== 'completed' && status !== 'cancelled') {
+        reject(400, 'Invalid status. Only completed or cancelled can be set on a booking');
+        return;
+      }
+
+      if (booking.status === 'completed' || booking.status === 'cancelled') {
+        reject(400, `Booking is already ${booking.status}`);
+        return;
+      }
+    }
+
+    if (status === 'completed') {
+      if (booking.status !== 'confirmed') {
+        reject(400, 'Booking must be paid and confirmed before it can be completed');
+        return;
+      }
+
+      if (provider.status !== 'approved') {
+        reject(403, 'Forbidden: provider is not approved to issue verified certificates');
+        return;
+      }
+
+      if (!req.file) {
+        reject(400, 'A certificate file is required to complete a booking');
+        return;
+      }
+
+      // Calculate new expiry date (default 1 year from today if not specified)
+      const now = new Date();
+      newExpiry = expiryDate ? new Date(expiryDate) : new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+      if (isNaN(newExpiry.getTime())) {
+        reject(400, 'expiryDate is not a valid date');
+        return;
+      }
     }
 
     if (status) {
@@ -178,17 +227,15 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
     }
 
     // When provider completes the job:
-    if (status === 'completed') {
-      // Calculate new expiry date (default 1 year from today if not specified)
+    if (status === 'completed' && newExpiry && certificateUrl && fileHash) {
       const now = new Date();
-      const newExpiry = expiryDate ? new Date(expiryDate) : new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
 
       // Update or create the Document record with verified: true!
       let doc = await DocumentModel.findOne({ vehicleId: booking.vehicleId, type: booking.documentType });
 
       if (doc) {
-        doc.fileUrl = certificateUrl || doc.fileUrl;
-        if (fileHash) doc.fileHash = fileHash;
+        doc.fileUrl = certificateUrl;
+        doc.fileHash = fileHash;
         doc.issueDate = now;
         doc.expiryDate = newExpiry;
         doc.status = 'valid';
@@ -200,8 +247,8 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
         doc = await DocumentModel.create({
           vehicleId: booking.vehicleId,
           type: booking.documentType,
-          fileUrl: certificateUrl || 'https://drivedock.internal/sample-certificate.pdf',
-          fileHash: fileHash || 'hash-verified-provider-cert',
+          fileUrl: certificateUrl,
+          fileHash,
           issueDate: now,
           expiryDate: newExpiry,
           status: 'valid',
@@ -213,12 +260,13 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
 
       // Schedule fresh reminders for the newly verified document (Trust Rule 7)
       await Reminder.deleteMany({ documentId: doc._id, sent: false });
+      const expiryTime = newExpiry.getTime();
       const thresholds = [30, 7, 1];
       const remindersToInsert = thresholds.map((days) => ({
         documentId: doc!._id,
         vehicleId: booking.vehicleId,
         ownerId: booking.ownerId,
-        scheduledFor: new Date(newExpiry.getTime() - days * 24 * 60 * 60 * 1000),
+        scheduledFor: new Date(expiryTime - days * 24 * 60 * 60 * 1000),
         thresholdDays: days,
         channel: 'push' as const,
         message: `Your vehicle's verified ${booking.documentType.toUpperCase()} certificate will expire in ${days} days.`,
