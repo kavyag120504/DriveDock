@@ -4,16 +4,17 @@ import { Booking } from '../models/Booking';
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
-  generateTestSignature
+  generateTestSignature,
+  SERVICE_FEES_INR
 } from '../services/paymentService';
 import { isOwnerOrAdmin } from '../services/accessService';
 
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { bookingId, amount } = req.body;
+    const { bookingId } = req.body;
 
-    if (!bookingId || !amount) {
-      res.status(400).json({ success: false, message: 'bookingId and amount are required' });
+    if (!bookingId) {
+      res.status(400).json({ success: false, message: 'bookingId is required' });
       return;
     }
 
@@ -29,8 +30,15 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    // The amount is decided here from the booking's document type; any client-sent amount is ignored
+    const amount = SERVICE_FEES_INR[booking.documentType];
+    if (!amount) {
+      res.status(400).json({ success: false, message: `No service fee configured for document type '${booking.documentType}'` });
+      return;
+    }
+
     const orderData = await createRazorpayOrder({
-      amount: Number(amount),
+      amount,
       receipt: `rcpt_${bookingId.toString().slice(-8)}`,
       notes: {
         bookingId: bookingId.toString(),
@@ -40,7 +48,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
     const payment = await Payment.create({
       bookingId: booking._id,
-      amount: Number(amount),
+      amount,
       razorpayOrderId: orderData.id,
       status: 'created'
     });

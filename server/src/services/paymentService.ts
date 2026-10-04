@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { ENV } from '../config/env';
+import { DocumentType } from '../models/Document';
 
 let razorpayInstance: Razorpay | null = null;
 if (ENV.RAZORPAY_KEY_ID && ENV.RAZORPAY_KEY_SECRET && !ENV.RAZORPAY_KEY_ID.includes('placeholder')) {
@@ -13,6 +14,18 @@ if (ENV.RAZORPAY_KEY_ID && ENV.RAZORPAY_KEY_SECRET && !ENV.RAZORPAY_KEY_ID.inclu
     console.warn('[PaymentService] Razorpay client init notice:', err);
   }
 }
+
+/**
+ * Service fee in INR per document type. The order amount is always decided here
+ * from the booking's document type, never taken from the client.
+ */
+export const SERVICE_FEES_INR: Record<DocumentType, number> = {
+  puc: 250,
+  insurance: 2400,
+  rc: 1000,
+  license: 1000,
+  fitness: 1000
+};
 
 export interface CreateOrderParams {
   amount: number; // in INR
@@ -62,7 +75,14 @@ export const verifyRazorpaySignature = (
   razorpayPaymentId: string,
   razorpaySignature: string
 ): boolean => {
-  if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+  if (
+    typeof razorpayOrderId !== 'string' ||
+    typeof razorpayPaymentId !== 'string' ||
+    typeof razorpaySignature !== 'string' ||
+    !razorpayOrderId ||
+    !razorpayPaymentId ||
+    !razorpaySignature
+  ) {
     return false;
   }
 
@@ -71,10 +91,15 @@ export const verifyRazorpaySignature = (
     .update(`${razorpayOrderId}|${razorpayPaymentId}`)
     .digest('hex');
 
-  return crypto.timingSafeEqual(
-    Buffer.from(generatedSignature, 'utf-8'),
-    Buffer.from(razorpaySignature, 'utf-8')
-  );
+  const expected = Buffer.from(generatedSignature, 'utf-8');
+  const received = Buffer.from(razorpaySignature, 'utf-8');
+
+  // timingSafeEqual throws on buffers of different length; a wrong-length signature is simply invalid
+  if (expected.length !== received.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expected, received);
 };
 
 /**
