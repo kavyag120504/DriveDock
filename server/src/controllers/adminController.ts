@@ -1,9 +1,74 @@
 import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import { User, UserRole } from '../models/User';
 import { Provider } from '../models/Provider';
 import { Vehicle } from '../models/Vehicle';
 import { DocumentModel } from '../models/Document';
 import { Violation } from '../models/Violation';
 import { Challan } from '../models/Challan';
+
+const STAFF_ROLES: UserRole[] = ['officer', 'government', 'admin'];
+
+/**
+ * Admin-only creation of staff accounts (officer, government, admin).
+ * These roles can never be obtained through public signup.
+ */
+export const createStaffUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { name, email, phone, password, role, address } = req.body;
+
+    if (!name || !email || !phone || !password || !role) {
+      res.status(400).json({ success: false, message: 'Name, email, phone, password, and role are required' });
+      return;
+    }
+
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      res.status(400).json({ success: false, message: 'Email and password must be strings' });
+      return;
+    }
+
+    if (!STAFF_ROLES.includes(role)) {
+      res.status(400).json({ success: false, message: 'Invalid role. Must be officer, government, or admin' });
+      return;
+    }
+
+    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existingUser) {
+      res.status(409).json({ success: false, message: 'Email already registered' });
+      return;
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    const user = await User.create({
+      name,
+      email: email.toLowerCase().trim(),
+      phone,
+      passwordHash,
+      role,
+      address: address || { city: '', state: '', pincode: '' }
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `${role} account created successfully`,
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          address: user.address
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error('[AdminController.createStaffUser] error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 /**
  * CRITICAL TRUST RULE 3: Admin Gatekeeping

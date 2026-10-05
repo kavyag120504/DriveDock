@@ -1,14 +1,15 @@
 import { Request, Response } from 'express';
 import { Challan } from '../models/Challan';
 import { Vehicle } from '../models/Vehicle';
+import { ownerScope } from '../services/accessService';
 
 export const getVehicleChallans = async (req: Request, res: Response): Promise<void> => {
   try {
     const { vehicleId } = req.params;
 
-    const vehicle = await Vehicle.findById(vehicleId);
+    const vehicle = await Vehicle.findOne({ _id: vehicleId, ...ownerScope(req.user!) });
     if (!vehicle) {
-      res.status(404).json({ success: false, message: 'Vehicle not found' });
+      res.status(404).json({ success: false, message: 'Vehicle not found or unauthorized' });
       return;
     }
 
@@ -36,6 +37,13 @@ export const payChallan = async (req: Request, res: Response): Promise<void> => 
     const challan = await Challan.findById(id);
     if (!challan) {
       res.status(404).json({ success: false, message: 'Challan not found' });
+      return;
+    }
+
+    // Only the owner of the challan's vehicle (or admin) can pay it
+    const vehicle = await Vehicle.findOne({ _id: challan.vehicleId, ...ownerScope(req.user!) });
+    if (!vehicle) {
+      res.status(404).json({ success: false, message: 'Challan not found or unauthorized' });
       return;
     }
 

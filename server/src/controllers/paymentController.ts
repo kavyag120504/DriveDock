@@ -4,15 +4,17 @@ import { Booking } from '../models/Booking';
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
-  generateTestSignature
+  generateTestSignature,
+  SERVICE_FEES_INR
 } from '../services/paymentService';
+import { isOwnerOrAdmin } from '../services/accessService';
 
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { bookingId, amount } = req.body;
+    const { bookingId } = req.body;
 
-    if (!bookingId || !amount) {
-      res.status(400).json({ success: false, message: 'bookingId and amount are required' });
+    if (!bookingId) {
+      res.status(400).json({ success: false, message: 'bookingId is required' });
       return;
     }
 
@@ -22,8 +24,21 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    // Only the booking's owner (or admin) can pay for it
+    if (!isOwnerOrAdmin(req.user!, booking.ownerId)) {
+      res.status(403).json({ success: false, message: 'Forbidden: you are not authorized to pay for this booking' });
+      return;
+    }
+
+    // The amount is decided here from the booking's document type; any client-sent amount is ignored
+    const amount = SERVICE_FEES_INR[booking.documentType];
+    if (!amount) {
+      res.status(400).json({ success: false, message: `No service fee configured for document type '${booking.documentType}'` });
+      return;
+    }
+
     const orderData = await createRazorpayOrder({
-      amount: Number(amount),
+      amount,
       receipt: `rcpt_${bookingId.toString().slice(-8)}`,
       notes: {
         bookingId: bookingId.toString(),
@@ -33,7 +48,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
     const payment = await Payment.create({
       bookingId: booking._id,
-      amount: Number(amount),
+      amount,
       razorpayOrderId: orderData.id,
       status: 'created'
     });
@@ -77,14 +92,32 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Perform strict HMAC SHA256 verification
-    const isValid = verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
-
     const payment = await Payment.findOne({ razorpayOrderId });
     if (!payment) {
       res.status(404).json({ success: false, message: 'Payment record for order not found' });
       return;
     }
+
+    // Only the owner of the booking this payment was created for (or admin) can verify it
+    const booking = await Booking.findById(payment.bookingId);
+    if (!booking) {
+      res.status(404).json({ success: false, message: 'Booking not found' });
+      return;
+    }
+
+    if (!isOwnerOrAdmin(req.user!, booking.ownerId)) {
+      res.status(403).json({ success: false, message: 'Forbidden: you are not authorized to verify this payment' });
+      return;
+    }
+
+    // A payment can only confirm the booking its order was created for
+    if (bookingId && bookingId.toString() !== booking._id.toString()) {
+      res.status(400).json({ success: false, message: 'bookingId does not match the booking for this payment order' });
+      return;
+    }
+
+    // Perform strict HMAC SHA256 verification
+    const isValid = verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
 
     if (!isValid) {
       payment.status = 'failed';
@@ -104,9 +137,8 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
     await payment.save();
 
     // Mark the associated booking as 'confirmed'
-    const targetBookingId = bookingId || payment.bookingId;
     const updatedBooking = await Booking.findByIdAndUpdate(
-      targetBookingId,
+      booking._id,
       { status: 'confirmed' },
       { new: true }
     );

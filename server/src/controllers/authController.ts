@@ -4,12 +4,22 @@ import { User, UserRole } from '../models/User';
 import { Provider } from '../models/Provider';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../services/tokenService';
 
+const PUBLIC_SIGNUP_ROLES: UserRole[] = ['owner', 'provider'];
+
 export const signup = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, email, phone, password, role, address, businessName, serviceTypes, coordinates } = req.body;
 
     if (!name || !email || !phone || !password) {
       res.status(400).json({ success: false, message: 'Name, email, phone, and password are required' });
+      return;
+    }
+
+    // Public signup may only create owner or provider accounts.
+    // Officer, government and admin accounts are created by an admin (POST /admin/users).
+    const userRole: UserRole = role === undefined ? 'owner' : role;
+    if (!PUBLIC_SIGNUP_ROLES.includes(userRole)) {
+      res.status(400).json({ success: false, message: 'Invalid role. Signup is only available for owner or provider accounts' });
       return;
     }
 
@@ -21,8 +31,6 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
-
-    const userRole: UserRole = role || 'owner';
 
     const user = await User.create({
       name,

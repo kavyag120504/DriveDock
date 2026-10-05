@@ -5,6 +5,7 @@ import { DocumentModel } from '../models/Document';
 import { Reminder } from '../models/Reminder';
 import { Challan } from '../models/Challan';
 import { generateQRToken } from '../services/qrService';
+import { ownerScope } from '../services/accessService';
 
 export const createVehicle = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -49,8 +50,8 @@ export const createVehicle = async (req: Request, res: Response): Promise<void> 
 
 export const getVehicles = async (req: Request, res: Response): Promise<void> => {
   try {
-    // If owner, return their own vehicles. If officer/admin/gov, can view all or search
-    const query = req.user?.role === 'owner' ? { ownerId: req.user.userId } : {};
+    // Callers only see their own vehicles; admin sees all
+    const query = ownerScope(req.user!);
     const vehicles = await Vehicle.find(query).sort({ createdAt: -1 });
 
     // Attach document summary for each vehicle
@@ -80,10 +81,10 @@ export const getVehicles = async (req: Request, res: Response): Promise<void> =>
 export const getVehicleById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const vehicle = await Vehicle.findById(id).populate('ownerId', 'name email phone');
+    const vehicle = await Vehicle.findOne({ _id: id, ...ownerScope(req.user!) }).populate('ownerId', 'name email phone');
 
     if (!vehicle) {
-      res.status(404).json({ success: false, message: 'Vehicle not found' });
+      res.status(404).json({ success: false, message: 'Vehicle not found or unauthorized' });
       return;
     }
 
@@ -112,7 +113,7 @@ export const updateVehicle = async (req: Request, res: Response): Promise<void> 
   try {
     const { id } = req.params;
     const vehicle = await Vehicle.findOneAndUpdate(
-      { _id: id, ownerId: req.user!.userId },
+      { _id: id, ...ownerScope(req.user!) },
       req.body,
       { new: true }
     );
@@ -131,7 +132,7 @@ export const updateVehicle = async (req: Request, res: Response): Promise<void> 
 export const deleteVehicle = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const vehicle = await Vehicle.findOneAndDelete({ _id: id, ownerId: req.user!.userId });
+    const vehicle = await Vehicle.findOneAndDelete({ _id: id, ...ownerScope(req.user!) });
 
     if (!vehicle) {
       res.status(404).json({ success: false, message: 'Vehicle not found or unauthorized' });
@@ -155,10 +156,10 @@ export const deleteVehicle = async (req: Request, res: Response): Promise<void> 
 export const getVehicleQRToken = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const vehicle = await Vehicle.findById(id);
+    const vehicle = await Vehicle.findOne({ _id: id, ...ownerScope(req.user!) });
 
     if (!vehicle) {
-      res.status(404).json({ success: false, message: 'Vehicle not found' });
+      res.status(404).json({ success: false, message: 'Vehicle not found or unauthorized' });
       return;
     }
 

@@ -7,7 +7,7 @@ import bookingRoutes from './bookingRoutes';
 import paymentRoutes from './paymentRoutes';
 import reminderRoutes from './reminderRoutes';
 import verificationRoutes from './verificationRoutes';
-import officerRoutes from './officerRoutes';
+import officerRoutes, { violationRoutes } from './officerRoutes';
 import challanRoutes from './challanRoutes';
 import adminRoutes from './adminRoutes';
 import stationRoutes from './stationRoutes';
@@ -26,7 +26,7 @@ router.use('/payments', paymentRoutes);
 router.use('/reminders', reminderRoutes);
 router.use('/public', verificationRoutes);
 router.use('/officer', officerRoutes);
-router.use('/violations', officerRoutes);
+router.use('/violations', violationRoutes);
 router.use('/challans', challanRoutes);
 router.use('/admin', adminRoutes);
 
