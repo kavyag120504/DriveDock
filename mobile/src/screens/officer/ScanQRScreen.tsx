@@ -66,7 +66,7 @@ export const ScanQRScreen = ({ navigation }: any) => {
             </View>
           ) : (
             <CameraView
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               facing="back"
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={onBarcodeScanned}

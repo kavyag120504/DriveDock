@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, ScrollView, TextInput, Alert, Platform
 } from 'react-native';
-import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Circle, PROVIDER_GOOGLE } from '../../components/Map';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadow, BorderRadius } from '../../theme/colors';
@@ -143,7 +143,7 @@ export const StationMapScreen = ({ navigation }: any) => {
         {initialRegion ? (
           <MapView
             ref={mapRef}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             provider={Platform.OS === 'web' ? undefined : PROVIDER_GOOGLE}
             initialRegion={initialRegion}
             showsUserLocation
