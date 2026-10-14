@@ -86,7 +86,7 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
                   </View>
                   <StatusPill
                     label={b.status.toUpperCase()}
-                    type={isCompleted ? 'compliant' : isConfirmed ? 'primary' : 'warning'}
+                    type={isCompleted ? 'compliant' : isConfirmed ? 'pending' : 'warning'}
                   />
                 </View>
 

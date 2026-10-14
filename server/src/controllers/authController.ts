@@ -232,3 +232,14 @@ export const updatePushToken = async (req: Request, res: Response): Promise<void
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (req.user) {
+      await User.findByIdAndUpdate(req.user.userId, { expoPushToken: '' });
+    }
+    res.status(200).json({ success: true, message: 'Logged out successfully' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

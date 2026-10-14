@@ -13,7 +13,13 @@
       "backgroundColor": "#0F172A"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "DriveDock needs your location to find nearby service providers.",
+        "NSLocationAlwaysUsageDescription": "DriveDock needs your location to find nearby service providers.",
+        "NSPhotoLibraryUsageDescription": "Allow DriveDock to access your photos to upload compliance documents.",
+        "NSCameraUsageDescription": "Allow DriveDock to use the camera to photograph compliance documents and scan QR codes."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,8 +27,19 @@
         "backgroundColor": "#0F172A"
       },
       "permissions": [
-        "CAMERA"
-      ]
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -31,10 +48,36 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow DriveDock to scan compliance QR codes"
+          "cameraPermission": "Allow DriveDock to scan compliance QR codes and photograph documents."
         }
       ],
-      "expo-asset"
-    ]
+      "expo-asset",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1D4ED8",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow DriveDock to access your photos to upload compliance documents.",
+          "cameraPermission": "Allow DriveDock to use the camera to photograph compliance documents."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow DriveDock to find nearby certified service providers."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    }
   }
 }

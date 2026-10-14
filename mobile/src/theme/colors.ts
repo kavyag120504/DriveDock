@@ -44,11 +44,9 @@ export const Colors = {
   government: '#B45309',
   admin: '#BE185D',
 
-  // Backward-compatible aliases (keep old screens compiling)
+  // Extra aliases
   surfaceLight: '#F7F8FA',
   borderHighlight: '#C5CCE0',
-  nonCompliantBg: '#FEF2F2',
-  nonCompliantBorder: '#FECACA',
 };
 
 export const Spacing = {
