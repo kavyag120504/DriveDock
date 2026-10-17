@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { AuthAPI } from '../api/endpoints';
 import { Storage } from '../utils/storage';
+import { registerPushToken } from '../utils/notifications';
 
 export type UserRole = 'owner' | 'provider' | 'officer' | 'government' | 'admin';
 
@@ -63,6 +64,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
         isLoading: false
       });
+      registerPushToken();
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Login failed. Please check credentials.';
       set({ error: msg, isLoading: false });
@@ -83,6 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
         isLoading: false
       });
+      registerPushToken();
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Signup failed.';
       set({ error: msg, isLoading: false });
@@ -98,6 +101,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    try { await AuthAPI.logout(); } catch { /* server call is best-effort */ }
     await Storage.clearAuth();
     set({
       user: null,
@@ -124,6 +128,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
         isLoading: false
       });
+      registerPushToken();
     } catch (err) {
       await Storage.clearAuth();
       set({ isAuthenticated: false, user: null, role: null, isLoading: false });

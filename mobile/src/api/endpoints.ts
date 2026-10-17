@@ -3,6 +3,7 @@ import { apiClient } from './client';
 export const AuthAPI = {
   login: (data: { email: string; password: string }) => apiClient.post('/auth/login', data),
   signup: (data: any) => apiClient.post('/auth/signup', data),
+  logout: () => apiClient.post('/auth/logout'),
   getMe: () => apiClient.get('/auth/me'),
   updatePushToken: (token: string) => apiClient.post('/users/push-token', { token })
 };
