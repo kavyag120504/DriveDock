@@ -1,0 +1,205 @@
+# DriveDock — CLAUDE.md
+
+Read this first. It is the shared, current picture of the project for both teammates and for Claude Code sessions. Update it in the same PR whenever you change how the project runs or what it guarantees.
+
+Last updated: 2026-10-17
+
+## What DriveDock is
+
+A multi-role vehicle compliance platform. Other apps store photos of vehicle papers; DriveDock proves they are genuine.
+
+| Real-world problem | DriveDock's idea |
+|---|---|
+| Papers (RC, insurance, PUC, licence, fitness) are scattered | One "Vehicle Passport" per vehicle |
+| A photo of a document can be faked | A document is verified only when an approved provider issues it after a paid, completed service |
+| Officers can't check genuineness on the spot | Owner shows a QR code; officer scans it and gets GREEN or RED with reasons |
+| A QR screenshot could be reused | QR is a signed token that expires after 2 minutes |
+| Anyone could pose as a testing centre | Providers must be approved by an admin |
+| Owners miss renewal dates | Reminders at 30, 7 and 1 day before expiry |
+| Renewing means queuing | Find approved stations nearby, book a slot, pay in the app |
+| Paper fines are hard to track | Officer logs a violation and a digital e-challan is issued |
+| Authorities lack a live picture | Government dashboard: compliance rate, regions, document trends |
+
+Five roles: **owner, provider, officer, government, admin**.
+
+## Repo layout
+
+```
+mobile/   Expo (React Native) app, all five roles
+server/   Node.js + Express + TypeScript + MongoDB (Mongoose) API
+.sf/      Salesforce tooling metadata, not part of the app (a local tool keeps rewriting
+          catalog.json; don't commit changes to it)
+```
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Mobile | Expo **SDK 57** (React 19.2, React Native 0.86), managed workflow |
+| Navigation | React Navigation (stack + bottom tabs, picked by role in `RootNavigator.tsx`) |
+| State | Zustand (auth), TanStack Query (server data) |
+| Backend | Express + TypeScript, run with ts-node-dev |
+| Database | MongoDB via Mongoose |
+| Auth | JWT access token (15 min) + refresh token (7 days); expo-secure-store on device, localStorage on web |
+| Uploads | Local `server/uploads/` (AWS S3 if AWS keys are set) |
+| Payments | Razorpay test flow with server-side HMAC verification (see "Known gaps") |
+| Push | expo-notifications + Expo Push API |
+| Maps | react-native-maps on phones; a placeholder on web (`src/components/Map.web.tsx`) |
+| QR | react-native-qrcode-svg to show, expo-camera to scan |
+
+## Running it locally
+
+### 1. Database
+
+`npm run seed` **deletes every collection** before seeding. Don't point it at a database you care about. Use a throwaway one, for example:
+
+```bash
+mkdir -p /tmp/drivedock-db && mongod --dbpath /tmp/drivedock-db --port 27018
+```
+
+### 2. Server
+
+Create `server/.env` (git-ignored):
+
+```
+MONGO_URI=mongodb://127.0.0.1:27018/drivedock
+PORT=5001
+```
+
+Use a port other than 5000 on a Mac: macOS AirPlay Receiver already listens on 5000 and the server fails with `EADDRINUSE`.
+
+```bash
+cd server
+npm install
+npm run seed     # wipes and re-seeds demo data
+npm run dev      # http://localhost:5001/api/health should return 200
+```
+
+Every other setting in `server/src/config/env.ts` has a built-in development default (see "Known gaps").
+
+### 3. Mobile
+
+Create `mobile/.env` (git-ignored) pointing at the server. A phone can't reach `localhost` on your computer, so use the computer's LAN IP:
+
+```
+EXPO_PUBLIC_API_URL=http://<your-computer-LAN-IP>:5001/api/v1
+```
+
+Without it the app falls back to `http://localhost:5000/api/v1`.
+
+```bash
+cd mobile
+npm install
+npx expo start --clear
+```
+
+- **Phone:** install Expo Go (it must support SDK 57), connect to the same Wi-Fi, scan the QR code.
+- **Browser:** press `w`, or open http://localhost:8081. Maps show a placeholder and the camera may not work.
+- **Push notifications do not arrive in Expo Go on Android** (removed in SDK 53). They need the APK build below.
+
+### 4. Demo accounts (after `npm run seed`, all passwords `password123`)
+
+| Role | Email |
+|---|---|
+| Owner | owner@drivedock.com |
+| Provider (approved) | provider@drivedock.com |
+| Provider (pending, hidden from search) | pending.provider@drivedock.com |
+| Officer | officer@drivedock.com |
+| Government | gov@drivedock.com |
+| Admin | admin@drivedock.com |
+
+The login screen also has one-tap demo buttons per role.
+
+Seeded vehicles: `MH01AB1234` scans GREEN, `MH02CD5678` scans RED, and `MH04EF9012` has a PUC expiring in 5 days with a due reminder.
+
+## Trust rules the server enforces
+
+These are the product's core promise. Don't weaken them without discussing it with the team.
+
+1. **Only a completed service verifies a document.** `verified: true` is set only when a provider completes a booking, and only if all of these hold:
+   - the booking is `confirmed` (payment verified);
+   - the provider is `approved` at that moment;
+   - a certificate file is uploaded. Its real SHA-256 is stored as `fileHash`.
+
+   An owner's upload or manual edit always leaves or resets `verified: false`. Providers cannot set `confirmed` themselves; the status endpoint accepts only `completed` or `cancelled`.
+2. **GREEN means all five documents exist, are valid, not expired, and verified.** Anything else is RED with reasons.
+3. **Rotating QR.** `GET /vehicles/:id/qr-token` returns a JWT signed with `QR_SECRET` that expires in 120 s. `GET /public/verify?token=` checks it; a forged or edited token returns 401.
+4. **Atomic slot booking.** `Slot.findOneAndUpdate({ _id, isBooked: false }, { isBooked: true })`. If nothing matches, the slot was taken and the API returns 409.
+5. **Provider approval gate.** Only `approved` providers appear in search, take bookings or complete them. Admin sets status via `PATCH /admin/providers/:id/status`.
+6. **Payments.**
+   - The server sets the amount from the booking's document type (`SERVICE_FEES_INR` in `paymentService.ts`: PUC 250, insurance 2400, others 1000) and ignores any amount from the client.
+   - The signature is an HMAC-SHA256 of `orderId|paymentId`; a bad or wrong-length signature returns 400.
+   - A payment can only confirm the booking its order was created for.
+7. **Ownership on every record.** Shared helpers live in `server/src/services/accessService.ts`.
+   - An owner reaches only their own vehicles, documents, bookings, payments, reminders and challans.
+   - A provider reaches only bookings assigned to them. Admin reaches everything.
+   - Vehicle-keyed lookups return 404 when not allowed; booking- and payment-keyed lookups return 403.
+   - Officer and government accounts currently get empty vehicle and booking lists.
+8. **Roles.** Public signup accepts only `owner` or `provider`; any other role returns 400. Officer, government and admin accounts are created by an admin with `POST /api/v1/admin/users`. The seed script creates its demo accounts directly.
+9. **Reminders are "due and not sent".** The job processes `scheduledFor <= now AND sent: false`, so it catches up after downtime. It runs daily at 00:00 (node-cron), and `POST /reminders/trigger-job` with header `x-internal-job-secret` runs it on demand.
+
+## API notes
+
+- Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/public/verify` and `/reminders/trigger-job` (internal secret instead).
+- Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`.
+- `POST /auth/logout` clears the user's push token.
+
+## Building the APK
+
+Fill these placeholders first:
+
+1. **Google Maps key:** replace `YOUR_GOOGLE_MAPS_API_KEY` in `mobile/app.json` (Google Cloud → Maps SDK for Android). Maps show grey tiles without it.
+2. **EAS project:** run `npx eas login` and then `npx eas project:init` in `mobile/`. This fills `YOUR_EAS_PROJECT_ID` in `app.json`, which push tokens need.
+
+Then build:
+
+```bash
+cd mobile
+npx eas build --platform android --profile preview   # installable .apk
+```
+
+Remember the APK talks to whatever `EXPO_PUBLIC_API_URL` was at build time.
+
+## Known gaps (not fixed yet)
+
+- **Payments can be self-confirmed.** `create-order` returns `testSignatureHelper`, a valid signature the app sends straight back, so "confirmed" doesn't yet mean money moved. Razorpay is never really called: test keys are placeholders and the server falls back to a made-up order id. Real checkout is a planned task.
+- **Default secrets are in source.** `server/src/config/env.ts` has fallback JWT, QR, job and Razorpay secrets; anyone with the repo can forge tokens unless `.env` overrides them. Set real values before any deployment.
+- **`PATCH /vehicles/:id` writes the request body straight to the record**, so an owner can change `ownerId`, `regNumber` or `qrCodeId` on their own vehicle.
+- **Slots are never released** when a booking is cancelled or never paid.
+- **Challans:** `PATCH /challans/:id/pay` marks a challan paid without any payment, and officers can send any `penaltyAmount`.
+- **Public exposure:** `/public/verify` returns the owner's name and phone, and `/uploads` serves certificates to anyone with the URL.
+- **Expiry date:** a provider can set any `expiryDate` when completing a booking.
+- **Reminders:** the job marks a reminder sent even when the owner has no push token.
+- **Officer and government roles** may need read access to vehicles. That's a product decision.
+- **Encoding:** some mobile source files are saved as Windows-1252, not UTF-8, so a few dashes and bullets render as �. Edit them byte-safely or convert them deliberately.
+
+## Out of scope
+
+- EV charging module (`fuelType: "ev"` exists in the schema only).
+- Real VAHAN integration; the government dashboard uses seeded or aggregated data.
+- `expo-barcode-scanner` is removed from recent SDKs; use expo-camera's barcode scanning.
+
+## Key files
+
+| File | Purpose |
+|---|---|
+| `server/src/services/accessService.ts` | Ownership rule helpers (`ownerScope`, `isOwnerOrAdmin`, `canAccessBooking`) |
+| `server/src/controllers/bookingController.ts` | Atomic booking and completion rules (sets `verified: true`) |
+| `server/src/controllers/paymentController.ts`, `services/paymentService.ts` | Server-side amount, HMAC verification |
+| `server/src/controllers/verificationController.ts`, `services/qrService.ts` | GREEN/RED check, rotating QR tokens |
+| `server/src/controllers/authController.ts`, `adminController.ts` | Signup role limits, logout, admin staff creation |
+| `server/src/routes/index.ts`, `routes/officerRoutes.ts` | Route mounting, including violations |
+| `server/src/controllers/reminderController.ts`, `cron/reminderCron.ts` | Reminder job |
+| `server/scripts/seed.ts` | Demo data (wipes the database first) |
+| `mobile/src/api/client.ts`, `api/endpoints.ts` | API base URL (`EXPO_PUBLIC_API_URL`) and calls |
+| `mobile/src/store/authStore.ts`, `utils/notifications.ts` | Auth flow, push token registration |
+| `mobile/src/navigation/RootNavigator.tsx` | Chooses the navigator by role |
+| `mobile/src/components/Map.tsx`, `Map.web.tsx` | Native map and web placeholder |
+| `mobile/app.json`, `mobile/eas.json` | Expo config and APK build profiles |
+
+## Working conventions
+
+- Work on a branch and open a PR into `master`. Keep one commit per logical change.
+- **No Claude attribution:** don't add `Co-Authored-By: Claude` trailers or "Generated with Claude Code" lines to commits or PRs.
+- Before pushing, run `npx tsc --noEmit` in `mobile/` and in `server/`, and `npx expo-doctor` in `mobile/`.
+- When upgrading Expo, use `npx expo install --fix` so native packages match the SDK.
