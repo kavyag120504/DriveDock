@@ -6,12 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0F172A"
-    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -52,6 +46,7 @@
         }
       ],
       "expo-asset",
+      "expo-font",
       [
         "expo-notifications",
         {
@@ -71,6 +66,14 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Allow DriveDock to find nearby certified service providers."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0F172A"
         }
       ]
     ],

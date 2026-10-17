@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { Storage } from '../utils/storage';
 
-// In development, default to localhost:5000 or the local development network IP
-export const API_BASE_URL = 'http://localhost:5000/api/v1';
+// Set EXPO_PUBLIC_API_URL in mobile/.env to point at the API (e.g. the dev machine's LAN IP for a phone).
+// Defaults to localhost:5000.
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
