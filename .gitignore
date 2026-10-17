@@ -47,3 +47,6 @@ Thumbs.db
 # Uploads / temp files
 uploads/
 tmp/
+
+# Salesforce VS Code / CLI cache (not part of DriveDock)
+.sf/
