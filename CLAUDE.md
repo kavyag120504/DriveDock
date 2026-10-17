@@ -2,7 +2,7 @@
 
 Read this first. It is the shared, current picture of the project for both teammates and for Claude Code sessions. Update it in the same PR whenever you change how the project runs or what it guarantees.
 
-Last updated: 2026-10-17
+Last updated: 2026-10-17 (added "Roadmap: from demo to live")
 
 ## What DriveDock is
 
@@ -172,6 +172,94 @@ Remember the APK talks to whatever `EXPO_PUBLIC_API_URL` was at build time.
 - **Reminders:** the job marks a reminder sent even when the owner has no push token.
 - **Officer and government roles** may need read access to vehicles. That's a product decision.
 - **Encoding:** some mobile source files are saved as Windows-1252, not UTF-8, so a few dashes and bullets render as �. Edit them byte-safely or convert them deliberately.
+
+## Roadmap: from demo to live
+
+Goal: real people sign up, add real vehicles and documents, pay real money, and get real results, with nothing faked or hard-coded. Work the phases in order; each one depends on the one before. Tick items off in this file as they land.
+
+### What's still demo today
+
+| Where | What's fake or fixed |
+|---|---|
+| `LoginScreen.tsx`, `authStore.ts` | "FINAL YEAR PROJECT · PITCH DEMO" text, one-tap role switcher, `DEMO_CREDENTIALS` with `password123` |
+| `BookSlotScreen.tsx` | Fee worked out in the app; payment "completed" by sending back the server's `testSignatureHelper` with a made-up `pay_rzp_…` id; no date picker |
+| `paymentService.ts` | Placeholder Razorpay keys; falls back to a made-up order id |
+| `OwnerChallansScreen.tsx`, `challanController.ts` | "Pay" marks the challan paid with no payment |
+| `VehicleDetailScreen.tsx` | Upload sets issue date = today and expiry = +1 year instead of asking; images only, no PDF or camera |
+| `CompleteBookingScreen.tsx` | Expiry always +1 year |
+| `ManageSlotsScreen.tsx` | "Generate" always creates the same five slots for today |
+| `StationMapScreen.tsx` | Silently falls back to Mumbai when location is denied; no Google Maps key |
+| `ScanQRScreen.tsx` | Manual "paste JWT" box alongside the camera |
+| `LogViolationScreen.tsx` | Officer types any penalty amount |
+| Server | Seeded data, default secrets, local-disk uploads, only runs on a laptop |
+
+### Phase 0: accounts and infrastructure (blocks everything else)
+
+| Need | Why | Who sets it up |
+|---|---|---|
+| Hosted API with HTTPS (e.g. Render, Railway or Fly.io) | Phones outside your Wi-Fi can't reach a laptop | Team |
+| MongoDB Atlas cluster (production DB, never seeded) | Real data that survives restarts | Team |
+| Real secrets in the host's env (`JWT_*`, `QR_SECRET`, `INTERNAL_JOB_SECRET`) | Defaults in source let anyone forge tokens | Team |
+| AWS S3 bucket (private) or similar | Uploads on local disk vanish on redeploy and are public | Team |
+| Razorpay account: test keys now, live keys after KYC | Real payments | Account owner |
+| Google Maps API key (Maps SDK for Android/iOS) | Map tiles in builds | Account owner |
+| EAS project (`npx eas project:init`) and Expo account | Development builds, APKs and push tokens | Account owner |
+
+Exit check: `GET https://<api-host>/api/health` returns 200 from a phone on mobile data, and the app's `EXPO_PUBLIC_API_URL` points at it.
+
+### Phase 1: switch from Expo Go to a development build
+
+Razorpay's native checkout, push notifications on Android and Google Maps don't work in Expo Go. Make a development build once (`npx eas build --profile development`), install it on the test phones, and use it instead of Expo Go from here on. Expo Go can stay for quick UI-only checks.
+
+### Phase 2: real accounts
+
+- [ ] Hide the demo role switcher, "PITCH DEMO" text and `DEMO_CREDENTIALS` outside development (`__DEV__`), or remove them.
+- [ ] Bootstrap script that creates the first admin on the production DB from env values. Don't run the seed there.
+- [ ] Admin screen to create officer and government accounts (the API `POST /admin/users` exists; there's no screen yet).
+- [ ] Provider sign-up → pending → admin approves (the API and screens exist; test it end to end).
+- [ ] Password rules on signup; "forgot password" needs an email or SMS provider (decide which).
+
+### Phase 3: owner screens use real input
+
+- [ ] Add vehicle: validate the registration-number format and show server errors (duplicate plate returns 409).
+- [ ] Document upload: owner picks issue and expiry dates; allow the camera and PDFs as well as gallery photos.
+- [ ] Stations: real GPS; if permission is denied, ask the user for a city or PIN code instead of silently using Mumbai.
+- [ ] Booking: date picker, then only that date's free slots; show the price the server returns (not one worked out in the app).
+
+### Phase 4: real payments (bookings and challans)
+
+- [ ] Server: create real Razorpay orders with real keys; remove `testSignatureHelper`.
+- [ ] App: open Razorpay checkout (`react-native-razorpay` in the development build) and send the real `razorpay_payment_id` and signature to `/payments/verify`.
+- [ ] Server: add a Razorpay webhook (`payment.captured`), verified with the webhook secret, so a booking confirms even if the app closes mid-payment.
+- [ ] Release a slot when its booking is cancelled or stays unpaid for N minutes.
+- [ ] Challans: pay through the same Razorpay flow; remove the "mark paid" shortcut.
+- [ ] Penalty amounts come from the server's fee table, not typed by the officer.
+
+### Phase 5: provider and officer screens
+
+- [ ] Provider slots: choose dates, times and how many, instead of five fixed slots for today.
+- [ ] Complete booking: certificate required (camera, gallery or PDF); provider enters the issue and expiry dates, within limits the server checks.
+- [ ] Officer: camera scanning only in production (keep the paste box for development); the violation form starts from the scanned vehicle.
+
+### Phase 6: notifications, storage and privacy
+
+- [ ] Push reminders work in the development build and APK; the job only marks a reminder sent when Expo accepts it.
+- [ ] Uploads go to private S3; the app gets short-lived signed URLs.
+- [ ] `/public/verify` returns only what an officer needs (no owner phone number).
+- [ ] Rate-limit login and signup; tighten `PATCH /vehicles/:id` to the fields an owner may change.
+
+### Phase 7: release
+
+- [ ] Preview APK from the hosted API (`npx eas build --platform android --profile preview`).
+- [ ] End-to-end test on two phones: owner signs up → adds vehicle → books and pays → provider completes with a certificate → officer scans → GREEN.
+- [ ] Switch Razorpay to live keys only after the full flow passes in test mode.
+
+### Decisions the team needs to make
+
+- Hosting provider for the API (affects cost and cold starts).
+- Whether the demo login stays available in the APK for evaluators (behind a hidden switch) or goes completely.
+- Fee table (currently PUC 250, insurance 2400, others 1000) and challan penalties.
+- Email or SMS provider for password reset and notifications, if wanted.
 
 ## Out of scope
 
