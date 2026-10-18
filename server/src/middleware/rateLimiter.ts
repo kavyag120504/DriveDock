@@ -7,16 +7,25 @@ interface Window {
 
 const store = new Map<string, Window>();
 
+// req.ip honours the app's 'trust proxy' setting (TRUST_PROXY), so a client-sent
+// X-Forwarded-For header can't be used to get a fresh limit on every request
 function getKey(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  const ip = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.socket.remoteAddress ?? 'unknown';
-  return ip;
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
+
+// Drop expired windows now and then so the in-memory store doesn't grow without bound
+const MAX_TRACKED_KEYS = 10000;
+function pruneExpired(now: number): void {
+  for (const [key, entry] of store) {
+    if (now > entry.resetAt) store.delete(key);
+  }
 }
 
 export function rateLimiter(maxRequests: number, windowMs: number) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const key = getKey(req);
     const now = Date.now();
+    if (store.size > MAX_TRACKED_KEYS) pruneExpired(now);
     const entry = store.get(key);
 
     if (!entry || now > entry.resetAt) {

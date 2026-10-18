@@ -4,6 +4,9 @@ dotenv.config();
 export const ENV = {
   PORT: process.env.PORT || '5000',
   NODE_ENV: process.env.NODE_ENV || 'development',
+  // Number of reverse proxies in front of the API (e.g. 1 on Render/Railway/Fly). 0 = connect directly.
+  // Express only trusts that many X-Forwarded-For entries, so clients can't spoof their IP.
+  TRUST_PROXY: parseInt(process.env.TRUST_PROXY || '0', 10) || 0,
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/drivedock',
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || 'drivedock_jwt_access_secret_super_secure_key_2026',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'drivedock_jwt_refresh_secret_super_secure_key_2026',

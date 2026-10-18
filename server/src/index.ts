@@ -10,6 +10,9 @@ import { initCronJobs } from './cron/reminderCron';
 
 const app = express();
 
+// Only trust X-Forwarded-For from the configured number of proxy hops; req.ip is then the real client IP
+app.set('trust proxy', ENV.TRUST_PROXY);
+
 // Ensure uploads folder exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
