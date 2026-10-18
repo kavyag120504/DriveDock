@@ -10,11 +10,12 @@ export interface PushNotificationPayload {
 
 export const sendPushNotification = async (payload: PushNotificationPayload): Promise<boolean> => {
   if (!payload.to || !payload.to.startsWith('ExponentPushToken[')) {
-    console.log(`[NotificationService] Mock dispatch (token not standard Expo token: ${payload.to}):`, {
+    // Not an Expo push token, so nothing can be delivered; report failure so the reminder stays queued
+    console.log(`[NotificationService] Skipped (not an Expo push token: ${payload.to || 'none'}):`, {
       title: payload.title,
       body: payload.body
     });
-    return true;
+    return false;
   }
 
   try {
@@ -38,9 +39,13 @@ export const sendPushNotification = async (payload: PushNotificationPayload): Pr
       })
     });
 
-    const result = await response.json();
-    console.log('[NotificationService] Expo push result:', result);
-    return true;
+    const result: any = await response.json().catch(() => null);
+    console.log('[NotificationService] Expo push result:', JSON.stringify(result));
+
+    // Expo answers 200 even when it rejects a message (e.g. DeviceNotRegistered); the outcome is in
+    // data.status ('ok' | 'error'). data is an object for one message, an array for a batch.
+    const ticket = Array.isArray(result?.data) ? result.data[0] : result?.data;
+    return response.ok && ticket?.status === 'ok';
   } catch (error) {
     console.error('[NotificationService] Push notification send error:', error);
     return false;
