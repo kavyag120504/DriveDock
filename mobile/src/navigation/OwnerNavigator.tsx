@@ -36,10 +36,7 @@ export const OwnerNavigator = () => (
       headerShown: false,
       tabBarStyle: {
         backgroundColor: Colors.surface,
-        borderTopColor: Colors.border,
-        height: 62,
-        paddingBottom: 8,
-        paddingTop: 8,
+        borderTopColor: Colors.border
       },
       tabBarActiveTintColor: Colors.primary,
       tabBarInactiveTintColor: Colors.textMuted,

@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingTop: 48,
+    paddingTop: 16,
     paddingBottom: 60
   },
   backBtn: {

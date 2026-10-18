@@ -142,7 +142,7 @@ export const LoginScreen = ({ navigation }: any) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 20, paddingTop: 52, paddingBottom: 60 },
+  content: { padding: 20, paddingTop: 20, paddingBottom: 60 },
 
   // Brand
   brandHeader: { marginBottom: 28 },

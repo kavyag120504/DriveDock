@@ -15,10 +15,7 @@ export const GovernmentNavigator = () => {
         headerShown: false,
         tabBarStyle: {
           backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8
+          borderTopColor: Colors.border
         },
         tabBarActiveTintColor: Colors.government,
         tabBarInactiveTintColor: Colors.textMuted
