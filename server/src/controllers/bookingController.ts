@@ -173,7 +173,7 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
 
   try {
     const { id } = req.params;
-    const { status, notes, expiryDate } = req.body;
+    const { status, notes, issueDate, expiryDate } = req.body;
 
     const booking = await Booking.findById(id);
     if (!booking) {
@@ -193,6 +193,7 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
       return;
     }
 
+    let newIssue: Date | null = null;
     let newExpiry: Date | null = null;
 
     if (status) {
@@ -239,6 +240,22 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
         reject(400, 'expiryDate cannot be more than 10 years from today');
         return;
       }
+
+      // Issue date printed on the certificate (defaults to today); it can't be in the future or after expiry.
+      // One day of slack covers a phone in a timezone ahead of the server's.
+      newIssue = issueDate ? new Date(issueDate) : now;
+      if (isNaN(newIssue.getTime())) {
+        reject(400, 'issueDate is not a valid date');
+        return;
+      }
+      if (newIssue.getTime() > now.getTime() + 24 * 60 * 60 * 1000) {
+        reject(400, 'issueDate cannot be in the future');
+        return;
+      }
+      if (newIssue.getTime() >= newExpiry.getTime()) {
+        reject(400, 'issueDate must be before expiryDate');
+        return;
+      }
     }
 
     if (status === 'cancelled') {
@@ -265,8 +282,7 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
     }
 
     // When provider completes the job:
-    if (status === 'completed' && newExpiry && certificateUrl && fileHash) {
-      const now = new Date();
+    if (status === 'completed' && newIssue && newExpiry && certificateUrl && fileHash) {
 
       // Update or create the Document record with verified: true!
       let doc = await DocumentModel.findOne({ vehicleId: booking.vehicleId, type: booking.documentType });
@@ -274,7 +290,7 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
       if (doc) {
         doc.fileUrl = certificateUrl;
         doc.fileHash = fileHash;
-        doc.issueDate = now;
+        doc.issueDate = newIssue;
         doc.expiryDate = newExpiry;
         doc.status = 'valid';
         doc.lastUpdatedBy = 'provider';
@@ -287,7 +303,7 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
           type: booking.documentType,
           fileUrl: certificateUrl,
           fileHash,
-          issueDate: now,
+          issueDate: newIssue,
           expiryDate: newExpiry,
           status: 'valid',
           lastUpdatedBy: 'provider',

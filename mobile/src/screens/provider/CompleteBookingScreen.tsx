@@ -104,6 +104,7 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
       const formData = new FormData();
       formData.append('status', 'completed');
       formData.append('notes', notes);
+      formData.append('issueDate', new Date(issueDate).toISOString());
       formData.append('expiryDate', new Date(expiryDate).toISOString());
 
       // @ts-ignore
