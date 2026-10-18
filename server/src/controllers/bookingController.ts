@@ -8,19 +8,29 @@ import { Reminder } from '../models/Reminder';
 import { processUploadedFile, discardUploadedFile } from '../services/uploadService';
 import { ownerScope, canAccessBooking } from '../services/accessService';
 
+export const UNPAID_BOOKING_TIMEOUT_MS = 30 * 60 * 1000;
+
 export const releaseExpiredPendingSlots = async (): Promise<void> => {
-  const cutoff = new Date(Date.now() - 30 * 60 * 1000);
-  const stale = await Booking.find({ status: 'pending', createdAt: { $lt: cutoff } });
+  const cutoff = new Date(Date.now() - UNPAID_BOOKING_TIMEOUT_MS);
+  const stale = await Booking.find({ status: 'pending', createdAt: { $lt: cutoff } }).select('_id slotId');
 
-  if (stale.length === 0) return;
-
+  let released = 0;
   for (const booking of stale) {
+    // Cancel only if the booking is still pending right now, so a payment verified
+    // between the find above and this update is never undone
+    const cancelled = await Booking.findOneAndUpdate(
+      { _id: booking._id, status: 'pending' },
+      { $set: { status: 'cancelled', cancellationReason: 'payment_timeout' } }
+    );
+    if (!cancelled) continue;
+
     await Slot.findByIdAndUpdate(booking.slotId, { $set: { isBooked: false } });
-    booking.status = 'cancelled';
-    await booking.save();
+    released++;
   }
 
-  console.log(`[BookingCron] Released ${stale.length} slot(s) from unpaid pending booking(s)`);
+  if (released > 0) {
+    console.log(`[BookingCron] Released ${released} slot(s) from unpaid pending booking(s)`);
+  }
 };
 
 export const createBooking = async (req: Request, res: Response): Promise<void> => {
@@ -233,6 +243,7 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
 
     if (status === 'cancelled') {
       await Slot.findByIdAndUpdate(booking.slotId, { $set: { isBooked: false } });
+      booking.cancellationReason = 'cancelled';
     }
 
     if (status) {

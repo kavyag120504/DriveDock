@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Payment } from '../models/Payment';
 import { Booking } from '../models/Booking';
+import { Slot } from '../models/Slot';
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
@@ -27,6 +28,12 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     // Only the booking's owner (or admin) can pay for it
     if (!isOwnerOrAdmin(req.user!, booking.ownerId)) {
       res.status(403).json({ success: false, message: 'Forbidden: you are not authorized to pay for this booking' });
+      return;
+    }
+
+    // Only an unpaid booking that still holds its slot can be paid for
+    if (booking.status !== 'pending') {
+      res.status(409).json({ success: false, message: `Booking is ${booking.status} and can no longer be paid for` });
       return;
     }
 
@@ -136,12 +143,51 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
     payment.razorpaySignature = razorpaySignature;
     await payment.save();
 
-    // Mark the associated booking as 'confirmed'
-    const updatedBooking = await Booking.findByIdAndUpdate(
-      booking._id,
-      { status: 'confirmed' },
+    // Re-verifying a payment for a booking that is already confirmed or completed changes nothing
+    if (booking.status === 'confirmed' || booking.status === 'completed') {
+      res.status(200).json({
+        success: true,
+        message: `Payment already verified. Booking is ${booking.status.toUpperCase()}.`,
+        data: { payment, booking }
+      });
+      return;
+    }
+
+    // Confirm only a booking that is still pending (atomic, so the unpaid-booking job can't race it)
+    let updatedBooking = await Booking.findOneAndUpdate(
+      { _id: booking._id, status: 'pending' },
+      { $set: { status: 'confirmed' } },
       { new: true }
     );
+
+    // The booking was released because it stayed unpaid too long: reinstate it only if
+    // its slot is still free, claimed atomically so it can't be double-booked
+    if (!updatedBooking) {
+      const current = await Booking.findById(booking._id);
+      if (current?.status === 'cancelled' && current.cancellationReason === 'payment_timeout') {
+        const slot = await Slot.findOneAndUpdate(
+          { _id: current.slotId, isBooked: false },
+          { $set: { isBooked: true } }
+        );
+        if (slot) {
+          updatedBooking = await Booking.findOneAndUpdate(
+            { _id: current._id, status: 'cancelled' },
+            { $set: { status: 'confirmed', cancellationReason: null } },
+            { new: true }
+          );
+        }
+      }
+    }
+
+    if (!updatedBooking) {
+      // Money was taken but the booking can't be honoured; the payment stays 'paid' so it can be refunded
+      res.status(409).json({
+        success: false,
+        message: 'Payment received, but this booking was cancelled and its slot is no longer available. The payment is recorded for a refund.',
+        data: { payment }
+      });
+      return;
+    }
 
     res.status(200).json({
       success: true,

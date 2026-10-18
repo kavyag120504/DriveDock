@@ -2,6 +2,7 @@ import mongoose, { Schema, Types } from 'mongoose';
 import { DocumentType } from './Document';
 
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+export type BookingCancellationReason = 'payment_timeout' | 'cancelled';
 
 export interface IBooking {
   _id?: Types.ObjectId;
@@ -14,6 +15,7 @@ export interface IBooking {
   paymentId?: Types.ObjectId | null;
   certificateUrl?: string;
   notes?: string;
+  cancellationReason?: BookingCancellationReason | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -37,7 +39,9 @@ const BookingSchema = new Schema<IBooking>(
     },
     paymentId: { type: Schema.Types.ObjectId, ref: 'Payment', default: null },
     certificateUrl: { type: String, default: '' },
-    notes: { type: String, default: '' }
+    notes: { type: String, default: '' },
+    // 'payment_timeout' = released automatically because it stayed unpaid; 'cancelled' = cancelled by provider/admin
+    cancellationReason: { type: String, enum: ['payment_timeout', 'cancelled', null], default: null }
   },
   {
     timestamps: true
