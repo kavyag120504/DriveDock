@@ -1,7 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Text } from 'react-native';
 import { Colors } from '../theme/colors';
 
 import { TodayBookingsScreen } from '../screens/provider/TodayBookingsScreen';
@@ -37,18 +36,12 @@ export const ProviderNavigator = () => {
       <Tab.Screen
         name="OrdersTab"
         component={BookingsStack}
-        options={{
-          tabBarLabel: 'Inspections',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18 }}>🔧</Text>
-        }}
+        options={{ tabBarLabel: 'Inspections' }}
       />
       <Tab.Screen
         name="SlotsTab"
         component={ManageSlotsScreen}
-        options={{
-          tabBarLabel: 'Bays & Slots',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18 }}>⏱️</Text>
-        }}
+        options={{ tabBarLabel: 'Bays & Slots' }}
       />
     </Tab.Navigator>
   );

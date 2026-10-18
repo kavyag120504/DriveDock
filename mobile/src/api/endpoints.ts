@@ -52,7 +52,7 @@ export const BookingsAPI = {
 };
 
 export const PaymentsAPI = {
-  createOrder: (data: { bookingId: string; amount: number }) => apiClient.post('/payments/create-order', data),
+  createOrder: (data: { bookingId: string; amount?: number }) => apiClient.post('/payments/create-order', data),
   verify: (data: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string; bookingId?: string }) =>
     apiClient.post('/payments/verify', data)
 };
@@ -83,7 +83,9 @@ export const AdminAPI = {
   updateProviderStatus: (id: string, status: string) => apiClient.patch(`/admin/providers/${id}/status`, { status }),
   getOverview: () => apiClient.get('/admin/stats/overview'),
   getByRegion: () => apiClient.get('/admin/stats/by-region'),
-  getDocumentTrends: () => apiClient.get('/admin/stats/document-trends')
+  getDocumentTrends: () => apiClient.get('/admin/stats/document-trends'),
+  createStaffUser: (data: { name: string; email: string; phone: string; password: string; role: string }) =>
+    apiClient.post('/admin/users', data)
 };
 
 export const StationsAPI = {

@@ -49,9 +49,9 @@ const start = async () => {
     const PORT = parseInt(ENV.PORT, 10) || 5000;
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`====================================================`);
-      console.log(`🚀 DriveDock Server running on http://localhost:${PORT}`);
-      console.log(`📡 Health Check: http://localhost:${PORT}/api/health`);
-      console.log(`🛡️  Base API: http://localhost:${PORT}/api/v1`);
+      console.log(`DriveDock Server running on http://localhost:${PORT}`);
+      console.log(`Health Check: http://localhost:${PORT}/api/health`);
+      console.log(`Base API: http://localhost:${PORT}/api/v1`);
       console.log(`====================================================`);
     });
   } catch (err) {

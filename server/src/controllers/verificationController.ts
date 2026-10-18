@@ -41,7 +41,7 @@ export const verifyVehicleQR = async (req: Request, res: Response): Promise<void
     }
 
     const { vehicleId } = tokenCheck.payload;
-    const vehicle = await Vehicle.findById(vehicleId).populate('ownerId', 'name phone');
+    const vehicle = await Vehicle.findById(vehicleId).populate('ownerId', 'name');
 
     if (!vehicle) {
       res.status(404).json({

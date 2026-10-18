@@ -112,9 +112,22 @@ export const getVehicleById = async (req: Request, res: Response): Promise<void>
 export const updateVehicle = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+
+    // Owners may only change cosmetic fields — never ownerId, regNumber, or qrCodeId
+    const ALLOWED_FIELDS = ['type', 'make', 'model', 'year', 'fuelType', 'region'];
+    const update: Record<string, any> = {};
+    for (const key of ALLOWED_FIELDS) {
+      if (req.body[key] !== undefined) update[key] = req.body[key];
+    }
+
+    if (Object.keys(update).length === 0) {
+      res.status(400).json({ success: false, message: 'No updatable fields provided' });
+      return;
+    }
+
     const vehicle = await Vehicle.findOneAndUpdate(
       { _id: id, ...ownerScope(req.user!) },
-      req.body,
+      update,
       { new: true }
     );
 

@@ -13,7 +13,7 @@ const PENALTY_MAP: Record<string, number> = {
 
 export const logViolation = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { vehicleId, documentTypeExpired, location, notes, penaltyAmount } = req.body;
+    const { vehicleId, documentTypeExpired, location, notes } = req.body;
 
     if (!vehicleId || !documentTypeExpired || !location) {
       res.status(400).json({ success: false, message: 'vehicleId, documentTypeExpired, and location are required' });
@@ -30,12 +30,10 @@ export const logViolation = async (req: Request, res: Response): Promise<void> =
       ? documentTypeExpired
       : [documentTypeExpired];
 
-    // Calculate penalty based on offenses or custom override
-    let totalPenalty = penaltyAmount ? Number(penaltyAmount) : 0;
-    if (!penaltyAmount) {
-      for (const type of expiredTypes) {
-        totalPenalty += PENALTY_MAP[type.toLowerCase()] || 1000;
-      }
+    // Penalty is always computed server-side from the fee table; client input is ignored
+    let totalPenalty = 0;
+    for (const type of expiredTypes) {
+      totalPenalty += PENALTY_MAP[type.toLowerCase()] || 1000;
     }
 
     // Create Challan automatically

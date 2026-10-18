@@ -90,7 +90,7 @@ export const ProviderListScreen = () => {
                 </View>
 
                 <View style={styles.pFooter}>
-                  <Text style={styles.ratingText}>★ {p.rating || 4.8} / 5.0 Rating</Text>
+                  <Text style={styles.ratingText}>{p.rating || 4.8} / 5.0</Text>
                   <TouchableOpacity
                     style={[
                       styles.toggleBtn,

@@ -8,6 +8,21 @@ import { Reminder } from '../models/Reminder';
 import { processUploadedFile, discardUploadedFile } from '../services/uploadService';
 import { ownerScope, canAccessBooking } from '../services/accessService';
 
+export const releaseExpiredPendingSlots = async (): Promise<void> => {
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+  const stale = await Booking.find({ status: 'pending', createdAt: { $lt: cutoff } });
+
+  if (stale.length === 0) return;
+
+  for (const booking of stale) {
+    await Slot.findByIdAndUpdate(booking.slotId, { $set: { isBooked: false } });
+    booking.status = 'cancelled';
+    await booking.save();
+  }
+
+  console.log(`[BookingCron] Released ${stale.length} slot(s) from unpaid pending booking(s)`);
+};
+
 export const createBooking = async (req: Request, res: Response): Promise<void> => {
   try {
     const { vehicleId, providerId, slotId, documentType } = req.body;
@@ -199,13 +214,25 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
         return;
       }
 
-      // Calculate new expiry date (default 1 year from today if not specified)
       const now = new Date();
       newExpiry = expiryDate ? new Date(expiryDate) : new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
       if (isNaN(newExpiry.getTime())) {
         reject(400, 'expiryDate is not a valid date');
         return;
       }
+      if (newExpiry.getTime() <= now.getTime()) {
+        reject(400, 'expiryDate must be in the future');
+        return;
+      }
+      const maxExpiry = new Date(now.getFullYear() + 10, now.getMonth(), now.getDate());
+      if (newExpiry.getTime() > maxExpiry.getTime()) {
+        reject(400, 'expiryDate cannot be more than 10 years from today');
+        return;
+      }
+    }
+
+    if (status === 'cancelled') {
+      await Slot.findByIdAndUpdate(booking.slotId, { $set: { isBooked: false } });
     }
 
     if (status) {

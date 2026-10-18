@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert
+  Alert,
+  TextInput
 } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { ProvidersAPI, BookingsAPI, PaymentsAPI, VehiclesAPI } from '../../api/endpoints';
@@ -23,10 +24,12 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
   const [selectedProvider, setSelectedProvider] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any>(null);
+  const [slotDateFilter, setSlotDateFilter] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Pick Provider, 2: Pick Slot, 3: Razorpay Payment
+  const [serviceFee, setServiceFee] = useState<number | null>(null);
 
   const loadInitialData = async () => {
     try {
@@ -79,19 +82,14 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
 
       const booking = claimRes.data.data.booking;
 
-      // Step B: Razorpay Order Creation
-      const renewalFee = selectedDocType === 'puc' ? 250 : selectedDocType === 'insurance' ? 2400 : 1000;
-      const orderRes = await PaymentsAPI.createOrder({
-        bookingId: booking._id,
-        amount: renewalFee
-      });
-
-      const { orderId, testSignatureHelper } = orderRes.data.data;
+      // Step B: Razorpay Order Creation — amount comes from server, not the client
+      const orderRes = await PaymentsAPI.createOrder({ bookingId: booking._id });
+      const { orderId, amount, testSignatureHelper } = orderRes.data.data;
+      setServiceFee(amount);
 
       // Step C: Trigger Razorpay Verification with HMAC Signature check (Trust Rule 6)
-      // Simulating Razorpay checkout completion callback
       const paymentId = `pay_rzp_${Date.now()}`;
-      const verifyRes = await PaymentsAPI.verify({
+      await PaymentsAPI.verify({
         razorpayOrderId: orderId,
         razorpayPaymentId: paymentId,
         razorpaySignature: testSignatureHelper,
@@ -99,14 +97,9 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
       });
 
       Alert.alert(
-        '✅ Booking & Payment Confirmed!',
-        `Your slot with ${selectedProvider.businessName} is locked atomically. When the provider inspects your vehicle, they will issue your verified certificate.`,
-        [
-          {
-            text: 'View Dashboard',
-            onPress: () => navigation.navigate('Dashboard')
-          }
-        ]
+        'Booking & Payment Confirmed!',
+        `Service fee: ₹${amount}. Your slot with ${selectedProvider.businessName} is locked. The provider will issue your verified certificate at inspection.`,
+        [{ text: 'View Dashboard', onPress: () => navigation.navigate('Dashboard') }]
       );
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Slot claim failed. Please select another slot.';
@@ -178,7 +171,7 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
                     <Text style={styles.pAddress}>{p.address}</Text>
                   </View>
                   <View style={styles.ratingBadge}>
-                    <Text style={styles.ratingText}>★ {p.rating || 4.8}</Text>
+                    <Text style={styles.ratingText}>{p.rating || 4.8}</Text>
                   </View>
                 </View>
 
@@ -208,16 +201,35 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.sectionHeader}>AVAILABLE TIME SLOTS ({slots.filter((s) => !s.isBooked).length})</Text>
+          {/* Date filter */}
+          <View style={styles.dateFilterRow}>
+            <Text style={styles.label}>Filter by date (YYYY-MM-DD)</Text>
+            <TextInput
+              style={styles.dateFilterInput}
+              value={slotDateFilter}
+              onChangeText={setSlotDateFilter}
+              placeholder="All dates"
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="numbers-and-punctuation"
+            />
+          </View>
 
-          {slots.filter((s) => !s.isBooked).length === 0 ? (
+          {(() => {
+            const available = slots.filter(
+              (s) => !s.isBooked && (!slotDateFilter || s.date === slotDateFilter)
+            );
+            return (
+              <>
+          <Text style={styles.sectionHeader}>AVAILABLE TIME SLOTS ({available.length})</Text>
+
+          {available.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>All slots are booked for this provider today.</Text>
+              <Text style={styles.emptyText}>
+                {slotDateFilter ? `No available slots on ${slotDateFilter}.` : 'All slots are booked for this provider.'}
+              </Text>
             </View>
           ) : (
-            slots
-              .filter((s) => !s.isBooked)
-              .map((s) => (
+            available.map((s) => (
                 <View key={s._id} style={styles.slotCard}>
                   <View>
                     <Text style={styles.slotTime}>{s.startTime} - {s.endTime}</Text>
@@ -232,12 +244,15 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
                     {isProcessing && selectedSlot?._id === s._id ? (
                       <ActivityIndicator color="#FFFFFF" size="small" />
                     ) : (
-                      <Text style={styles.bookSlotBtnText}>Book & Pay (Razorpay) →</Text>
+                      <Text style={styles.bookSlotBtnText}>Book & Pay →</Text>
                     )}
                   </TouchableOpacity>
                 </View>
               ))
           )}
+              </>
+            );
+          })()}
         </View>
       )}
     </ScrollView>
@@ -477,5 +492,19 @@ const styles = StyleSheet.create({
   emptyText: {
     color: Colors.textSecondary,
     fontSize: 13
-  }
+  },
+  dateFilterRow: {
+    marginBottom: 12,
+  },
+  dateFilterInput: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: Colors.textPrimary,
+    fontSize: 13,
+    marginTop: 4,
+  },
 });

@@ -54,7 +54,6 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
       >
         {/* Trust Notice */}
         <View style={styles.trustBanner}>
-          <Text style={styles.trustIcon}>🛡️</Text>
           <Text style={styles.trustText}>
             <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>Trust Rule 1 Enforcer:</Text> Completing an appointment issues a tamper-proof certificate and marks the vehicle's passport as <Text style={{ color: Colors.compliant, fontWeight: '800' }}>VERIFIED GENUINE</Text>.
           </Text>
@@ -66,7 +65,6 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
           <ActivityIndicator size="large" color={Colors.provider} style={{ marginTop: 30 }} />
         ) : bookings.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>📅</Text>
             <Text style={styles.emptyTitle}>No Pending Appointments</Text>
             <Text style={styles.emptyDesc}>When vehicle owners book renewal slots at your station, they will appear here.</Text>
           </View>
@@ -101,7 +99,7 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
 
                 <View style={styles.bFooter}>
                   {isCompleted ? (
-                    <Text style={styles.completedText}>✓ Certificate Issued & Verified</Text>
+                    <Text style={styles.completedText}>Certificate Issued & Verified</Text>
                   ) : (
                     <TouchableOpacity
                       style={styles.actionBtn}

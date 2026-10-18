@@ -1,10 +1,10 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text } from 'react-native';
 import { Colors } from '../theme/colors';
 
 import { PendingProvidersScreen } from '../screens/admin/PendingProvidersScreen';
 import { ProviderListScreen } from '../screens/admin/ProviderListScreen';
+import { CreateStaffScreen } from '../screens/admin/CreateStaffScreen';
 import { GovernmentOverviewScreen } from '../screens/government/GovernmentOverviewScreen';
 
 const Tab = createBottomTabNavigator();
@@ -28,26 +28,22 @@ export const AdminNavigator = () => {
       <Tab.Screen
         name="PendingApprovals"
         component={PendingProvidersScreen}
-        options={{
-          tabBarLabel: 'Approvals',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18 }}>🛡️</Text>
-        }}
+        options={{ tabBarLabel: 'Approvals' }}
       />
       <Tab.Screen
         name="Stations"
         component={ProviderListScreen}
-        options={{
-          tabBarLabel: 'Stations',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18 }}>🏢</Text>
-        }}
+        options={{ tabBarLabel: 'Stations' }}
+      />
+      <Tab.Screen
+        name="CreateStaff"
+        component={CreateStaffScreen}
+        options={{ tabBarLabel: 'Add Staff' }}
       />
       <Tab.Screen
         name="Analytics"
         component={GovernmentOverviewScreen}
-        options={{
-          tabBarLabel: 'System Stats',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18 }}>📊</Text>
-        }}
+        options={{ tabBarLabel: 'System Stats' }}
       />
     </Tab.Navigator>
   );

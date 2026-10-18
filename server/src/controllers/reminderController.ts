@@ -40,7 +40,7 @@ export const runDueRemindersJob = async (): Promise<{ processed: number; sent: n
     if (owner && owner.expoPushToken) {
       const dispatched = await sendPushNotification({
         to: owner.expoPushToken,
-        title: '⚠️ DriveDock Compliance Alert',
+        title: 'DriveDock Compliance Alert',
         body: rem.message,
         data: {
           reminderId: rem._id,
@@ -54,13 +54,9 @@ export const runDueRemindersJob = async (): Promise<{ processed: number; sent: n
         await rem.save();
         sentCount++;
       }
-    } else {
-      // Mock dispatch or record sent in development so queue advances
-      rem.sent = true;
-      rem.sentAt = new Date();
-      await rem.save();
-      sentCount++;
+      // If dispatched===false the push was rejected; leave sent:false so it retries next run
     }
+    // No push token — skip silently; reminder stays in queue until token is registered
   }
 
   // Also update documents that have passed expiry date to status: "expired"

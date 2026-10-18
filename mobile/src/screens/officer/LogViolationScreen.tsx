@@ -12,13 +12,26 @@ import {
 import { Colors } from '../../theme/colors';
 import { OfficerAPI } from '../../api/endpoints';
 
+// Mirror of the server-side PENALTY_MAP in officerController.ts
+const PENALTY_MAP: Record<string, number> = {
+  puc: 1000,
+  insurance: 2000,
+  rc: 5000,
+  fitness: 3000,
+  license: 1500
+};
+
+const calcPenalty = (types: string[]): number =>
+  types.reduce((sum, t) => sum + (PENALTY_MAP[t.toLowerCase()] ?? 1000), 0);
+
 export const LogViolationScreen = ({ route, navigation }: any) => {
   const { vehicleId, regNumber, expiredTypes = [] } = route.params;
 
   const [location, setLocation] = useState('Marine Drive Checkpoint, Mumbai');
   const [notes, setNotes] = useState(`Failed verification check. Offenses: ${expiredTypes.join(', ')}`);
-  const [penaltyAmount, setPenaltyAmount] = useState('2000');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const penalty = calcPenalty(expiredTypes);
 
   const handleSubmit = async () => {
     if (!location) {
@@ -32,13 +45,12 @@ export const LogViolationScreen = ({ route, navigation }: any) => {
         vehicleId,
         documentTypeExpired: expiredTypes.length > 0 ? expiredTypes : ['puc'],
         location,
-        notes,
-        penaltyAmount: Number(penaltyAmount)
+        notes
       });
 
       Alert.alert(
-        '🚨 Violation Logged',
-        `Digital e-Challan of ₹${penaltyAmount} issued to ${regNumber}. Linked to vehicle passport.`,
+        'Violation Logged',
+        `Digital e-Challan of ₹${penalty} issued to ${regNumber}. Linked to vehicle passport.`,
         [
           {
             text: 'Return to Scanner',
@@ -70,6 +82,15 @@ export const LogViolationScreen = ({ route, navigation }: any) => {
         </Text>
       </View>
 
+      {/* Penalty display — computed server-side from the fee table */}
+      <View style={styles.penaltyCard}>
+        <Text style={styles.penaltyLabel}>PENALTY AMOUNT (FEE TABLE)</Text>
+        <Text style={styles.penaltyAmount}>₹{penalty.toLocaleString('en-IN')}</Text>
+        <Text style={styles.penaltyBreakdown}>
+          {(expiredTypes as string[]).map((t: string) => `${t.toUpperCase()}: ₹${(PENALTY_MAP[t.toLowerCase()] ?? 1000).toLocaleString('en-IN')}`).join('  +  ')}
+        </Text>
+      </View>
+
       <View style={styles.form}>
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Traffic Checkpoint / Location</Text>
@@ -78,18 +99,6 @@ export const LogViolationScreen = ({ route, navigation }: any) => {
             value={location}
             onChangeText={setLocation}
             placeholder="e.g. Bandra Toll Plaza, Mumbai"
-            placeholderTextColor={Colors.textMuted}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Penalty Fine Amount (INR)</Text>
-          <TextInput
-            style={styles.input}
-            value={penaltyAmount}
-            onChangeText={setPenaltyAmount}
-            keyboardType="numeric"
-            placeholder="2000"
             placeholderTextColor={Colors.textMuted}
           />
         </View>
@@ -158,7 +167,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 16,
-    marginBottom: 20
+    marginBottom: 16
   },
   vReg: {
     fontSize: 22,
@@ -169,6 +178,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 4
+  },
+  penaltyCard: {
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    padding: 16,
+    marginBottom: 20,
+    alignItems: 'center'
+  },
+  penaltyLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.nonCompliant,
+    letterSpacing: 1,
+    marginBottom: 4,
+    textTransform: 'uppercase'
+  },
+  penaltyAmount: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: Colors.nonCompliant
+  },
+  penaltyBreakdown: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 4,
+    textAlign: 'center'
   },
   form: {
     gap: 14

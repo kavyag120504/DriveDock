@@ -91,7 +91,6 @@ export const OwnerChallansScreen = () => {
           <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 30 }} />
         ) : challans.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>🎉</Text>
             <Text style={styles.emptyTitle}>Zero Violations</Text>
             <Text style={styles.emptyDesc}>All your vehicles have a clean traffic enforcement record.</Text>
           </View>
@@ -125,7 +124,7 @@ export const OwnerChallansScreen = () => {
                       <Text style={styles.payBtnText}>Pay Online →</Text>
                     </TouchableOpacity>
                   ) : (
-                    <Text style={styles.paidBadge}>✓ Paid</Text>
+                    <Text style={styles.paidBadge}>Paid</Text>
                   )}
                 </View>
               </View>

@@ -82,13 +82,12 @@ export const RotatingQRModal: React.FC<RotatingQRModalProps> = ({
               <Text style={styles.regNumber}>{regNumber}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeText}>✕</Text>
+              <Text style={styles.closeText}>X</Text>
             </TouchableOpacity>
           </View>
 
           {/* Trust Banner */}
           <View style={styles.banner}>
-            <Text style={styles.bannerIcon}>🛡️</Text>
             <Text style={styles.bannerText}>
               Tamper-Proof Time-Bound QR Token. Rotates and expires every 2 minutes. Screenshots cannot be forged.
             </Text>
@@ -102,7 +101,6 @@ export const RotatingQRModal: React.FC<RotatingQRModalProps> = ({
               <Text style={styles.errorText}>{error}</Text>
             ) : isExpired ? (
               <View style={styles.expiredBox}>
-                <Text style={styles.expiredIcon}>⚠️</Text>
                 <Text style={styles.expiredTitle}>QR Token Expired</Text>
                 <Text style={styles.expiredSubtitle}>
                   For traffic enforcement compliance, static copies become invalid after 120s.
@@ -130,7 +128,7 @@ export const RotatingQRModal: React.FC<RotatingQRModalProps> = ({
                   </Text>
                 </View>
                 <TouchableOpacity onPress={fetchToken} style={styles.refreshIconBtn}>
-                  <Text style={styles.refreshIconText}>↻ Re-sign</Text>
+                  <Text style={styles.refreshIconText}>Refresh</Text>
                 </TouchableOpacity>
               </View>
             ) : (

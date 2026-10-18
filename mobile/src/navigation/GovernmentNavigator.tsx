@@ -1,6 +1,5 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text } from 'react-native';
 import { Colors } from '../theme/colors';
 
 import { GovernmentOverviewScreen } from '../screens/government/GovernmentOverviewScreen';
@@ -28,26 +27,17 @@ export const GovernmentNavigator = () => {
       <Tab.Screen
         name="Overview"
         component={GovernmentOverviewScreen}
-        options={{
-          tabBarLabel: 'National Index',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18 }}>📊</Text>
-        }}
+        options={{ tabBarLabel: 'National Index' }}
       />
       <Tab.Screen
         name="Regions"
         component={RegionMapScreen}
-        options={{
-          tabBarLabel: 'Districts',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18 }}>🗺️</Text>
-        }}
+        options={{ tabBarLabel: 'Districts' }}
       />
       <Tab.Screen
         name="Trends"
         component={DocumentTrendsScreen}
-        options={{
-          tabBarLabel: 'Audit Trends',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18 }}>📈</Text>
-        }}
+        options={{ tabBarLabel: 'Audit Trends' }}
       />
     </Tab.Navigator>
   );

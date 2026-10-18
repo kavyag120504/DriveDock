@@ -9,10 +9,10 @@ import { useAuthStore, UserRole } from '../../store/authStore';
 
 const DEMO_ROLES: { role: UserRole; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
   { role: 'owner',      label: 'Vehicle Owner',           desc: 'Vehicles, verified docs, rotating QR, renewals',      icon: 'car-outline',           color: Colors.owner },
-  { role: 'provider',   label: 'Approved Provider',       desc: 'PUC / Fitness center — issue verified certificates',   icon: 'construct-outline',     color: Colors.provider },
-  { role: 'officer',    label: 'Traffic Police Officer',  desc: 'Scan rotating QR — tamper-proof green / red result',  icon: 'shield-checkmark-outline', color: Colors.officer },
+  { role: 'provider',   label: 'Approved Provider',       desc: 'PUC / Fitness center - issue verified certificates',   icon: 'construct-outline',     color: Colors.provider },
+  { role: 'officer',    label: 'Traffic Police Officer',  desc: 'Scan rotating QR - tamper-proof green / red result',  icon: 'shield-checkmark-outline', color: Colors.officer },
   { role: 'government', label: 'Government / RTO',        desc: 'Regional compliance analytics, charts and trends',    icon: 'bar-chart-outline',     color: Colors.government },
-  { role: 'admin',      label: 'System Administrator',    desc: 'Approve pending providers — gatekeeping checks',      icon: 'settings-outline',      color: Colors.admin },
+  { role: 'admin',      label: 'System Administrator',    desc: 'Approve pending providers - gatekeeping checks',      icon: 'settings-outline',      color: Colors.admin },
 ];
 
 export const LoginScreen = ({ navigation }: any) => {
@@ -34,7 +34,7 @@ export const LoginScreen = ({ navigation }: any) => {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Brand Header */}
       <View style={styles.brandHeader}>
-        <Text style={styles.kicker}>FINAL YEAR PROJECT · PITCH DEMO</Text>
+        <Text style={styles.kicker}>FINAL YEAR PROJECT - PITCH DEMO</Text>
         <View style={styles.logoRow}>
           <Text style={styles.logoDrive}>DRIVE</Text>
           <Text style={styles.logoDock}>DOCK</Text>
@@ -76,7 +76,7 @@ export const LoginScreen = ({ navigation }: any) => {
           <Text style={styles.label}>Password</Text>
           <TextInput
             style={styles.input}
-            placeholder="••••••••"
+            placeholder="--------"
             placeholderTextColor={Colors.textMuted}
             value={password}
             onChangeText={setPassword}
@@ -104,36 +104,38 @@ export const LoginScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </View>
 
-      {/* 1-Tap Demo Section */}
-      <View style={[styles.demoSection, Shadow.card]}>
-        <View style={styles.demoHeader}>
-          <View style={styles.demoBadge}>
-            <Ionicons name="flash" size={11} color={Colors.primary} />
-            <Text style={styles.demoBadgeText}>1-TAP DEMO</Text>
+      {/* 1-Tap Demo Section - only visible in development builds */}
+      {__DEV__ && (
+        <View style={[styles.demoSection, Shadow.card]}>
+          <View style={styles.demoHeader}>
+            <View style={styles.demoBadge}>
+              <Ionicons name="flash" size={11} color={Colors.primary} />
+              <Text style={styles.demoBadgeText}>1-TAP DEMO</Text>
+            </View>
+            <Text style={styles.demoTitle}>ROLE SWITCHER FOR EVALUATION</Text>
+            <Text style={styles.demoSubtitle}>Tap any role to instantly log in with a real backend JWT session:</Text>
           </View>
-          <Text style={styles.demoTitle}>ROLE SWITCHER FOR EVALUATION</Text>
-          <Text style={styles.demoSubtitle}>Tap any role to instantly log in with a real backend JWT session:</Text>
-        </View>
 
-        <View style={styles.demoGrid}>
-          {DEMO_ROLES.map(({ role, label, desc, icon, color }) => (
-            <TouchableOpacity
-              key={role}
-              style={[styles.demoCard, { borderLeftColor: color }]}
-              onPress={() => handleDemo(role)}
-            >
-              <View style={[styles.demoIconWrap, { backgroundColor: color + '15' }]}>
-                <Ionicons name={icon} size={20} color={color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.demoCardTitle}>{label}</Text>
-                <Text style={styles.demoCardDesc}>{desc}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
-            </TouchableOpacity>
-          ))}
+          <View style={styles.demoGrid}>
+            {DEMO_ROLES.map(({ role, label, desc, icon, color }) => (
+              <TouchableOpacity
+                key={role}
+                style={[styles.demoCard, { borderLeftColor: color }]}
+                onPress={() => handleDemo(role)}
+              >
+                <View style={[styles.demoIconWrap, { backgroundColor: color + '15' }]}>
+                  <Ionicons name={icon} size={20} color={color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.demoCardTitle}>{label}</Text>
+                  <Text style={styles.demoCardDesc}>{desc}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      </View>
+      )}
     </ScrollView>
   );
 };

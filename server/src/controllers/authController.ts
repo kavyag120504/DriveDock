@@ -15,6 +15,15 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    if (typeof password !== 'string' || password.length < 8) {
+      res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+      return;
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      res.status(400).json({ success: false, message: 'Password must contain at least one letter and one number' });
+      return;
+    }
+
     // Public signup may only create owner or provider accounts.
     // Officer, government and admin accounts are created by an admin (POST /admin/users).
     const userRole: UserRole = role === undefined ? 'owner' : role;

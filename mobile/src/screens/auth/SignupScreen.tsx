@@ -64,7 +64,6 @@ export const SignupScreen = ({ navigation }: any) => {
 
       {role === 'provider' && (
         <View style={styles.providerNotice}>
-          <Text style={styles.noticeIcon}>ℹ️</Text>
           <Text style={styles.noticeText}>
             Trust Rule 3: Provider accounts require System Admin approval before appearing in search or certifying renewals.
           </Text>

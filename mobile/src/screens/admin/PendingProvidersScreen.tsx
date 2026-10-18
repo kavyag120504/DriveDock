@@ -45,7 +45,7 @@ export const PendingProvidersScreen = () => {
     try {
       await AdminAPI.updateProviderStatus(id, status);
       Alert.alert(
-        status === 'approved' ? '✅ Provider Approved (Trust Rule 3)' : 'Provider Suspended',
+        status === 'approved' ? 'Provider Approved (Trust Rule 3)' : 'Provider Suspended',
         `'${name}' is now ${status.toUpperCase()}. ${status === 'approved' ? 'This station is now visible in owner search and authorized to certify renewals.' : ''}`
       );
       fetchPending();
@@ -71,7 +71,6 @@ export const PendingProvidersScreen = () => {
       >
         {/* Trust Rule 3 Explainer */}
         <View style={styles.trustBanner}>
-          <Text style={styles.trustIcon}>🛡️</Text>
           <Text style={styles.trustText}>
             <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>Trust Rule 3 Active:</Text> Unapproved providers are completely invisible in search and cannot issue verified certificates. Only after Admin approval can they certify vehicle papers.
           </Text>
@@ -83,7 +82,6 @@ export const PendingProvidersScreen = () => {
           <ActivityIndicator size="large" color={Colors.admin} style={{ marginTop: 30 }} />
         ) : providers.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>🎉</Text>
             <Text style={styles.emptyTitle}>Zero Pending Approvals</Text>
             <Text style={styles.emptyDesc}>All registered service stations have been audited and processed.</Text>
           </View>
@@ -122,7 +120,7 @@ export const PendingProvidersScreen = () => {
                   {actionId === p._id ? (
                     <ActivityIndicator color="#0B0F19" size="small" />
                   ) : (
-                    <Text style={styles.approveBtnText}>✓ Authorize & Approve</Text>
+                    <Text style={styles.approveBtnText}>Authorize & Approve</Text>
                   )}
                 </TouchableOpacity>
 
@@ -131,7 +129,7 @@ export const PendingProvidersScreen = () => {
                   onPress={() => handleUpdateStatus(p._id, 'suspended', p.businessName)}
                   disabled={actionId === p._id}
                 >
-                  <Text style={styles.rejectBtnText}>✕ Reject</Text>
+                  <Text style={styles.rejectBtnText}>Reject</Text>
                 </TouchableOpacity>
               </View>
             </View>

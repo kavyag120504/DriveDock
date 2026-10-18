@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, ScrollView, TextInput, Alert, Platform
+  ActivityIndicator, ScrollView, TextInput, Alert, Platform, Modal
 } from 'react-native';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from '../../components/Map';
 import * as Location from 'expo-location';
@@ -26,15 +26,40 @@ export const StationMapScreen = ({ navigation }: any) => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [radius, setRadius] = useState(10); // km
   const [selectedStation, setSelectedStation] = useState<any | null>(null);
+  const [cityInput, setCityInput] = useState('');
+  const [showCityModal, setShowCityModal] = useState(false);
+
+  const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
+    mumbai:    { lat: 19.0760, lng: 72.8777 },
+    delhi:     { lat: 28.6139, lng: 77.2090 },
+    bangalore: { lat: 12.9716, lng: 77.5946 },
+    bengaluru: { lat: 12.9716, lng: 77.5946 },
+    chennai:   { lat: 13.0827, lng: 80.2707 },
+    hyderabad: { lat: 17.3850, lng: 78.4867 },
+    pune:      { lat: 18.5204, lng: 73.8567 },
+    kolkata:   { lat: 22.5726, lng: 88.3639 },
+    ahmedabad: { lat: 23.0225, lng: 72.5714 },
+    jaipur:    { lat: 26.9124, lng: 75.7873 },
+  };
+
+  const applyCityFallback = (city: string) => {
+    const key = city.toLowerCase().trim();
+    const coords = CITY_COORDS[key];
+    if (coords) {
+      setLocation(coords);
+      setLocError(`Showing stations near ${city}`);
+      setShowCityModal(false);
+    } else {
+      Alert.alert('City not found', 'Try a major city name like Mumbai, Delhi, Bangalore, etc.');
+    }
+  };
 
   // -- Get real GPS location --------------------------------------------------
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setLocError('Location permission denied. Using Mumbai default.');
-        // Default: Mumbai city centre
-        setLocation({ lat: 19.0760, lng: 72.8777 });
+        setShowCityModal(true);
         return;
       }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -171,7 +196,7 @@ export const StationMapScreen = ({ navigation }: any) => {
                 onPress={() => handleMarkerPress(station)}
                 pinColor={selectedStation?._id === station._id ? Colors.primary : Colors.officer}
                 title={station.businessName}
-                description={`${station.distanceKm ?? '?'} km · ? ${station.rating}`}
+                description={`${station.distanceKm ?? '?'} km | Rating: ${station.rating}`}
               />
             ))}
           </MapView>
@@ -202,6 +227,34 @@ export const StationMapScreen = ({ navigation }: any) => {
           </View>
         )}
       </View>
+
+      {/* City fallback modal - shown when location permission denied */}
+      <Modal visible={showCityModal} transparent animationType="fade" onRequestClose={() => setShowCityModal(false)}>
+        <View style={styles.cityModalOverlay}>
+          <View style={styles.cityModalCard}>
+            <Text style={styles.cityModalTitle}>Location Permission Denied</Text>
+            <Text style={styles.cityModalSubtitle}>
+              Enter your city to find approved stations nearby:
+            </Text>
+            <TextInput
+              style={styles.cityModalInput}
+              value={cityInput}
+              onChangeText={setCityInput}
+              placeholder="e.g. Mumbai, Delhi, Pune"
+              placeholderTextColor={Colors.textMuted}
+              autoFocus
+            />
+            <View style={styles.cityModalActions}>
+              <TouchableOpacity
+                style={styles.cityModalSearchBtn}
+                onPress={() => applyCityFallback(cityInput)}
+              >
+                <Text style={styles.cityModalSearchBtnText}>Find Stations</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Bottom sheet: selected station or list */}
       <View style={styles.bottomSheet}>
@@ -416,4 +469,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
   },
   emptyText: { fontSize: 13, color: Colors.textMuted },
+
+  // City fallback modal
+  cityModalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  cityModalCard: {
+    width: '100%', backgroundColor: Colors.surface,
+    borderRadius: 16, borderWidth: 1, borderColor: Colors.border, padding: 20,
+  },
+  cityModalTitle: { fontSize: 17, fontWeight: '800', color: Colors.textPrimary, marginBottom: 6 },
+  cityModalSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 14 },
+  cityModalInput: {
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    color: Colors.textPrimary, fontSize: 14, marginBottom: 14,
+  },
+  cityModalActions: { flexDirection: 'row', justifyContent: 'flex-end' },
+  cityModalSearchBtn: {
+    backgroundColor: Colors.primary, borderRadius: 10,
+    paddingHorizontal: 20, paddingVertical: 12,
+  },
+  cityModalSearchBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
 });

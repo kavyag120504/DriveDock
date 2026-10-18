@@ -6,17 +6,42 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert
+  Alert,
+  TextInput
 } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { RoleHeader } from '../../components/RoleHeader';
 import { ProvidersAPI } from '../../api/endpoints';
+
+const TIME_TEMPLATES = [
+  { label: 'Morning (9-12)', slots: [
+    { startTime: '09:00 AM', endTime: '10:00 AM' },
+    { startTime: '10:30 AM', endTime: '11:30 AM' },
+  ]},
+  { label: 'Afternoon (12-5)', slots: [
+    { startTime: '01:00 PM', endTime: '02:00 PM' },
+    { startTime: '02:30 PM', endTime: '03:30 PM' },
+    { startTime: '04:00 PM', endTime: '05:00 PM' },
+  ]},
+  { label: 'Full Day', slots: [
+    { startTime: '09:00 AM', endTime: '10:00 AM' },
+    { startTime: '10:30 AM', endTime: '11:30 AM' },
+    { startTime: '01:00 PM', endTime: '02:00 PM' },
+    { startTime: '02:30 PM', endTime: '03:30 PM' },
+    { startTime: '04:00 PM', endTime: '05:00 PM' },
+  ]},
+];
+
+const todayDate = () => new Date().toISOString().split('T')[0];
 
 export const ManageSlotsScreen = () => {
   const [profile, setProfile] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [slotDate, setSlotDate] = useState(todayDate());
+  const [selectedTemplate, setSelectedTemplate] = useState(2); // Full Day default
 
   const fetchProfileAndSlots = async () => {
     try {
@@ -39,22 +64,25 @@ export const ManageSlotsScreen = () => {
     fetchProfileAndSlots();
   }, []);
 
-  const handleGenerateDaySlots = async () => {
+  const handleCreateSlots = async () => {
     if (!profile) return;
-    setIsCreating(true);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
+      Alert.alert('Invalid Date', 'Enter date in YYYY-MM-DD format (e.g. 2025-06-15)');
+      return;
+    }
+    if (new Date(slotDate) < new Date(new Date().toDateString())) {
+      Alert.alert('Invalid Date', 'Cannot create slots for a past date');
+      return;
+    }
 
-    const today = new Date().toISOString().split('T')[0];
-    const newSlots = [
-      { date: today, startTime: '09:00 AM', endTime: '10:00 AM' },
-      { date: today, startTime: '10:30 AM', endTime: '11:30 AM' },
-      { date: today, startTime: '01:00 PM', endTime: '02:00 PM' },
-      { date: today, startTime: '02:30 PM', endTime: '03:30 PM' },
-      { date: today, startTime: '04:00 PM', endTime: '05:00 PM' }
-    ];
+    setIsCreating(true);
+    const template = TIME_TEMPLATES[selectedTemplate];
+    const newSlots = template.slots.map(s => ({ date: slotDate, ...s }));
 
     try {
       await ProvidersAPI.createSlots(profile._id, newSlots);
-      Alert.alert('Slots Created', '5 new inspection slots added for booking.');
+      Alert.alert('Slots Created', `${newSlots.length} slots added for ${slotDate}.`);
+      setShowForm(false);
       fetchProfileAndSlots();
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to create slots');
@@ -72,26 +100,61 @@ export const ManageSlotsScreen = () => {
       />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        {/* Quick Action */}
-        <View style={styles.actionCard}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.actionTitle}>Generate Daily Slots</Text>
-            <Text style={styles.actionDesc}>
-              Creates 5 standard inspection slots for atomic reservation.
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.genBtn}
-            onPress={handleGenerateDaySlots}
-            disabled={isCreating}
-          >
-            {isCreating ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.genBtnText}>+ Add Slots</Text>
-            )}
+        {/* Slot creation form */}
+        {!showForm ? (
+          <TouchableOpacity style={styles.addBtn} onPress={() => setShowForm(true)}>
+            <Text style={styles.addBtnText}>+ Add Inspection Slots</Text>
           </TouchableOpacity>
-        </View>
+        ) : (
+          <View style={styles.formCard}>
+            <Text style={styles.formTitle}>New Slots</Text>
+
+            <Text style={styles.formLabel}>Date (YYYY-MM-DD)</Text>
+            <TextInput
+              style={styles.formInput}
+              value={slotDate}
+              onChangeText={setSlotDate}
+              placeholder="e.g. 2025-06-15"
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="numbers-and-punctuation"
+            />
+
+            <Text style={styles.formLabel}>Time Template</Text>
+            <View style={styles.templateRow}>
+              {TIME_TEMPLATES.map((t, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.templateBtn, selectedTemplate === i && styles.templateBtnActive]}
+                  onPress={() => setSelectedTemplate(i)}
+                >
+                  <Text style={[styles.templateBtnText, selectedTemplate === i && styles.templateBtnTextActive]}>
+                    {t.label}
+                  </Text>
+                  <Text style={[styles.templateCount, selectedTemplate === i && styles.templateBtnTextActive]}>
+                    {t.slots.length} slots
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.formActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowForm(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.genBtn, isCreating && { opacity: 0.6 }]}
+                onPress={handleCreateSlots}
+                disabled={isCreating}
+              >
+                {isCreating ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.genBtnText}>Create {TIME_TEMPLATES[selectedTemplate].slots.length} Slots</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         <Text style={styles.sectionHeader}>ALL SLOTS ({slots.length})</Text>
 
@@ -145,36 +208,111 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40
   },
-  actionCard: {
-    flexDirection: 'row',
+  addBtn: {
+    backgroundColor: Colors.provider,
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
+    marginBottom: 20,
+  },
+  addBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  formCard: {
     backgroundColor: Colors.surface,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 16,
-    marginBottom: 20
+    marginBottom: 20,
   },
-  actionTitle: {
+  formTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: Colors.textPrimary
+    color: Colors.textPrimary,
+    marginBottom: 14,
   },
-  actionDesc: {
-    fontSize: 12,
+  formLabel: {
+    fontSize: 11,
+    fontWeight: '700',
     color: Colors.textSecondary,
-    marginTop: 2
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  formInput: {
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: Colors.textPrimary,
+    fontSize: 14,
+    marginBottom: 14,
+  },
+  templateRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  templateBtn: {
+    flex: 1,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+  },
+  templateBtnActive: {
+    backgroundColor: Colors.provider,
+    borderColor: Colors.provider,
+  },
+  templateBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  templateCount: {
+    fontSize: 9,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  templateBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  formActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  cancelBtnText: {
+    color: Colors.textSecondary,
+    fontWeight: '700',
+    fontSize: 13,
   },
   genBtn: {
+    flex: 2,
     backgroundColor: Colors.provider,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 8
+    borderRadius: 8,
+    alignItems: 'center',
   },
   genBtnText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 12
+    fontSize: 12,
   },
   sectionHeader: {
     fontSize: 12,

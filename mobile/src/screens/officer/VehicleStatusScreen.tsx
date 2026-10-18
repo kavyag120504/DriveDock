@@ -33,7 +33,6 @@ export const VehicleStatusScreen = ({ route, navigation }: any) => {
           }
         ]}
       >
-        <Text style={styles.statusIcon}>{isGreen ? '🛡️' : '🚨'}</Text>
         <Text style={[styles.statusTitle, { color: isGreen ? Colors.compliant : Colors.nonCompliant }]}>
           {isGreen ? 'COMPLIANT (GREEN)' : 'NON-COMPLIANT (RED)'}
         </Text>
@@ -44,7 +43,6 @@ export const VehicleStatusScreen = ({ route, navigation }: any) => {
 
       {/* Trust Rule 2 Explainer Banner */}
       <View style={styles.trustBanner}>
-        <Text style={styles.trustIcon}>🔒</Text>
         <Text style={styles.trustText}>
           <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>Trust Rule 2 Evaluated:</Text> Traffic compliance requires RC, Insurance, PUC, License & Fitness to be valid <Text style={{ fontWeight: '800' }}>AND verified by approved providers</Text>. Unverified owner uploads are automatically flagged RED.
         </Text>
@@ -72,7 +70,7 @@ export const VehicleStatusScreen = ({ route, navigation }: any) => {
           <Text style={styles.issuesTitle}>VIOLATION REASONS DETECTED</Text>
           {issues.unverifiedDocs?.length > 0 && (
             <View style={styles.issueRow}>
-              <Text style={styles.issueBullet}>⚠️</Text>
+              <Text style={styles.issueBullet}>!</Text>
               <Text style={styles.issueText}>
                 Unverified papers: <Text style={{ fontWeight: '800' }}>{issues.unverifiedDocs.join(', ')}</Text> (Uploaded by owner for personal tracking, never certified by an authorized station)
               </Text>
@@ -80,7 +78,7 @@ export const VehicleStatusScreen = ({ route, navigation }: any) => {
           )}
           {issues.expiredDocs?.length > 0 && (
             <View style={styles.issueRow}>
-              <Text style={styles.issueBullet}>❌</Text>
+              <Text style={styles.issueBullet}>x</Text>
               <Text style={styles.issueText}>
                 Expired papers: <Text style={{ fontWeight: '800' }}>{issues.expiredDocs.join(', ')}</Text>
               </Text>
@@ -88,7 +86,7 @@ export const VehicleStatusScreen = ({ route, navigation }: any) => {
           )}
           {issues.missingDocs?.length > 0 && (
             <View style={styles.issueRow}>
-              <Text style={styles.issueBullet}>❓</Text>
+              <Text style={styles.issueBullet}>?</Text>
               <Text style={styles.issueText}>
                 Missing papers: <Text style={{ fontWeight: '800' }}>{issues.missingDocs.join(', ')}</Text>
               </Text>
@@ -132,7 +130,7 @@ export const VehicleStatusScreen = ({ route, navigation }: any) => {
               })
             }
           >
-            <Text style={styles.violationBtnText}>🚨 Log Violation & Issue e-Challan</Text>
+            <Text style={styles.violationBtnText}>Log Violation & Issue e-Challan</Text>
           </TouchableOpacity>
         )}
 

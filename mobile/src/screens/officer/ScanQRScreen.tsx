@@ -41,7 +41,7 @@ export const ScanQRScreen = ({ navigation }: any) => {
     <View style={styles.container}>
       <RoleHeader
         title="Enforcement Scanner"
-        subtitle="Tamper-proof compliance check — Trust Rules 2 & 4"
+        subtitle="Tamper-proof compliance check - Trust Rules 2 & 4"
       />
 
       <View style={styles.content}>
@@ -85,42 +85,44 @@ export const ScanQRScreen = ({ navigation }: any) => {
           )}
         </View>
 
-        {/* Test Token Input */}
-        <View style={[styles.testSection, Shadow.card]}>
-          <View style={styles.testHeader}>
-            <View style={styles.testBadge}>
-              <Ionicons name="code-slash-outline" size={11} color={Colors.primary} />
-              <Text style={styles.testBadgeText}>SIMULATOR MODE</Text>
+        {/* Manual token input - only shown in dev builds */}
+        {__DEV__ && (
+          <View style={[styles.testSection, Shadow.card]}>
+            <View style={styles.testHeader}>
+              <View style={styles.testBadge}>
+                <Ionicons name="code-slash-outline" size={11} color={Colors.primary} />
+                <Text style={styles.testBadgeText}>SIMULATOR MODE</Text>
+              </View>
+              <Text style={styles.testTitle}>Direct Token Verification</Text>
+              <Text style={styles.testDesc}>
+                Paste a rotating JWT token to test signature validation and 2-minute expiry:
+              </Text>
             </View>
-            <Text style={styles.testTitle}>Direct Token Verification</Text>
-            <Text style={styles.testDesc}>
-              Paste a rotating JWT token to test signature validation and 2-minute expiry:
-            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Paste JWT token here..."
+              placeholderTextColor={Colors.textMuted}
+              value={manualToken}
+              onChangeText={setManualToken}
+            />
+
+            <TouchableOpacity
+              style={[styles.verifyBtn, (!manualToken || isVerifying) && styles.verifyBtnDisabled]}
+              onPress={() => handleVerify(manualToken)}
+              disabled={isVerifying || !manualToken}
+            >
+              {isVerifying ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="shield-checkmark-outline" size={16} color="#fff" />
+                  <Text style={styles.verifyBtnText}>Verify Compliance</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Paste JWT token here..."
-            placeholderTextColor={Colors.textMuted}
-            value={manualToken}
-            onChangeText={setManualToken}
-          />
-
-          <TouchableOpacity
-            style={[styles.verifyBtn, (!manualToken || isVerifying) && styles.verifyBtnDisabled]}
-            onPress={() => handleVerify(manualToken)}
-            disabled={isVerifying || !manualToken}
-          >
-            {isVerifying ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="shield-checkmark-outline" size={16} color="#fff" />
-                <Text style={styles.verifyBtnText}>Verify Compliance</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+        )}
       </View>
     </View>
   );
