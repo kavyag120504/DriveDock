@@ -12,6 +12,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Colors } from '../../theme/colors';
+import { withCancelButton, DISMISSIBLE_ALERT } from '../../utils/alerts';
 import { BookingsAPI } from '../../api/endpoints';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
@@ -36,12 +37,11 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
   const [expiryDate, setExpiryDate] = useState(nextYearStr());
 
   const handlePickFile = () => {
-    Alert.alert('Attach Certificate', 'Choose source', [
+    Alert.alert('Attach Certificate', 'Choose source', withCancelButton([
       { text: 'Gallery (Photo)', onPress: pickFromGallery },
       { text: 'Camera (Take Photo)', onPress: pickFromCamera },
-      { text: 'PDF Document', onPress: pickPDF },
-      { text: 'Cancel', style: 'cancel' }
-    ]);
+      { text: 'PDF Document', onPress: pickPDF }
+    ]), DISMISSIBLE_ALERT);
   };
 
   const pickFromGallery = async () => {

@@ -13,6 +13,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Colors } from '../../theme/colors';
+import { withCancelButton, DISMISSIBLE_ALERT } from '../../utils/alerts';
 import { StatusPill } from '../../components/StatusPill';
 import { RotatingQRModal } from '../../components/RotatingQRModal';
 import { VehiclesAPI, DocumentsAPI } from '../../api/endpoints';
@@ -80,12 +81,11 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
 
     setDateModal(null);
 
-    Alert.alert('Attach Document', 'Choose source', [
+    Alert.alert('Attach Document', 'Choose source', withCancelButton([
       { text: 'Gallery (Photo)', onPress: () => pickFromGallery(docType) },
       { text: 'Camera (Take Photo)', onPress: () => pickFromCamera(docType) },
-      { text: 'PDF Document', onPress: () => pickPDF(docType) },
-      { text: 'Cancel', style: 'cancel' }
-    ]);
+      { text: 'PDF Document', onPress: () => pickPDF(docType) }
+    ]), DISMISSIBLE_ALERT);
   };
 
   const doUpload = async (docType: string, uri: string, filename: string, mimeType: string) => {
