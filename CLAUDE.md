@@ -130,6 +130,7 @@ These are the product's core promise. Don't weaken them without discussing it wi
    - The server sets the amount from the booking's document type (`SERVICE_FEES_INR` in `paymentService.ts`: PUC 250, insurance 2400, others 1000) and ignores any amount from the client.
    - The signature is an HMAC-SHA256 of `orderId|paymentId`; a bad or wrong-length signature returns 400.
    - A payment can only confirm the booking its order was created for.
+   - Only a `pending` booking can get an order or be confirmed. Bookings left unpaid for 30 minutes are cancelled with `cancellationReason: 'payment_timeout'` and their slot freed. A payment verified after that reinstates the booking only if the slot can be reclaimed; otherwise it returns 409 and the payment stays `paid` for a refund.
 7. **Ownership on every record.** Shared helpers live in `server/src/services/accessService.ts`.
    - An owner reaches only their own vehicles, documents, bookings, payments, reminders and challans.
    - A provider reaches only bookings assigned to them. Admin reaches everything.
@@ -201,6 +202,7 @@ Goal: real people sign up, add real vehicles and documents, pay real money, and 
 | Hosted API with HTTPS (e.g. Render, Railway or Fly.io) | Phones outside your Wi-Fi can't reach a laptop | Team |
 | MongoDB Atlas cluster (production DB, never seeded) | Real data that survives restarts | Team |
 | Real secrets in the host's env (`JWT_*`, `QR_SECRET`, `INTERNAL_JOB_SECRET`) | Defaults in source let anyone forge tokens | Team |
+| `TRUST_PROXY=1` in the host's env (number of proxies in front of the API) | The login/signup rate limit uses the real client IP only when Express knows how many proxy hops to trust | Team |
 | AWS S3 bucket (private) or similar | Uploads on local disk vanish on redeploy and are public | Team |
 | Razorpay account: test keys now, live keys after KYC | Real payments | Account owner |
 | Google Maps API key (Maps SDK for Android/iOS) | Map tiles in builds | Account owner |
@@ -250,7 +252,7 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 - [x] Push reminders: job only marks sent when Expo Push accepts; skips silently when no push token (retries next run).
 - [ ] Uploads go to private S3; the app gets short-lived signed URLs.
 - [x] `/public/verify` no longer returns owner phone number.
-- [x] Rate-limit login and signup: 10 attempts per IP per 15 minutes (in-memory limiter, no extra package).
+- [x] Rate-limit login and signup: 10 attempts per IP per 15 minutes (in-memory limiter, no extra package). Keyed on `req.ip`, so set `TRUST_PROXY` when hosted behind a proxy; client-sent `X-Forwarded-For` values are ignored otherwise.
 - [x] `PATCH /vehicles/:id` restricted to type, make, model, year, fuelType, region — ownerId, regNumber, qrCodeId are blocked.
 
 ### Phase 7: release
