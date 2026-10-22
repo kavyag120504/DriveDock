@@ -22,7 +22,9 @@ export const AddVehicleScreen = ({ navigation }: any) => {
   const [district, setDistrict] = useState('Mumbai');
   const [isLoading, setIsLoading] = useState(false);
 
-  const IN_REG = /^[A-Z]{2}[0-9]{2}[A-Z]{1,3}[0-9]{4}$/;
+  // State code + 1-2 digit district code + 0-3 series letters + 4 digits.
+  // Covers MH01AB1234 and Delhi-style plates such as DL3CAB1234 (district 3, series CAB).
+  const IN_REG = /^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$/;
 
   const handleSubmit = async () => {
     if (!regNumber || !make || !model || !year) {
@@ -30,10 +32,11 @@ export const AddVehicleScreen = ({ navigation }: any) => {
       return;
     }
 
-    if (!IN_REG.test(regNumber.replace(/\s/g, ''))) {
+    const cleanedReg = regNumber.replace(/[\s-]/g, '').toUpperCase();
+    if (!IN_REG.test(cleanedReg)) {
       Alert.alert(
         'Invalid Registration Number',
-        'Format must be: State Code + District + Series + Number\nExample: MH01AB1234'
+        'Format must be: State Code + District + Series + Number\nExamples: MH01AB1234, DL3CAB1234, HR26DK9012'
       );
       return;
     }
@@ -47,7 +50,7 @@ export const AddVehicleScreen = ({ navigation }: any) => {
     setIsLoading(true);
     try {
       await VehiclesAPI.create({
-        regNumber,
+        regNumber: cleanedReg,
         make,
         model,
         year: Number(year),
