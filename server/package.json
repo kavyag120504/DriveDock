@@ -8,7 +8,8 @@
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "seed": "ts-node scripts/seed.ts",
-    "bootstrap": "ts-node scripts/bootstrap-admin.ts"
+    "bootstrap": "ts-node scripts/bootstrap-admin.ts",
+    "seed:demo": "ts-node scripts/seed-demo.ts"
   },
   "keywords": [
     "drivedock",

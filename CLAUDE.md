@@ -72,6 +72,7 @@ Use a port other than 5000 on a Mac: macOS AirPlay Receiver already listens on 5
 cd server
 npm install
 npm run seed     # wipes and re-seeds demo data
+npm run seed:demo # or: wipes and loads the NCR sample dataset (synthetic, ~250 vehicles)
 npm run dev      # http://localhost:5001/api/health should return 200
 ```
 
@@ -111,6 +112,9 @@ npx expo start --clear
 The login screen also has one-tap demo buttons per role.
 
 Seeded vehicles: `MH01AB1234` scans GREEN, `MH02CD5678` scans RED, and `MH04EF9012` has a PUC expiring in 5 days with a due reminder.
+
+
+**NCR sample dataset (`npm run seed:demo`).** Synthetic data for presentations: 156 owners, 250 vehicles across Delhi, Gurugram, Faridabad, Sonipat, Noida, Ghaziabad, Meerut and Alwar, 9 approved stations plus 1 pending (fictional names in real localities), about six months of bookings, payments, violations, e-challans and reminders. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Walkthrough vehicles for `owner@drivedock.com`: `DL3CAB1234` GREEN, `DL8CAF5678` RED, `HR26DK9012` GREEN with PUC expiring in 5 days. Everything is generated and the proportions are illustrative (see the header of `server/scripts/seed-demo.ts`); always present it as sample data.
 
 ## Trust rules the server enforces
 
