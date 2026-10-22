@@ -6,6 +6,7 @@ import { Vehicle } from '../models/Vehicle';
 import { DocumentModel } from '../models/Document';
 import { Violation } from '../models/Violation';
 import { Challan } from '../models/Challan';
+import { isVehicleCompliant } from '../services/complianceService';
 
 const STAFF_ROLES: UserRole[] = ['officer', 'government', 'admin'];
 
@@ -182,11 +183,7 @@ export const getOverviewStats = async (_req: Request, res: Response): Promise<vo
 
     for (const v of vehicles) {
       const docs = await DocumentModel.find({ vehicleId: v._id });
-      const reqTypes = ['rc', 'insurance', 'puc', 'license', 'fitness'];
-      const hasAllValidVerified = reqTypes.every((t) =>
-        docs.some((d) => d.type === t && d.status === 'valid' && d.verified)
-      );
-      if (hasAllValidVerified) {
+      if (isVehicleCompliant(docs)) {
         fullyCompliantCount++;
       }
     }

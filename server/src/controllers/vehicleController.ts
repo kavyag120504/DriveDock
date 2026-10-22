@@ -6,6 +6,7 @@ import { Reminder } from '../models/Reminder';
 import { Challan } from '../models/Challan';
 import { generateQRToken } from '../services/qrService';
 import { ownerScope } from '../services/accessService';
+import { isDocumentGood, isVehicleCompliant } from '../services/complianceService';
 
 export const createVehicle = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -58,7 +59,7 @@ export const getVehicles = async (req: Request, res: Response): Promise<void> =>
     const vehicleSummaries = await Promise.all(
       vehicles.map(async (v) => {
         const docs = await DocumentModel.find({ vehicleId: v._id });
-        const validVerifiedCount = docs.filter((d) => d.status === 'valid' && d.verified).length;
+        const validVerifiedCount = docs.filter((d) => isDocumentGood(d)).length;
         const totalDocs = docs.length;
         const pendingChallans = await Challan.countDocuments({ vehicleId: v._id, status: 'pending' });
 
@@ -67,7 +68,7 @@ export const getVehicles = async (req: Request, res: Response): Promise<void> =>
           documentCount: totalDocs,
           verifiedCount: validVerifiedCount,
           pendingChallans,
-          isCompliant: validVerifiedCount >= 4 && docs.every((d) => d.status === 'valid' && d.verified)
+          isCompliant: isVehicleCompliant(docs)
         };
       })
     );
