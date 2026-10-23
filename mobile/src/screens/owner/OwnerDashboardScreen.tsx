@@ -38,6 +38,20 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
     setQrModalVisible(true);
   };
 
+  // Show each document once, and only while it needs attention: a reminder for it is due and
+  // the document is expired or expires within 30 days (renewed documents drop off the list)
+  const now = Date.now();
+  const attention: any[] = Object.values(
+    reminders
+      .filter((r) => r.documentId?.expiryDate && new Date(r.scheduledFor).getTime() <= now &&
+        new Date(r.documentId.expiryDate).getTime() - now <= 30 * 24 * 60 * 60 * 1000)
+      .reduce((byDoc: Record<string, any>, r) => {
+        const key = String(r.documentId._id);
+        if (!byDoc[key] || r.thresholdDays < byDoc[key].thresholdDays) byDoc[key] = r;
+        return byDoc;
+      }, {})
+  );
+
   return (
     <View style={styles.container}>
       <RoleHeader
@@ -52,14 +66,14 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
         {/* Compliance Alert Banner */}
-        {reminders.length > 0 && (
+        {attention.length > 0 && (
           <View style={styles.alertBanner}>
             <View style={styles.alertIconWrap}>
               <Ionicons name="alert-circle" size={18} color={Colors.warning} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.alertTitle}>EXPIRY COMPLIANCE ALERTS</Text>
-              <Text style={styles.alertCount}>{reminders.length} document{reminders.length > 1 ? 's' : ''} require attention</Text>
+              <Text style={styles.alertCount}>{attention.length} document{attention.length > 1 ? 's' : ''} require attention</Text>
             </View>
             <TouchableOpacity onPress={() => navigation.navigate('OwnerChallans')}>
               <Text style={styles.alertAction}>View All</Text>
@@ -68,7 +82,7 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
         )}
 
         {/* Reminder detail items */}
-        {reminders.length > 0 && reminders.map((rem, idx) => (
+        {attention.map((rem, idx) => (
           <View key={idx} style={styles.reminderRow}>
             <View style={styles.reminderDot} />
             <View style={{ flex: 1 }}>
