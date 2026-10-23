@@ -80,13 +80,9 @@ Every other setting in `server/src/config/env.ts` has a built-in development def
 
 ### 3. Mobile
 
-Create `mobile/.env` (git-ignored) pointing at the server. A phone can't reach `localhost` on your computer, so use the computer's LAN IP:
+No configuration needed. In development the app calls the API on the same computer that serves the app, using the address Expo gives the phone (port 5001, or `EXPO_PUBLIC_API_PORT`). After changing Wi-Fi, just restart Expo and rescan the QR code.
 
-```
-EXPO_PUBLIC_API_URL=http://<your-computer-LAN-IP>:5001/api/v1
-```
-
-Without it the app falls back to `http://localhost:5000/api/v1`.
+Set `EXPO_PUBLIC_API_URL` in `mobile/.env` (git-ignored) only to force a specific API, for example the hosted one; it always takes priority.
 
 ```bash
 cd mobile

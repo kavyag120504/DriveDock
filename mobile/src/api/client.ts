@@ -1,9 +1,29 @@
 import axios from 'axios';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { Storage } from '../utils/storage';
 
-// Set EXPO_PUBLIC_API_URL in mobile/.env to point at the API (e.g. the dev machine's LAN IP for a phone).
-// Defaults to localhost:5000.
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+const DEV_API_PORT = process.env.EXPO_PUBLIC_API_PORT || '5001';
+
+// In development the API runs on the same computer as Metro, so reuse the host the app was
+// loaded from (e.g. "10.7.25.27:8081" when scanned in Expo Go). Changing Wi-Fi then only needs
+// a fresh QR scan, not an edit to mobile/.env.
+const devMachineHost = (): string | null => {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return window.location.hostname || null;
+  }
+  const hostUri = Constants.expoConfig?.hostUri || (Constants as any).expoGoConfig?.debuggerHost;
+  return hostUri ? hostUri.split(':')[0] : null;
+};
+
+const resolveApiBaseUrl = (): string => {
+  // An explicit URL always wins (e.g. the hosted API in builds)
+  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
+  const host = __DEV__ ? devMachineHost() : null;
+  return `http://${host || 'localhost'}:${DEV_API_PORT}/api/v1`;
+};
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
