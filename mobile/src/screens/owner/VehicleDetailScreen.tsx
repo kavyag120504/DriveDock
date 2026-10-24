@@ -194,6 +194,14 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
           </View>
         </View>
 
+        {/* Vehicle Twin CTA */}
+        <TouchableOpacity
+          style={styles.twinBtn}
+          onPress={() => navigation.navigate('VehicleTwin', { vehicleId: vehicle._id })}
+        >
+          <Text style={styles.twinBtnText}>Vehicle Twin — Score & History →</Text>
+        </TouchableOpacity>
+
         {/* Documents Checklist */}
         <View style={styles.docsSection}>
           <Text style={styles.sectionHeading}>REQUIRED DOCUMENTS CHECKLIST (5)</Text>
@@ -436,6 +444,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textSecondary,
     lineHeight: 16
+  },
+  twinBtn: {
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  twinBtnText: {
+    color: Colors.primary,
+    fontWeight: '800',
+    fontSize: 13
   },
   docsSection: {
     gap: 12

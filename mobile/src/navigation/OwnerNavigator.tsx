@@ -4,22 +4,30 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/colors';
 
-import { OwnerDashboardScreen }  from '../screens/owner/OwnerDashboardScreen';
-import { VehicleDetailScreen }   from '../screens/owner/VehicleDetailScreen';
-import { AddVehicleScreen }      from '../screens/owner/AddVehicleScreen';
-import { BookSlotScreen }        from '../screens/owner/BookSlotScreen';
-import { OwnerChallansScreen }   from '../screens/owner/OwnerChallansScreen';
-import { StationMapScreen }      from '../screens/owner/StationMapScreen';
+import { OwnerDashboardScreen }    from '../screens/owner/OwnerDashboardScreen';
+import { VehicleDetailScreen }     from '../screens/owner/VehicleDetailScreen';
+import { AddVehicleScreen }        from '../screens/owner/AddVehicleScreen';
+import { BookSlotScreen }          from '../screens/owner/BookSlotScreen';
+import { OwnerChallansScreen }     from '../screens/owner/OwnerChallansScreen';
+import { StationMapScreen }        from '../screens/owner/StationMapScreen';
+import { VehicleTwinScreen }       from '../features/twin/VehicleTwinScreen';
+import { TransferOwnershipScreen } from '../features/twin/TransferOwnershipScreen';
+import { AcceptTransferScreen }    from '../features/twin/AcceptTransferScreen';
+import { ShareTwinScreen }         from '../features/twin/ShareTwinScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
 
 const DashboardStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="DashboardMain"  component={OwnerDashboardScreen} />
-    <Stack.Screen name="VehicleDetail"  component={VehicleDetailScreen} />
-    <Stack.Screen name="AddVehicle"     component={AddVehicleScreen} />
-    <Stack.Screen name="BookSlot"       component={BookSlotScreen} />
+    <Stack.Screen name="DashboardMain"      component={OwnerDashboardScreen} />
+    <Stack.Screen name="VehicleDetail"      component={VehicleDetailScreen} />
+    <Stack.Screen name="AddVehicle"         component={AddVehicleScreen} />
+    <Stack.Screen name="BookSlot"           component={BookSlotScreen} />
+    <Stack.Screen name="VehicleTwin"        component={VehicleTwinScreen} />
+    <Stack.Screen name="TransferOwnership"  component={TransferOwnershipScreen} />
+    <Stack.Screen name="AcceptTransfer"     component={AcceptTransferScreen} />
+    <Stack.Screen name="ShareTwin"          component={ShareTwinScreen} />
   </Stack.Navigator>
 );
 

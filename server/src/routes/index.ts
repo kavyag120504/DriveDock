@@ -11,7 +11,9 @@ import officerRoutes, { violationRoutes } from './officerRoutes';
 import challanRoutes from './challanRoutes';
 import adminRoutes from './adminRoutes';
 import stationRoutes from './stationRoutes';
+import twinRoutes from './twin.routes';
 import { updatePushToken } from '../controllers/authController';
+import { publicTwinView } from '../controllers/twin.controller';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -29,6 +31,10 @@ router.use('/officer', officerRoutes);
 router.use('/violations', violationRoutes);
 router.use('/challans', challanRoutes);
 router.use('/admin', adminRoutes);
+router.use('/twin', twinRoutes);
+
+// Public Vehicle Twin share view — no auth required
+router.get('/public/twin', publicTwinView);
 
 // User push token route
 router.post('/users/push-token', authenticate, updatePushToken);

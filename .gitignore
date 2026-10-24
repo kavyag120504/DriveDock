@@ -50,3 +50,7 @@ tmp/
 
 # Salesforce VS Code / CLI cache (not part of DriveDock)
 .sf/
+
+# Seed toolkit — cached data and generated sample images
+server/scripts/seed/data/osm_fuel.json
+server/scripts/seed/out/

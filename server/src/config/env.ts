@@ -19,5 +19,7 @@ export const ENV = {
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_DriveDockDev2026',
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'rzp_test_secret_DriveDockDev2026',
   EXPO_ACCESS_TOKEN: process.env.EXPO_ACCESS_TOKEN || '',
-  GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY || ''
+  GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY || '',
+  TRANSFER_SECRET: process.env.TRANSFER_SECRET || 'drivedock_twin_transfer_secret_key_2026',
+  TWIN_SHARE_SECRET: process.env.TWIN_SHARE_SECRET || 'drivedock_twin_share_secret_key_2026'
 };
