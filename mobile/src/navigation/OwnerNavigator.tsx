@@ -14,6 +14,7 @@ import { VehicleTwinScreen }       from '../features/twin/VehicleTwinScreen';
 import { TransferOwnershipScreen } from '../features/twin/TransferOwnershipScreen';
 import { AcceptTransferScreen }    from '../features/twin/AcceptTransferScreen';
 import { ShareTwinScreen }         from '../features/twin/ShareTwinScreen';
+import { BuyCarScreen }           from '../features/twin/BuyCarScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -28,6 +29,7 @@ const DashboardStack = () => (
     <Stack.Screen name="TransferOwnership"  component={TransferOwnershipScreen} />
     <Stack.Screen name="AcceptTransfer"     component={AcceptTransferScreen} />
     <Stack.Screen name="ShareTwin"          component={ShareTwinScreen} />
+    <Stack.Screen name="BuyCar"            component={BuyCarScreen} />
   </Stack.Navigator>
 );
 

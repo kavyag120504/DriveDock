@@ -14,7 +14,8 @@ import stationRoutes from './stationRoutes';
 import twinRoutes from './twin.routes';
 import { updatePushToken } from '../controllers/authController';
 import { publicTwinView } from '../controllers/twin.controller';
-import { authenticate } from '../middleware/auth';
+import { getBuyerReport } from '../controllers/buyerReport.controller';
+import { authenticate, authorizeRoles } from '../middleware/auth';
 
 const router = Router();
 
@@ -32,6 +33,9 @@ router.use('/violations', violationRoutes);
 router.use('/challans', challanRoutes);
 router.use('/admin', adminRoutes);
 router.use('/twin', twinRoutes);
+
+// Buyer report — authenticated owner scans a transfer or share token
+router.get('/twin/buyer-report', authenticate, authorizeRoles('owner'), getBuyerReport);
 
 // Public Vehicle Twin share view — no auth required
 router.get('/public/twin', publicTwinView);

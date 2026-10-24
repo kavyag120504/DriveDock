@@ -208,6 +208,14 @@ export const VehicleTwinScreen = ({ route, navigation }: any) => {
             <Ionicons name="share-outline" size={16} color={Colors.provider} />
             <Text style={[styles.actionBtnText, { color: Colors.provider }]}>Share with Buyer</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => navigation.navigate('BuyCar')}
+          >
+            <Ionicons name="car-sport-outline" size={16} color={Colors.compliant} />
+            <Text style={[styles.actionBtnText, { color: Colors.compliant }]}>Buy a Car</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Accept transfer button for incoming transfers */}
