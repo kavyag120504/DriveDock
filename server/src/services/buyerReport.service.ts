@@ -82,7 +82,10 @@ export interface BuyerReport {
   ownershipCount:  number;        // 1 = first owner, 2 = second, etc.
   previousOwners:  string[];      // ["Owner 1 (–2021)", "Owner 2 (2021–2023)"]
   redFlags:        string[];
-  canAccept:       boolean;       // true only for a still-pending transfer token
+  canAccept:       boolean;       // true only for a still-pending transfer token: the buyer can apply
+  transferId:      string | null; // transfer tokens only, so the app can follow the request
+  transferStatus:  string | null; // pending | requested | accepted | rejected | cancelled
+  requestedByYou:  boolean;       // this buyer has applied and is waiting for the seller's approval
 }
 
 export class BuyerReportError extends Error {
@@ -91,11 +94,14 @@ export class BuyerReportError extends Error {
   }
 }
 
-export async function buildBuyerReport(token: string): Promise<BuyerReport> {
+export async function buildBuyerReport(token: string, viewerId?: string): Promise<BuyerReport> {
   // ── 1. Verify token — try transfer first, then share ──────────────────────
   let tokenType: 'transfer' | 'share';
   let vehicleId: string;
   let canAccept = false;
+  let transferId: string | null = null;
+  let transferStatus: string | null = null;
+  let requestedByYou = false;
 
   const transferParsed = (() => {
     try { return verifyTransferToken(token); }
@@ -108,6 +114,9 @@ export async function buildBuyerReport(token: string): Promise<BuyerReport> {
     if (!transfer) throw new BuyerReportError('This transfer is no longer available (it was cancelled or reset). Ask the seller to generate a new transfer QR.', 410);
     vehicleId = transfer.vehicleId.toString();
     canAccept = transfer.status === 'pending' && transfer.expiresAt > new Date();
+    transferId = transfer._id!.toString();
+    transferStatus = transfer.status;
+    requestedByYou = transfer.status === 'requested' && !!viewerId && transfer.toOwnerId?.toString() === viewerId;
   } else {
     // Try share token
     let shareParsed;
@@ -243,5 +252,8 @@ export async function buildBuyerReport(token: string): Promise<BuyerReport> {
     previousOwners,
     redFlags,
     canAccept,
+    transferId,
+    transferStatus,
+    requestedByYou,
   };
 }

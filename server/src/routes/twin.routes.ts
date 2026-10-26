@@ -3,7 +3,9 @@ import { authenticate, authorizeRoles } from '../middleware/auth';
 import {
   createTransfer,
   previewTransfer,
-  acceptTransfer,
+  requestTransfer,
+  approveTransfer,
+  rejectTransfer,
   cancelTransfer,
   listTransfers,
   getTimeline,
@@ -24,8 +26,12 @@ router.post('/transfers', authorizeRoles('owner'), createTransfer);
 // Any authenticated owner: preview a pending transfer before accepting
 router.get('/transfers/preview', authorizeRoles('owner'), previewTransfer);
 
-// Any authenticated owner: accept a pending transfer (buyer)
-router.post('/transfers/accept', authorizeRoles('owner'), acceptTransfer);
+// Buyer: apply to take ownership (scanned transfer QR). Nothing changes hands yet.
+router.post('/transfers/request', authorizeRoles('owner'), requestTransfer);
+
+// Seller: approve the buyer's request (ownership moves now) or decline it
+router.post('/transfers/:id/approve', authorizeRoles('owner'), approveTransfer);
+router.post('/transfers/:id/reject', authorizeRoles('owner'), rejectTransfer);
 
 // Seller cancels their own pending transfer
 router.post('/transfers/:id/cancel', authorizeRoles('owner'), cancelTransfer);

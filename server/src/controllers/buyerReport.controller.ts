@@ -12,7 +12,7 @@ export const getBuyerReport = async (req: Request, res: Response): Promise<void>
   const token = match ? decodeURIComponent(match[1]) : raw.trim();
 
   try {
-    const report = await buildBuyerReport(token);
+    const report = await buildBuyerReport(token, req.user?.userId);
     res.status(200).json({ success: true, data: report });
   } catch (err: unknown) {
     if (err instanceof BuyerReportError) {
