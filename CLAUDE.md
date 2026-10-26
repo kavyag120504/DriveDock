@@ -111,7 +111,17 @@ The login screen also has one-tap demo buttons per role (development builds only
 Seeded vehicles: `MH01AB1234` scans GREEN, `MH02CD5678` scans RED, and `MH04EF9012` has a PUC expiring in 5 days with a due reminder.
 
 
-**NCR sample dataset (`npm run seed:demo`).** Synthetic data for presentations: 156 owners, 250 vehicles across Delhi, Gurugram, Faridabad, Sonipat, Noida, Ghaziabad, Meerut and Alwar, 9 approved stations plus 1 pending (fictional names in real localities), about six months of bookings, payments, violations, e-challans and reminders. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Walkthrough vehicles for `owner@drivedock.com`: `DL3CAB1234` GREEN, `DL8CAF5678` RED, `HR26DK9012` GREEN with PUC expiring in 5 days. Everything is generated and the proportions are illustrative (see the header of `server/scripts/seed-demo.ts`); always present it as sample data.
+**NCR sample dataset (`npm run seed:demo`).** Synthetic data for presentations: 156 owners, 250 vehicles across Delhi, Gurugram, Faridabad, Sonipat, Noida, Ghaziabad, Meerut and Alwar, 9 approved stations plus 1 pending (fictional names in real localities), about six months of bookings, payments, violations, e-challans and reminders. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Also `buyer@drivedock.com` (a second owner, for Buy a Car). Walkthrough vehicles for `owner@drivedock.com`:
+
+| Vehicle | Set up to show |
+|---|---|
+| `DL3CAB1234` Nexon EV | QR GREEN; renewal "not due yet"; ownership transfer to the buyer |
+| `DL8CAF5678` Creta | QR RED (PUC and licence unverified, insurance expired, fitness missing), pending e-challan; booking renewals to fix it |
+| `HR26DK9012` Classic 350 | PUC expires in 5 days, so book and pay now; Vehicle Twin with a previous owner |
+| `UP16KB4321` Swift | PUC renewal already booked and paid at Capital Auto for tomorrow ("Already booked"); appears as NEW on Capital Auto's station screen |
+| `DL4CXY7788` City | Just registered, no documents: upload papers and see them stay unverified |
+
+The script prints this checklist (13 scenarios, including officer, admin and government) when it finishes. Everything is generated and the proportions are illustrative (see the header of `server/scripts/seed-demo.ts`); always present it as sample data.
 
 ## Trust rules the server enforces
 

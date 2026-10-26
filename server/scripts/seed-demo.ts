@@ -31,7 +31,10 @@ import { Payment } from '../src/models/Payment';
 import { Reminder } from '../src/models/Reminder';
 import { Violation } from '../src/models/Violation';
 import { Challan } from '../src/models/Challan';
+import { OwnershipTransfer } from '../src/models/OwnershipTransfer';
+import { TwinShare } from '../src/models/TwinShare';
 import { SERVICE_FEES_INR } from '../src/services/paymentService';
+import { computeHash, computeSnapshotHash } from '../src/services/transfer.service';
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/drivedock';
 const VEHICLE_COUNT = 250;
@@ -146,7 +149,7 @@ const run = async () => {
   console.log('[SeedDemo] Connecting to', MONGO_URI);
   await mongoose.connect(MONGO_URI);
   console.log('[SeedDemo] Clearing collections...');
-  await Promise.all([User, Vehicle, DocumentModel, Provider, Slot, Booking, Payment, Reminder, Violation, Challan].map((m: any) => m.deleteMany({})));
+  await Promise.all([User, Vehicle, DocumentModel, Provider, Slot, Booking, Payment, Reminder, Violation, Challan, OwnershipTransfer, TwinShare].map((m: any) => m.deleteMany({})));
 
   const passwordHash = await bcrypt.hash('password123', 10);
   const user = (name: string, email: string, role: string, city: string, state: string, createdAt: Date) => ({
@@ -156,6 +159,8 @@ const run = async () => {
 
   // ---------- Staff and demo login accounts (same emails as `npm run seed`) ----------
   const owner = user('Aarav Sharma', 'owner@drivedock.com', 'owner', 'New Delhi', 'Delhi', daysAgo(170));
+  // Second owner for the Buy a Car / ownership-transfer demo (log in with the form, not a demo button)
+  const buyer = user('Riya Malhotra', 'buyer@drivedock.com', 'owner', 'Noida', 'Uttar Pradesh', daysAgo(120));
   const officers = [
     user('Inspector Vikram Rathi', 'officer@drivedock.com', 'officer', 'New Delhi', 'Delhi', daysAgo(200)),
     user('SI Neha Tomar', 'officer2@drivedock.demo', 'officer', 'Gurugram', 'Haryana', daysAgo(190)),
@@ -211,7 +216,7 @@ const run = async () => {
     slots.push(slot);
   };
 
-  const buildVehicle = (ownerDoc: any, area: Area, m: ModelDef, opts: { plate?: string; profile?: 'compliant' | 'non' | 'expiring' } = {}) => {
+  const buildVehicle = (ownerDoc: any, area: Area, m: ModelDef, opts: { plate?: string; profile?: 'compliant' | 'non' | 'expiring' | 'empty' } = {}) => {
     // Random vehicles get a compliance profile (illustrative mix): fully compliant, compliant with
     // something expiring within 30 days, or failing on 1-3 documents (missing / unverified / expired)
     const profile = opts.profile || weighted<'compliant' | 'expiring' | 'failing'>([['compliant', 42], ['expiring', 13], ['failing', 45]]);
@@ -227,6 +232,7 @@ const run = async () => {
     const createdAt = new Date(Math.max(ownerDoc.createdAt.getTime(), NOW - int(3, 170) * DAY));
     const v = { _id: new Types.ObjectId(), ownerId: ownerDoc._id, regNumber: opts.plate || plateFor(area), type: m.type, fuelType: m.fuel, make: m.make, model: m.model, year: int(2014, 2025), qrCodeId: `DD-${hex(12).toUpperCase()}`, region: { state: area.state, district: area.district }, createdAt, updatedAt: createdAt };
     vehicles.push(v);
+    if (opts.profile === 'empty') return v; // just registered: no documents uploaded yet
 
     for (const type of DOC_TYPES) {
       let present = true;
@@ -275,11 +281,47 @@ const run = async () => {
   buildVehicle(owner, delhiSouth, { make: 'Tata', model: 'Nexon EV', type: 'car', fuel: 'ev', weight: 0 }, { plate: 'DL3CAB1234', profile: 'compliant' });
   buildVehicle(owner, delhiNW, { make: 'Hyundai', model: 'Creta', type: 'car', fuel: 'petrol', weight: 0 }, { plate: 'DL8CAF5678', profile: 'non' });
   buildVehicle(owner, gurugram, { make: 'Royal Enfield', model: 'Classic 350', type: 'bike', fuel: 'petrol', weight: 0 }, { plate: 'HR26DK9012', profile: 'expiring' });
-  ['DL3CAB1234', 'DL8CAF5678', 'HR26DK9012'].forEach((p) => usedPlates.add(p));
+  const noida = AREAS.find((a) => a.district === 'Gautam Buddh Nagar')!;
+  const delhiWest = AREAS.find((a) => a.district === 'West Delhi')!;
+  // PUC expires in 5 days and its renewal is already booked and paid at Capital Auto for tomorrow
+  const swift = buildVehicle(owner, noida, { make: 'Maruti Suzuki', model: 'Swift', type: 'car', fuel: 'petrol', weight: 0 }, { plate: 'UP16KB4321', profile: 'expiring' });
+  // Just registered, no papers yet
+  buildVehicle(owner, delhiWest, { make: 'Honda', model: 'City', type: 'car', fuel: 'petrol', weight: 0 }, { plate: 'DL4CXY7788', profile: 'empty' });
+  // The buyer's own vehicle
+  buildVehicle(buyer, noida, { make: 'Honda', model: 'Activa 6G', type: 'bike', fuel: 'petrol', weight: 0 }, { plate: 'UP16BR2468', profile: 'compliant' });
+  ['DL3CAB1234', 'DL8CAF5678', 'HR26DK9012', 'UP16KB4321', 'DL4CXY7788', 'UP16BR2468'].forEach((p) => usedPlates.add(p));
+  const HERO_COUNT = vehicles.length;
+
+  // Swift's PUC renewal: booked and paid two hours ago at Capital Auto (shows as NEW on that station's screen)
+  {
+    const capital = approved[0];
+    const bookedAt = new Date(NOW - 2 * 60 * 60 * 1000);
+    const slot = { _id: new Types.ObjectId(), providerId: capital._id, date: isoDate(daysFromNow(1)), startTime: '11:00 AM', endTime: '12:00 PM', isBooked: true, createdAt: daysAgo(3), updatedAt: bookedAt };
+    const bookingId = new Types.ObjectId(); const paymentId = new Types.ObjectId();
+    slots.push(slot);
+    payments.push({ _id: paymentId, bookingId, amount: SERVICE_FEES_INR.puc, currency: 'INR', razorpayOrderId: `order_demo_${hex(14)}`, razorpayPaymentId: `pay_demo_${hex(14)}`, razorpaySignature: hex(64), status: 'paid', createdAt: bookedAt, updatedAt: bookedAt });
+    bookings.push({ _id: bookingId, ownerId: owner._id, vehicleId: swift._id, providerId: capital._id, slotId: slot._id, documentType: 'puc', status: 'confirmed', paymentId, certificateUrl: '', notes: '', cancellationReason: null, createdAt: bookedAt, updatedAt: bookedAt });
+  }
+
+  // Royal Enfield's ownership history: bought from a previous owner five months ago (Vehicle Twin ledger)
+  const transfers: any[] = [];
+  {
+    const bike = vehicles.find((v) => v.regNumber === 'HR26DK9012');
+    const prevOwner = owners[1];
+    const acceptedAt = daysAgo(150);
+    const snapshot = { score: 82, verifiedDocTypes: ['rc', 'insurance', 'puc', 'license'], completedServiceCount: 2, violationCount: 0, ownershipIndex: 1 };
+    const snapshotHash = computeSnapshotHash(snapshot);
+    transfers.push({
+      _id: new Types.ObjectId(), vehicleId: bike._id, fromOwnerId: prevOwner._id, toOwnerId: owner._id, status: 'accepted',
+      expiresAt: new Date(acceptedAt.getTime() + 10 * 60 * 1000), snapshot, snapshotHash, prevHash: 'GENESIS',
+      hash: computeHash('GENESIS', String(bike._id), String(prevOwner._id), String(owner._id), acceptedAt, snapshotHash),
+      acceptedAt, createdAt: new Date(acceptedAt.getTime() - 5 * 60 * 1000), updatedAt: acceptedAt
+    });
+  }
 
   // ---------- Everyone else's vehicles ----------
   for (let i = vehicles.length; i < VEHICLE_COUNT; i++) {
-    const o = i - 3 < ownerCount ? owners[1 + ((i - 3) % ownerCount)] : pick(owners.slice(1));
+    const o = i - HERO_COUNT < ownerCount ? owners[1 + ((i - HERO_COUNT) % ownerCount)] : pick(owners.slice(1));
     buildVehicle(o, o._area, weighted(MODELS.map((m) => [m, m.weight] as [ModelDef, number])));
   }
 
@@ -292,7 +334,7 @@ const run = async () => {
         const slot = { _id: new Types.ObjectId(), providerId: p._id, date: isoDate(daysFromNow(d)), startTime: start, endTime: end, isBooked: false, createdAt: daysAgo(int(1, 6)), updatedAt: daysAgo(1) };
         slots.push(slot);
         if (chance(0.25)) {
-          const v = pick(vehicles.slice(3)); const type = pick(p.serviceTypes as DocumentType[]);
+          const v = pick(vehicles.slice(HERO_COUNT)); const type = pick(p.serviceTypes as DocumentType[]);
           // One active booking per vehicle and document (matches the server's unique index)
           const key = `${v._id}:${type}`;
           if (activeBookingKeys.has(key)) continue;
@@ -306,7 +348,7 @@ const run = async () => {
     }
   }
   for (let i = 0; i < 18; i++) {
-    const p = pick(approved); const v = pick(vehicles.slice(3)); const when = daysAgo(int(2, 150));
+    const p = pick(approved); const v = pick(vehicles.slice(HERO_COUNT)); const when = daysAgo(int(2, 150));
     const slot = { _id: new Types.ObjectId(), providerId: p._id, date: isoDate(when), startTime: '11:00 AM', endTime: '12:00 PM', isBooked: false, createdAt: when, updatedAt: when };
     slots.push(slot);
     bookings.push({ _id: new Types.ObjectId(), ownerId: v.ownerId, vehicleId: v._id, providerId: p._id, slotId: slot._id, documentType: pick(p.serviceTypes as DocumentType[]), status: 'cancelled', paymentId: null, certificateUrl: '', notes: '', cancellationReason: chance(0.7) ? 'payment_timeout' : 'cancelled', createdAt: when, updatedAt: new Date(when.getTime() + DAY / 48) });
@@ -319,10 +361,11 @@ const run = async () => {
     const docs = docsByVehicle.get(String(v._id)) || [];
     return DOC_TYPES.filter((t) => { const d = docs.find((x) => x.type === t); return !d || !d.verified || d.status === 'expired'; });
   };
-  const nonCompliant = vehicles.filter((v) => failingTypes(v).length > 0);
+  // Walkthrough vehicles stay predictable: only DL8CAF5678 among them gets violations
+  const nonCompliant = vehicles.slice(HERO_COUNT).filter((v) => failingTypes(v).length > 0);
   const violationCount = Math.min(140, nonCompliant.length * 2);
   for (let i = 0; i < violationCount; i++) {
-    const v = i === 0 ? vehicles[1] : pick(nonCompliant);
+    const v = i === 0 ? vehicles.find((x) => x.regNumber === 'DL8CAF5678') : pick(nonCompliant);
     const failing = failingTypes(v);
     const flagged = failing.filter((t) => t !== 'license').slice(0, int(1, 2));
     if (!flagged.length) continue;
@@ -336,7 +379,7 @@ const run = async () => {
   // ---------- Write everything (timestamps: false keeps the historical createdAt values) ----------
   const strip = (o: any) => { const { _area, ...rest } = o; return rest; };
   const opts = { timestamps: false } as any;
-  await User.insertMany([...owners.map(strip), ...officers, gov, admin, ...providerUsers], opts);
+  await User.insertMany([...owners.map(strip), buyer, ...officers, gov, admin, ...providerUsers], opts);
   await Provider.insertMany(providers, opts);
   await Vehicle.insertMany(vehicles, opts);
   await DocumentModel.insertMany(documents, opts);
@@ -346,6 +389,7 @@ const run = async () => {
   await Reminder.insertMany(reminders, opts);
   await Challan.insertMany(challans, opts);
   await Violation.insertMany(violations, opts);
+  await OwnershipTransfer.insertMany(transfers, opts);
 
   const compliant = vehicles.filter((v) => failingTypes(v).length === 0).length;
   console.log('========================================================================');
@@ -354,8 +398,23 @@ const run = async () => {
   console.log(`Owners: ${owners.length}  Vehicles: ${vehicles.length}  Fully compliant: ${compliant} (${Math.round((compliant / vehicles.length) * 100)}%)`);
   console.log(`Stations: ${approved.length} approved + 1 pending  Documents: ${documents.length}  Slots: ${slots.length}`);
   console.log(`Bookings: ${bookings.length}  Payments: ${payments.length}  Violations: ${violations.length}  Challans: ${challans.length}  Reminders: ${reminders.length}`);
-  console.log('Logins (password123): owner@ / provider@ / officer@ / gov@ / admin@drivedock.com, pending.provider@drivedock.com');
-  console.log('Walkthrough vehicles (owner@drivedock.com): DL3CAB1234 GREEN, DL8CAF5678 RED, HR26DK9012 PUC expiring in 5 days');
+  console.log('Logins (password123): owner@ / provider@ / officer@ / gov@ / admin@drivedock.com, pending.provider@drivedock.com,');
+  console.log('                      buyer@drivedock.com (second owner), station2..9@drivedock.demo (other stations)');
+  console.log('------------------------------------------------------------------------');
+  console.log('DEMO SCENARIOS (owner@drivedock.com unless noted)');
+  console.log(' 1. QR GREEN ............ DL3CAB1234 Show QR Code -> officer scans -> GREEN');
+  console.log(' 2. QR RED .............. DL8CAF5678 -> RED: PUC + licence unverified, insurance expired, fitness missing; e-challan');
+  console.log(' 3. Renewal not due ..... Renewals > DL3CAB1234 > PUC -> "No renewal needed yet", opens 30 days before expiry');
+  console.log(' 4. Book + pay .......... Renewals > HR26DK9012 > PUC (expires in 5 days) -> pick a station -> Book & Pay');
+  console.log(' 5. Already booked ...... Renewals > UP16KB4321 > PUC -> booked and paid at Capital Auto for tomorrow 11:00 AM');
+  console.log(' 6. Station sees it ..... Approved Provider > Capital Auto -> UP16KB4321 at the top (NEW) -> Certify & Complete');
+  console.log(' 7. Fix a RED car ....... Renewals > DL8CAF5678 > INSURANCE (expired) or PUC (unverified) -> Book & Pay');
+  console.log(' 8. Upload papers ....... DL4CXY7788 (no documents) > Manage Papers -> upload -> stays UNVERIFIED until a station certifies');
+  console.log(' 9. Vehicle Twin ........ HR26DK9012 > Manage Papers > Twin -> ownership history (bought 5 months ago)');
+  console.log('10. Buy a Car ........... owner: DL3CAB1234 Twin > Transfer -> buyer@drivedock.com scans -> report -> accept');
+  console.log('11. Officer ............. officer@drivedock.com -> scan QR, log a violation -> fee-table e-challan');
+  console.log('12. Admin ............... admin@drivedock.com -> approve Raj Nagar Quick PUC (pending) / add staff');
+  console.log('13. Government .......... gov@drivedock.com -> compliance index, districts, trends');
   console.log('========================================================================');
   await mongoose.disconnect();
 };
