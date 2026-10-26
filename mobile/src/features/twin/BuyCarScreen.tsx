@@ -100,7 +100,8 @@ export const BuyCarScreen = ({ navigation }: any) => {
                 'The vehicle is now in your account. Remember to complete the RTO transfer on Parivahan to finalise legal ownership.',
                 [{
                   text: 'View Vehicle',
-                  onPress: () => navigation.navigate('VehicleTwin', { vehicleId: report.vehicleId }),
+                  // VehicleTwin lives in the Passport tab's stack
+                  onPress: () => navigation.navigate('Dashboard', { screen: 'VehicleTwin', params: { vehicleId: report.vehicleId } }),
                 }]
               );
               setReport(null);

@@ -12,7 +12,6 @@ import { OwnerChallansScreen }     from '../screens/owner/OwnerChallansScreen';
 import { StationMapScreen }        from '../screens/owner/StationMapScreen';
 import { VehicleTwinScreen }       from '../features/twin/VehicleTwinScreen';
 import { TransferOwnershipScreen } from '../features/twin/TransferOwnershipScreen';
-import { AcceptTransferScreen }    from '../features/twin/AcceptTransferScreen';
 import { ShareTwinScreen }         from '../features/twin/ShareTwinScreen';
 import { BuyCarScreen }           from '../features/twin/BuyCarScreen';
 
@@ -27,9 +26,16 @@ const DashboardStack = () => (
     <Stack.Screen name="BookSlot"           component={BookSlotScreen} />
     <Stack.Screen name="VehicleTwin"        component={VehicleTwinScreen} />
     <Stack.Screen name="TransferOwnership"  component={TransferOwnershipScreen} />
-    <Stack.Screen name="AcceptTransfer"     component={AcceptTransferScreen} />
     <Stack.Screen name="ShareTwin"          component={ShareTwinScreen} />
-    <Stack.Screen name="BuyCar"            component={BuyCarScreen} />
+  </Stack.Navigator>
+);
+
+// Add Vehicle covers both ways a car joins your passport: registering one you own,
+// or buying a used one from another DriveDock owner
+const AddVehicleStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="AddVehicleMain" component={AddVehicleScreen} />
+    <Stack.Screen name="BuyCar"         component={BuyCarScreen} />
   </Stack.Navigator>
 );
 
@@ -71,7 +77,7 @@ export const OwnerNavigator = () => (
     />
     <Tab.Screen
       name="AddVehicleTab"
-      component={AddVehicleScreen}
+      component={AddVehicleStack}
       options={{
         tabBarLabel: 'Add Vehicle',
         tabBarIcon: ({ color, size }) => <Ionicons name="add-circle-outline" size={size} color={color} />,

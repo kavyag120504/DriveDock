@@ -73,8 +73,24 @@ export const AddVehicleScreen = ({ navigation }: any) => {
         <Text style={styles.backText}>← Cancel</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>Register Vehicle</Text>
-      <Text style={styles.subtitle}>Enrolls vehicle in the tamper-proof dynamic QR verification system</Text>
+      {/* Buying a used car: scan the seller's transfer QR, read its verified history, accept ownership */}
+      <View style={styles.buyCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.buyTitle}>Buying a used car?</Text>
+          <Text style={styles.buySub}>
+            Scan the seller's transfer QR to see its verified papers, service history and fines, then take ownership.
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.buyBtn}
+          onPress={() => navigation.navigate('AddVehicleTab', { screen: 'BuyCar' })}
+        >
+          <Text style={styles.buyBtnText}>Scan QR</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.title}>Register Your Vehicle</Text>
+      <Text style={styles.subtitle}>Enrolls a vehicle you own in the tamper-proof dynamic QR verification system</Text>
 
       {/* Fuel Type Selector */}
       <Text style={styles.label}>Fuel / Powertrain (EV Hook Ready)</Text>
@@ -181,6 +197,23 @@ export const AddVehicleScreen = ({ navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
+  buyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.compliant,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 24
+  },
+  buyTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+  buySub: { fontSize: 12, color: Colors.textSecondary, marginTop: 3, lineHeight: 16 },
+  buyBtn: { backgroundColor: Colors.compliant, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  buyBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
   container: {
     flex: 1,
     backgroundColor: Colors.background

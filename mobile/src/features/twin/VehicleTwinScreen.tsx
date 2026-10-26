@@ -208,24 +208,7 @@ export const VehicleTwinScreen = ({ route, navigation }: any) => {
             <Ionicons name="share-outline" size={16} color={Colors.provider} />
             <Text style={[styles.actionBtnText, { color: Colors.provider }]}>Share with Buyer</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => navigation.navigate('BuyCar')}
-          >
-            <Ionicons name="car-sport-outline" size={16} color={Colors.compliant} />
-            <Text style={[styles.actionBtnText, { color: Colors.compliant }]}>Buy a Car</Text>
-          </TouchableOpacity>
         </View>
-
-        {/* Accept transfer button for incoming transfers */}
-        <TouchableOpacity
-          style={styles.acceptBtn}
-          onPress={() => navigation.navigate('AcceptTransfer')}
-        >
-          <Ionicons name="qr-code-outline" size={16} color={Colors.textSecondary} />
-          <Text style={styles.acceptBtnText}>Scan Incoming Transfer QR</Text>
-        </TouchableOpacity>
 
         {/* Timeline */}
         <Text style={[styles.sectionLabel, { marginTop: 20, marginBottom: 12 }]}>VEHICLE HISTORY</Text>
@@ -314,12 +297,6 @@ const styles = StyleSheet.create({
   },
   actionBtnText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
 
-  acceptBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    paddingVertical: 11, borderRadius: BorderRadius.md, marginBottom: 4, ...Shadow.card
-  },
-  acceptBtnText: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary },
 
   emptyTimeline: {
     backgroundColor: Colors.surface, borderRadius: BorderRadius.md,
