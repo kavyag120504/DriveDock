@@ -7,6 +7,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadow, BorderRadius } from '../../theme/colors';
 import { TwinAPI } from './api';
+import { TransferRequestCard } from './TransferRequestCard';
 
 const TRANSFER_EXPIRY_SECONDS = 10 * 60; // 10 minutes
 
@@ -18,11 +19,16 @@ export const TransferOwnershipScreen = ({ route, navigation }: any) => {
   const [isLoading, setIsLoading]     = useState(true);
   const [error, setError]             = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // The buyer's request on this transfer (seller approves or declines it here), and the outcome
+  const [buyerRequest, setBuyerRequest] = useState<any>(null);
+  const [outcome, setOutcome] = useState<'approved' | 'rejected' | null>(null);
 
   const createTransfer = async () => {
     setIsLoading(true);
     setError(null);
     setToken(null);
+    setBuyerRequest(null);
+    setOutcome(null);
     try {
       const res = await TwinAPI.createTransfer(vehicleId);
       setToken(res.data.data.token);
@@ -52,9 +58,24 @@ export const TransferOwnershipScreen = ({ route, navigation }: any) => {
     return () => clearInterval(timerRef.current!);
   }, [token]);
 
+  // While the QR is on screen, watch for the buyer applying (two-party approval)
+  useEffect(() => {
+    if (!transferId || outcome) return;
+    const check = async () => {
+      try {
+        const res = await TwinAPI.listTransfers();
+        const t = (res.data.data || []).find((x: any) => x._id === transferId);
+        if (t?.status === 'requested') setBuyerRequest(t);
+      } catch { /* try again on the next tick */ }
+    };
+    check();
+    const poll = setInterval(check, 4000);
+    return () => clearInterval(poll);
+  }, [transferId, outcome]);
+
   const handleCancel = () => {
     // Nothing to cancel when the transfer couldn't be created or its QR already expired
-    if (!transferId || error || timeLeft <= 0) {
+    if (!transferId || error || outcome || (timeLeft <= 0 && !buyerRequest)) {
       navigation.goBack();
       return;
     }
@@ -93,16 +114,44 @@ export const TransferOwnershipScreen = ({ route, navigation }: any) => {
       </View>
 
       <View style={styles.content}>
-        {/* Info card */}
+        {/* Info card (only while the QR is being shown) */}
+        {!buyerRequest && !outcome && (
         <View style={styles.infoCard}>
           <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
           <Text style={styles.infoText}>
-            Show this QR to the buyer. They scan it in their DriveDock app to accept the transfer.
-            The code expires in 10 minutes.
+            Show this QR to the buyer. They scan it in DriveDock (Add Vehicle → Scan QR) and apply;
+            you then approve here. The code expires in 10 minutes.
           </Text>
         </View>
+        )}
 
-        {/* QR card */}
+        {outcome === 'approved' ? (
+          <View style={[styles.qrCard, Shadow.elevated]}>
+            <View style={styles.expiredBox}>
+              <Ionicons name="checkmark-circle-outline" size={44} color={Colors.compliant} />
+              <Text style={[styles.expiredTitle, { color: Colors.compliant }]}>Ownership transferred</Text>
+              <Text style={styles.expiredSub}>
+                The vehicle has left your Vehicle Passport and now appears in {buyerRequest?.buyerName || "the buyer"}'s.
+              </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('DashboardMain')} style={styles.refreshBtn}>
+                <Text style={styles.refreshText}>Back to Passport</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : outcome === 'rejected' ? (
+          <View style={[styles.qrCard, Shadow.elevated]}>
+            <View style={styles.expiredBox}>
+              <Ionicons name="close-circle-outline" size={44} color={Colors.nonCompliant} />
+              <Text style={styles.expiredTitle}>Request declined</Text>
+              <Text style={styles.expiredSub}>The vehicle stays with you.</Text>
+              <TouchableOpacity onPress={createTransfer} style={styles.refreshBtn}>
+                <Text style={styles.refreshText}>Generate New QR</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : buyerRequest ? (
+          <TransferRequestCard transfer={buyerRequest} onDone={setOutcome} />
+        ) : (
         <View style={[styles.qrCard, Shadow.elevated]}>
           {isLoading ? (
             <ActivityIndicator size="large" color={Colors.primary} />
@@ -129,9 +178,10 @@ export const TransferOwnershipScreen = ({ route, navigation }: any) => {
             </View>
           ) : null}
         </View>
+        )}
 
         {/* Timer */}
-        {token && !isExpired && !isLoading && (
+        {token && !isExpired && !isLoading && !buyerRequest && !outcome && (
           <View style={[styles.timerCard, isWarning && styles.timerCardWarning]}>
             <Ionicons
               name="timer-outline"
@@ -145,7 +195,7 @@ export const TransferOwnershipScreen = ({ route, navigation }: any) => {
         )}
 
         {/* Cancel button (only while a transfer exists) */}
-        {!isLoading && token && !error && !isExpired && (
+        {!isLoading && token && !error && !outcome && (!isExpired || buyerRequest) && (
           <TouchableOpacity onPress={handleCancel} style={styles.cancelBtn}>
             <Ionicons name="close-outline" size={16} color={Colors.textSecondary} />
             <Text style={styles.cancelBtnText}>Cancel this Transfer</Text>

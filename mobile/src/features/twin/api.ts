@@ -17,9 +17,15 @@ export const TwinAPI = {
   previewTransfer: (token: string) =>
     apiClient.get(`/twin/transfers/preview?token=${encodeURIComponent(token)}`),
 
-  // Accept a pending transfer (buyer)
-  acceptTransfer: (token: string) =>
-    apiClient.post('/twin/transfers/accept', { token }),
+  // Buyer applies to take ownership (token from the seller's transfer QR); seller must approve
+  requestTransfer: (token: string) =>
+    apiClient.post('/twin/transfers/request', { token }),
+
+  // Seller approves the buyer's request (ownership moves now) or declines it
+  approveTransfer: (transferId: string) =>
+    apiClient.post(`/twin/transfers/${transferId}/approve`),
+  rejectTransfer: (transferId: string) =>
+    apiClient.post(`/twin/transfers/${transferId}/reject`),
 
   // Cancel a pending transfer (seller)
   cancelTransfer: (transferId: string) =>

@@ -9,10 +9,13 @@ import { RoleHeader } from '../../components/RoleHeader';
 import { StatusPill } from '../../components/StatusPill';
 import { RotatingQRModal } from '../../components/RotatingQRModal';
 import { VehiclesAPI, RemindersAPI } from '../../api/endpoints';
+import { TwinAPI } from '../../features/twin/api';
 
 export const OwnerDashboardScreen = ({ navigation }: any) => {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [reminders, setReminders] = useState<any[]>([]);
+  // Ownership transfers waiting for a decision (two-party approval)
+  const [transfers, setTransfers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
@@ -20,9 +23,10 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
 
   const fetchData = async () => {
     try {
-      const [vRes, rRes] = await Promise.all([VehiclesAPI.list(), RemindersAPI.list()]);
+      const [vRes, rRes, tRes] = await Promise.all([VehiclesAPI.list(), RemindersAPI.list(), TwinAPI.listTransfers()]);
       setVehicles(vRes.data.data || []);
       setReminders(rRes.data.data || []);
+      setTransfers((tRes.data.data || []).filter((t: any) => t.status === 'requested'));
     } catch (err) {
       console.error('Fetch error:', err);
     } finally {
@@ -32,6 +36,8 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
   };
 
   useEffect(() => { fetchData(); }, []);
+  // Reload when returning to this screen (e.g. after a transfer moved a vehicle in or out)
+  useEffect(() => navigation.addListener('focus', fetchData), [navigation]);
   const onRefresh = () => { setIsRefreshing(true); fetchData(); };
   const handleOpenQR = (id: string, regNumber: string) => {
     setActiveVehicle({ id, regNumber });
@@ -65,6 +71,28 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
+        {/* Ownership requests: waiting for my approval (seller) or for the seller's (buyer) */}
+        {transfers.map((t) => (
+          <View key={t._id} style={styles.transferBanner}>
+            <Ionicons name="swap-horizontal" size={18} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.transferTitle}>
+                {t.role === 'seller' ? 'OWNERSHIP REQUEST' : 'WAITING FOR SELLER APPROVAL'}
+              </Text>
+              <Text style={styles.transferText}>
+                {t.role === 'seller'
+                  ? `${t.buyerName || 'A buyer'} wants to take ownership of ${t.vehicle?.regNumber || 'your vehicle'}`
+                  : `${t.vehicle?.make || ''} ${t.vehicle?.model || ''} (${t.vehicle?.regNumber || ''}) moves to your passport once the seller approves`}
+              </Text>
+            </View>
+            {t.role === 'seller' && (
+              <TouchableOpacity style={styles.transferBtn} onPress={() => navigation.navigate('VehicleTwin', { vehicleId: t.vehicleId })}>
+                <Text style={styles.transferBtnText}>Review</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ))}
+
         {/* Compliance Alert Banner */}
         {attention.length > 0 && (
           <View style={styles.alertBanner}>
@@ -209,6 +237,21 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
+  transferBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12
+  },
+  transferTitle: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 0.8 },
+  transferText: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginTop: 2 },
+  transferBtn: { backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  transferBtnText: { color: '#fff', fontWeight: '800', fontSize: 12 },
   container: { flex: 1, backgroundColor: Colors.background },
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 48 },

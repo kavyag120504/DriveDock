@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadow, BorderRadius } from '../../theme/colors';
 import { TwinAPI } from './api';
+import { TransferRequestCard } from './TransferRequestCard';
 
 // ── Score badge ───────────────────────────────────────────────────────────────
 
@@ -84,16 +85,24 @@ export const VehicleTwinScreen = ({ route, navigation }: any) => {
   const [isLoading, setIsLoading]     = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError]             = useState<string | null>(null);
+  // A buyer's request waiting for this owner's approval (two-party transfer)
+  const [buyerRequest, setBuyerRequest] = useState<any>(null);
 
   const fetchData = useCallback(async () => {
     setError(null);
     try {
-      const [sRes, tRes] = await Promise.all([
+      const [sRes, tRes, trRes] = await Promise.all([
         TwinAPI.getScore(vehicleId),
-        TwinAPI.getTimeline(vehicleId)
+        TwinAPI.getTimeline(vehicleId),
+        TwinAPI.listTransfers()
       ]);
       setScoreData(sRes.data.data);
       setTimeline(tRes.data.data ?? []);
+      setBuyerRequest(
+        (trRes.data.data ?? []).find(
+          (t: any) => t.role === 'seller' && t.status === 'requested' && String(t.vehicleId) === String(vehicleId)
+        ) ?? null
+      );
     } catch (err: any) {
       setError(err.response?.data?.message ?? 'Failed to load Vehicle Twin data');
     } finally {
@@ -188,6 +197,23 @@ export const VehicleTwinScreen = ({ route, navigation }: any) => {
                 </React.Fragment>
               ))}
             </View>
+          </View>
+        )}
+
+        {buyerRequest && (
+          <View style={{ marginBottom: 12 }}>
+            <TransferRequestCard
+              transfer={buyerRequest}
+              onDone={(result) => {
+                if (result === 'approved') {
+                  // The vehicle is no longer yours: back to the passport list
+                  navigation.navigate('DashboardMain');
+                } else {
+                  setBuyerRequest(null);
+                  fetchData();
+                }
+              }}
+            />
           </View>
         )}
 
