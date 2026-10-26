@@ -53,6 +53,11 @@ export const TransferOwnershipScreen = ({ route, navigation }: any) => {
   }, [token]);
 
   const handleCancel = () => {
+    // Nothing to cancel when the transfer couldn't be created or its QR already expired
+    if (!transferId || error || timeLeft <= 0) {
+      navigation.goBack();
+      return;
+    }
     Alert.alert(
       'Cancel Transfer',
       'Cancel this transfer request? The QR code will become invalid.',
@@ -139,8 +144,8 @@ export const TransferOwnershipScreen = ({ route, navigation }: any) => {
           </View>
         )}
 
-        {/* Cancel button */}
-        {!isLoading && (
+        {/* Cancel button (only while a transfer exists) */}
+        {!isLoading && token && !error && !isExpired && (
           <TouchableOpacity onPress={handleCancel} style={styles.cancelBtn}>
             <Ionicons name="close-outline" size={16} color={Colors.textSecondary} />
             <Text style={styles.cancelBtnText}>Cancel this Transfer</Text>

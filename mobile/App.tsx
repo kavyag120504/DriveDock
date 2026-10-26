@@ -1,4 +1,5 @@
 import React from 'react';
+import './src/utils/webAlerts'; // makes Alert.alert work in the browser
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
