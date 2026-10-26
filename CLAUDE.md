@@ -111,7 +111,7 @@ The login screen also has one-tap demo buttons per role (development builds only
 Seeded vehicles: `MH01AB1234` scans GREEN, `MH02CD5678` scans RED, and `MH04EF9012` has a PUC expiring in 5 days with a due reminder.
 
 
-**NCR sample dataset (`npm run seed:demo`).** Synthetic data for presentations: 156 owners, 250 vehicles across Delhi, Gurugram, Faridabad, Sonipat, Noida, Ghaziabad, Meerut and Alwar, 9 approved stations plus 1 pending (fictional names in real localities), about six months of bookings, payments, violations, e-challans and reminders. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Also `buyer@drivedock.com` (a second owner, for Buy a Car). Walkthrough vehicles for `owner@drivedock.com`:
+**NCR sample dataset (`npm run seed:demo`).** Synthetic data for presentations: 156 owners, 250 vehicles across Delhi, Gurugram, Faridabad, Sonipat, Noida, Ghaziabad, Meerut and Alwar, 9 approved stations plus 1 pending (fictional names in real localities), about six months of bookings, payments, violations, e-challans and reminders. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Also `buyer@drivedock.com`, a second owner with no vehicles: on **Add Vehicle → Buying a used car? → Scan QR** they scan the seller's transfer QR (Vehicle Twin → Transfer Ownership) to read the buyer report and accept the car. Walkthrough vehicles for `owner@drivedock.com`:
 
 | Vehicle | Set up to show |
 |---|---|

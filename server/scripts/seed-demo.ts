@@ -159,7 +159,7 @@ const run = async () => {
 
   // ---------- Staff and demo login accounts (same emails as `npm run seed`) ----------
   const owner = user('Aarav Sharma', 'owner@drivedock.com', 'owner', 'New Delhi', 'Delhi', daysAgo(170));
-  // Second owner for the Buy a Car / ownership-transfer demo (log in with the form, not a demo button)
+  // Second owner for the Buy a Car demo: a new user with no vehicles (log in with the form, not a demo button)
   const buyer = user('Riya Malhotra', 'buyer@drivedock.com', 'owner', 'Noida', 'Uttar Pradesh', daysAgo(120));
   const officers = [
     user('Inspector Vikram Rathi', 'officer@drivedock.com', 'officer', 'New Delhi', 'Delhi', daysAgo(200)),
@@ -287,9 +287,7 @@ const run = async () => {
   const swift = buildVehicle(owner, noida, { make: 'Maruti Suzuki', model: 'Swift', type: 'car', fuel: 'petrol', weight: 0 }, { plate: 'UP16KB4321', profile: 'expiring' });
   // Just registered, no papers yet
   buildVehicle(owner, delhiWest, { make: 'Honda', model: 'City', type: 'car', fuel: 'petrol', weight: 0 }, { plate: 'DL4CXY7788', profile: 'empty' });
-  // The buyer's own vehicle
-  buildVehicle(buyer, noida, { make: 'Honda', model: 'Activa 6G', type: 'bike', fuel: 'petrol', weight: 0 }, { plate: 'UP16BR2468', profile: 'compliant' });
-  ['DL3CAB1234', 'DL8CAF5678', 'HR26DK9012', 'UP16KB4321', 'DL4CXY7788', 'UP16BR2468'].forEach((p) => usedPlates.add(p));
+  ['DL3CAB1234', 'DL8CAF5678', 'HR26DK9012', 'UP16KB4321', 'DL4CXY7788'].forEach((p) => usedPlates.add(p));
   const HERO_COUNT = vehicles.length;
 
   // Swift's PUC renewal: booked and paid two hours ago at Capital Auto (shows as NEW on that station's screen)
@@ -411,7 +409,7 @@ const run = async () => {
   console.log(' 7. Fix a RED car ....... Renewals > DL8CAF5678 > INSURANCE (expired) or PUC (unverified) -> Book & Pay');
   console.log(' 8. Upload papers ....... DL4CXY7788 (no documents) > Manage Papers -> upload -> stays UNVERIFIED until a station certifies');
   console.log(' 9. Vehicle Twin ........ HR26DK9012 > Manage Papers > Twin -> ownership history (bought 5 months ago)');
-  console.log('10. Buy a Car ........... owner: DL3CAB1234 Twin > Transfer -> buyer@drivedock.com scans -> report -> accept');
+  console.log('10. Buy a Car ........... owner: DL3CAB1234 Twin > Transfer; buyer@drivedock.com (no cars): Add Vehicle > Scan QR > accept');
   console.log('11. Officer ............. officer@drivedock.com -> scan QR, log a violation -> fee-table e-challan');
   console.log('12. Admin ............... admin@drivedock.com -> approve Raj Nagar Quick PUC (pending) / add staff');
   console.log('13. Government .......... gov@drivedock.com -> compliance index, districts, trends');
