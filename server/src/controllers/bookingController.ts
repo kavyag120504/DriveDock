@@ -7,6 +7,7 @@ import { DocumentModel, DocumentType } from '../models/Document';
 import { Reminder } from '../models/Reminder';
 import { processUploadedFile, discardUploadedFile } from '../services/uploadService';
 import { ownerScope, canAccessBooking } from '../services/accessService';
+import { renewalNotDueUntil, RENEWAL_WINDOW_DAYS } from '../services/complianceService';
 
 export const UNPAID_BOOKING_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -79,6 +80,21 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     const existing = await findActiveBooking(vehicleId, documentType);
     if (existing) {
       respondActiveBookingExists(res, existing);
+      return;
+    }
+
+    // A verified, valid document can only be renewed within RENEWAL_WINDOW_DAYS of its expiry.
+    // Missing, unverified (owner-uploaded) or expired documents can always be booked.
+    const currentDoc = await DocumentModel.findOne({ vehicleId, type: documentType }).sort({ expiryDate: -1 });
+    const opensAt = renewalNotDueUntil(currentDoc);
+    if (currentDoc && opensAt) {
+      const fmt = (d: Date) => d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      res.status(409).json({
+        success: false,
+        code: 'RENEWAL_NOT_DUE',
+        message: `This vehicle's ${String(documentType).toUpperCase()} is verified and valid until ${fmt(currentDoc.expiryDate)}. Its renewal can be booked from ${fmt(opensAt)} (${RENEWAL_WINDOW_DAYS} days before expiry).`,
+        data: { expiryDate: currentDoc.expiryDate, renewalOpensOn: opensAt }
+      });
       return;
     }
 
