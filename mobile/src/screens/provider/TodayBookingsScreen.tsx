@@ -12,6 +12,7 @@ import { Colors } from '../../theme/colors';
 import { RoleHeader } from '../../components/RoleHeader';
 import { StatusPill } from '../../components/StatusPill';
 import { BookingsAPI } from '../../api/endpoints';
+import { useAuthStore } from '../../store/authStore';
 
 export const TodayBookingsScreen = ({ navigation }: any) => {
   const [bookings, setBookings] = useState<any[]>([]);
@@ -39,11 +40,73 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
     fetchBookings();
   };
 
+  const stationName = useAuthStore((st) => st.user?.provider?.businessName);
+
+  // Upcoming paid appointments first (soonest slot first), then unpaid ones, then history
+  const slotKey = (b: any) => `${b.slotId?.date || ''} ${b.slotId?.startTime || ''}`;
+  const upcoming = bookings.filter((b) => b.status === 'confirmed').sort((a, b) => slotKey(a).localeCompare(slotKey(b)));
+  const awaitingPayment = bookings.filter((b) => b.status === 'pending');
+  const history = bookings.filter((b) => b.status === 'completed' || b.status === 'cancelled').slice(0, 15);
+  const isNew = (b: any) => Date.now() - new Date(b.createdAt).getTime() < 24 * 60 * 60 * 1000;
+
+  const renderBooking = (b: any) => {
+    const isCompleted = b.status === 'completed';
+    const isConfirmed = b.status === 'confirmed';
+
+    return (
+      <View key={b._id} style={[styles.bookingCard, isConfirmed && isNew(b) && styles.newCard]}>
+        <View style={styles.bTop}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bReg}>{b.vehicleId?.regNumber || 'Vehicle'}</Text>
+            <Text style={styles.bModel}>
+              {b.vehicleId?.make} {b.vehicleId?.model} · Owner: {b.ownerId?.name}
+            </Text>
+          </View>
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            {isNew(b) && b.status !== 'cancelled' && <Text style={styles.newBadge}>NEW</Text>}
+            <StatusPill
+              label={isConfirmed ? 'PAID' : b.status === 'pending' ? 'UNPAID' : b.status.toUpperCase()}
+              type={isCompleted ? 'compliant' : isConfirmed ? 'pending' : 'warning'}
+            />
+          </View>
+        </View>
+
+        <View style={styles.bDetails}>
+          <Text style={styles.bDetailItem}>
+            Service: <Text style={{ color: Colors.textPrimary, fontWeight: '700' }}>{b.documentType?.toUpperCase()}</Text>
+          </Text>
+          <Text style={styles.bDetailItem}>
+            Slot: <Text style={{ color: Colors.textPrimary, fontWeight: '700' }}>{b.slotId?.startTime} - {b.slotId?.endTime}</Text> ({b.slotId?.date})
+          </Text>
+        </View>
+
+        <View style={styles.bFooter}>
+          {isCompleted ? (
+            <Text style={styles.completedText}>Certificate Issued & Verified</Text>
+          ) : isConfirmed ? (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={() => navigation.navigate('CompleteBooking', { booking: b })}
+            >
+              <Text style={styles.actionBtnText}>Certify & Complete Inspection →</Text>
+            </TouchableOpacity>
+          ) : b.status === 'pending' ? (
+            <Text style={styles.mutedText}>Waiting for the customer's payment. The slot is released if unpaid for 30 minutes.</Text>
+          ) : (
+            <Text style={styles.mutedText}>
+              {b.cancellationReason === 'payment_timeout' ? 'Cancelled: not paid in time' : 'Cancelled'}
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <RoleHeader
         title="Inspection Orders"
-        subtitle="Renewal appointments awaiting testing & certification"
+        subtitle={stationName ? `${stationName} · customer bookings` : 'Renewal appointments awaiting testing & certification'}
         onRefresh={onRefresh}
       />
 
@@ -59,59 +122,36 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
           </Text>
         </View>
 
-        <Text style={styles.sectionHeader}>SCHEDULED BOOKINGS ({bookings.length})</Text>
-
         {isLoading ? (
           <ActivityIndicator size="large" color={Colors.provider} style={{ marginTop: 30 }} />
         ) : bookings.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No Pending Appointments</Text>
+            <Text style={styles.emptyTitle}>No Appointments Yet</Text>
             <Text style={styles.emptyDesc}>When vehicle owners book renewal slots at your station, they will appear here.</Text>
           </View>
         ) : (
-          bookings.map((b) => {
-            const isCompleted = b.status === 'completed';
-            const isConfirmed = b.status === 'confirmed';
+          <>
+            <Text style={styles.sectionHeader}>UPCOMING APPOINTMENTS ({upcoming.length})</Text>
+            {upcoming.length === 0 ? (
+              <Text style={styles.sectionEmpty}>No paid appointments waiting for inspection.</Text>
+            ) : (
+              upcoming.map(renderBooking)
+            )}
 
-            return (
-              <View key={b._id} style={styles.bookingCard}>
-                <View style={styles.bTop}>
-                  <View>
-                    <Text style={styles.bReg}>{b.vehicleId?.regNumber || 'Vehicle'}</Text>
-                    <Text style={styles.bModel}>
-                      {b.vehicleId?.make} {b.vehicleId?.model} · Owner: {b.ownerId?.name}
-                    </Text>
-                  </View>
-                  <StatusPill
-                    label={b.status.toUpperCase()}
-                    type={isCompleted ? 'compliant' : isConfirmed ? 'pending' : 'warning'}
-                  />
-                </View>
+            {awaitingPayment.length > 0 && (
+              <>
+                <Text style={styles.sectionHeader}>AWAITING CUSTOMER PAYMENT ({awaitingPayment.length})</Text>
+                {awaitingPayment.map(renderBooking)}
+              </>
+            )}
 
-                <View style={styles.bDetails}>
-                  <Text style={styles.bDetailItem}>
-                    Service: <Text style={{ color: Colors.textPrimary, fontWeight: '700' }}>{b.documentType?.toUpperCase()}</Text>
-                  </Text>
-                  <Text style={styles.bDetailItem}>
-                    Slot: <Text style={{ color: Colors.textPrimary, fontWeight: '700' }}>{b.slotId?.startTime} - {b.slotId?.endTime}</Text> ({b.slotId?.date})
-                  </Text>
-                </View>
-
-                <View style={styles.bFooter}>
-                  {isCompleted ? (
-                    <Text style={styles.completedText}>Certificate Issued & Verified</Text>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => navigation.navigate('CompleteBooking', { booking: b })}
-                    >
-                      <Text style={styles.actionBtnText}>Certify & Complete Inspection →</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            );
-          })
+            {history.length > 0 && (
+              <>
+                <Text style={styles.sectionHeader}>RECENT HISTORY</Text>
+                {history.map(renderBooking)}
+              </>
+            )}
+          </>
         )}
       </ScrollView>
     </View>
@@ -217,6 +257,30 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     paddingTop: 10
+  },
+  newCard: {
+    borderColor: Colors.provider,
+    borderWidth: 1.5
+  },
+  newBadge: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#fff',
+    backgroundColor: Colors.provider,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+    letterSpacing: 0.8
+  },
+  mutedText: {
+    fontSize: 12,
+    color: Colors.textSecondary
+  },
+  sectionEmpty: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginBottom: 16
   },
   completedText: {
     color: Colors.compliant,
