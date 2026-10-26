@@ -28,7 +28,7 @@ interface AuthState {
 
   login: (email: string, password: string) => Promise<void>;
   signup: (payload: any) => Promise<void>;
-  quickDemoLogin: (role: UserRole) => Promise<void>;
+  quickDemoLogin: (role: UserRole, email?: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   clearError: () => void;
@@ -93,10 +93,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  quickDemoLogin: async (role: UserRole) => {
+  // email overrides the role's default demo account (e.g. a specific station); seeded demo
+  // accounts all share the demo password
+  quickDemoLogin: async (role: UserRole, email?: string) => {
     const creds = DEMO_CREDENTIALS[role];
     if (creds) {
-      await get().login(creds.email, creds.pass);
+      await get().login(email || creds.email, creds.pass);
     }
   },
 
@@ -121,7 +123,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const res = await AuthAPI.getMe();
-      const user = res.data.data.user;
+      // Keep the station profile on the user, as login does
+      const user = { ...res.data.data.user, provider: res.data.data.provider };
       set({
         user,
         role: user.role,

@@ -78,6 +78,11 @@ export const ChallansAPI = {
   pay: (id: string) => apiClient.patch(`/challans/${id}/pay`)
 };
 
+// Demo-only (server must run with DEMO_MODE=true)
+export const DemoAPI = {
+  stations: () => apiClient.get('/demo/stations')
+};
+
 export const AdminAPI = {
   getProviders: (status?: string) => apiClient.get('/admin/providers', { params: { status } }),
   updateProviderStatus: (id: string, status: string) => apiClient.patch(`/admin/providers/${id}/status`, { status }),
