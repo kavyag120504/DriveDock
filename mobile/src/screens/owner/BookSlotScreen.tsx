@@ -84,21 +84,22 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
 
       // Step B: Razorpay Order Creation — amount comes from server, not the client
       const orderRes = await PaymentsAPI.createOrder({ bookingId: booking._id });
-      const { orderId, amount, testSignatureHelper } = orderRes.data.data;
-      setServiceFee(amount);
+      const { orderId, amount, testPaymentId, testSignatureHelper } = orderRes.data.data;
+      const feeInRupees = amount / 100; // the order amount is in paise
+      setServiceFee(feeInRupees);
 
-      // Step C: Trigger Razorpay Verification with HMAC Signature check (Trust Rule 6)
-      const paymentId = `pay_rzp_${Date.now()}`;
+      // Step C: Verify the payment with the HMAC signature check (Trust Rule 6).
+      // TEST MODE: uses the simulated payment id the server signed; real Razorpay checkout replaces this.
       await PaymentsAPI.verify({
         razorpayOrderId: orderId,
-        razorpayPaymentId: paymentId,
+        razorpayPaymentId: testPaymentId,
         razorpaySignature: testSignatureHelper,
         bookingId: booking._id
       });
 
       Alert.alert(
         'Booking & Payment Confirmed!',
-        `Service fee: ₹${amount}. Your slot with ${selectedProvider.businessName} is locked. The provider will issue your verified certificate at inspection.`,
+        `Service fee: ₹${feeInRupees}. Your slot with ${selectedProvider.businessName} is locked. The provider will issue your verified certificate at inspection.`,
         [{ text: 'View Dashboard', onPress: () => navigation.navigate('Dashboard') }]
       );
     } catch (err: any) {

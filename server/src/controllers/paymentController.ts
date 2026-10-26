@@ -63,17 +63,21 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     booking.paymentId = payment._id as any;
     await booking.save();
 
+    // TEST MODE ONLY (until real Razorpay checkout): a simulated payment id and the signature
+    // Razorpay would send for it. Both must be sent back together to /payments/verify.
+    const testPaymentId = `pay_test_${Date.now()}`;
+
     res.status(201).json({
       success: true,
       message: 'Payment order created',
       data: {
         orderId: orderData.id,
-        amount: orderData.amount,
+        amount: orderData.amount, // in paise
         currency: orderData.currency,
         key: orderData.key,
         paymentId: payment._id,
-        // Development helper: signature generator hint for automated sandbox tests
-        testSignatureHelper: generateTestSignature(orderData.id, `pay_dev_${Date.now()}`)
+        testPaymentId,
+        testSignatureHelper: generateTestSignature(orderData.id, testPaymentId)
       }
     });
   } catch (error: any) {
