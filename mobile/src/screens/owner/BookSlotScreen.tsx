@@ -10,7 +10,7 @@ import {
   TextInput
 } from 'react-native';
 import { Colors } from '../../theme/colors';
-import { ProvidersAPI, BookingsAPI, PaymentsAPI, VehiclesAPI } from '../../api/endpoints';
+import { ProvidersAPI, BookingsAPI, PaymentsAPI, VehiclesAPI, DocumentsAPI } from '../../api/endpoints';
 
 export const BookSlotScreen = ({ route, navigation }: any) => {
   const initialVehicleId = route.params?.vehicleId;
@@ -39,6 +39,31 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
       b.documentType === selectedDocType &&
       (b.status === 'pending' || b.status === 'confirmed')
   );
+
+  // Same rule as the server: a verified, unexpired document can only be renewed within
+  // RENEWAL_WINDOW_DAYS of expiry; missing, unverified or expired documents can always be booked
+  const RENEWAL_WINDOW_DAYS = 30;
+  const [vehicleDocs, setVehicleDocs] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!selectedVehicleId) return;
+    DocumentsAPI.getByVehicle(selectedVehicleId)
+      .then((res) => setVehicleDocs(res.data.data || []))
+      .catch(() => setVehicleDocs([]));
+  }, [selectedVehicleId]);
+
+  const currentDoc = vehicleDocs
+    .filter((d) => d.type === selectedDocType)
+    .sort((a, b) => new Date(b.expiryDate).getTime() - new Date(a.expiryDate).getTime())[0];
+  const renewalOpensOn = (() => {
+    if (!currentDoc || !currentDoc.verified || currentDoc.status === 'expired') return null;
+    const expiry = new Date(currentDoc.expiryDate).getTime();
+    if (expiry < Date.now()) return null;
+    const opens = expiry - RENEWAL_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    return opens > Date.now() ? new Date(opens) : null;
+  })();
+  const formatDate = (d: Date | string) =>
+    new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const refreshMyBookings = async () => {
     try {
@@ -234,6 +259,22 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
           <Text style={styles.bookedNote}>
             This vehicle can't be booked for {selectedDocType.toUpperCase()} at another station until this booking is completed or cancelled.
           </Text>
+        </View>
+      ) : renewalOpensOn ? (
+        <View style={styles.bookedCard}>
+          <Text style={[styles.bookedLabel, { color: Colors.compliant }]}>NO RENEWAL NEEDED YET</Text>
+          <Text style={styles.pName}>
+            {selectedDocType.toUpperCase()} is verified and valid until {formatDate(currentDoc.expiryDate)}
+          </Text>
+          {currentDoc.issuedByProviderId?.businessName ? (
+            <Text style={styles.pAddress}>Certified by {currentDoc.issuedByProviderId.businessName}</Text>
+          ) : null}
+          <View style={styles.bookedDetails}>
+            <Text style={styles.bookedDetailText}>Renewal opens on {formatDate(renewalOpensOn)}</Text>
+            <Text style={[styles.bookedStatus, { color: Colors.textSecondary }]}>
+              Renewals can be booked {RENEWAL_WINDOW_DAYS} days before expiry. You'll get a reminder.
+            </Text>
+          </View>
         </View>
       ) : step === 1 ? (
         <View style={styles.providersList}>
