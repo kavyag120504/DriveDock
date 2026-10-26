@@ -70,14 +70,22 @@ export const BuyCarScreen = ({ navigation }: any) => {
     }
   };
 
+  // Transfer QRs hold the bare code, but share QRs hold a link (".../public/twin?token=...");
+  // take the code out of a link before asking for the report
+  const extractToken = (raw: string): string => {
+    const text = raw.trim();
+    const match = text.match(/[?&]token=([^&#\s]+)/);
+    return match ? decodeURIComponent(match[1]) : text;
+  };
+
   const onBarcodeScanned = ({ data }: { data: string }) => {
     if (scanned || isLoading) return;
     setScanned(true);
-    fetchReport(data);
+    fetchReport(extractToken(data));
   };
 
   const handlePasteSubmit = () => {
-    const t = pastedToken.trim();
+    const t = extractToken(pastedToken);
     if (!t) return;
     setPasteMode(false);
     fetchReport(t);

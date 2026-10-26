@@ -2,11 +2,14 @@ import { Request, Response } from 'express';
 import { buildBuyerReport, BuyerReportError } from '../services/buyerReport.service';
 
 export const getBuyerReport = async (req: Request, res: Response): Promise<void> => {
-  const { token } = req.query;
-  if (!token || typeof token !== 'string') {
+  const { token: raw } = req.query;
+  if (!raw || typeof raw !== 'string') {
     res.status(400).json({ success: false, message: 'token query parameter is required' });
     return;
   }
+  // Accept a whole share link (".../public/twin?token=...") as well as the bare code
+  const match = raw.trim().match(/[?&]token=([^&#\s]+)/);
+  const token = match ? decodeURIComponent(match[1]) : raw.trim();
 
   try {
     const report = await buildBuyerReport(token);
