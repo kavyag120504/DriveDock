@@ -111,7 +111,7 @@ The login screen also has one-tap demo buttons per role (development builds only
 Seeded vehicles: `MH01AB1234` scans GREEN, `MH02CD5678` scans RED, and `MH04EF9012` has a PUC expiring in 5 days with a due reminder.
 
 
-**NCR sample dataset (`npm run seed:demo`).** Synthetic data for presentations: 156 owners, 250 vehicles across Delhi, Gurugram, Faridabad, Sonipat, Noida, Ghaziabad, Meerut and Alwar, 9 approved stations plus 1 pending (fictional names in real localities), about six months of bookings, payments, violations, e-challans and reminders. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Also `buyer@drivedock.com`, a second owner with no vehicles: on **Add Vehicle → Buying a used car? → Scan QR** they scan the seller's transfer QR (Vehicle Twin → Transfer Ownership) to read the buyer report and accept the car. Walkthrough vehicles for `owner@drivedock.com`:
+**NCR sample dataset (`npm run seed:demo`).** Synthetic data for presentations: 156 owners, 250 vehicles across Delhi, Gurugram, Faridabad, Sonipat, Noida, Ghaziabad, Meerut and Alwar, 9 approved stations plus 1 pending (fictional names in real localities), about six months of bookings, payments, violations, e-challans and reminders. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Also `buyer@drivedock.com`, a second owner with no vehicles: on **Add Vehicle → Buying a used car? → Scan QR** they scan the seller's transfer QR (Vehicle Twin → Transfer Ownership), read the buyer report and tap **Apply for Approval**; the seller then approves on the QR screen (or from the Vehicle Twin page or dashboard banner), and only then does the car move to the buyer's passport. Walkthrough vehicles for `owner@drivedock.com`:
 
 | Vehicle | Set up to show |
 |---|---|
@@ -144,13 +144,14 @@ These are the product's core promise. Don't weaken them without discussing it wi
    - The signature is an HMAC-SHA256 of `orderId|paymentId`; a bad or wrong-length signature returns 400.
    - A payment can only confirm the booking its order was created for.
    - Only a `pending` booking can get an order or be confirmed. Bookings left unpaid for 30 minutes are cancelled with `cancellationReason: 'payment_timeout'` and their slot freed. A payment verified after that reinstates the booking only if the slot can be reclaimed; otherwise it returns 409 and the payment stays `paid` for a refund.
-7. **Ownership on every record.** Shared helpers live in `server/src/services/accessService.ts`.
+7. **Ownership transfer needs both parties.** The seller creates a transfer QR (10 minutes); a buyer applies with `POST /twin/transfers/request` (status `requested`, only one buyer per QR, 48 hours for the seller to decide); the seller approves with `POST /twin/transfers/:id/approve` (ownership moves, ledger hash recorded) or declines with `/reject`. Nothing changes hands before approval, only the seller can approve, and approval is refused if the vehicle has an active booking or unpaid challan at that moment. There is no instant-accept endpoint.
+8. **Ownership on every record.** Shared helpers live in `server/src/services/accessService.ts`.
    - An owner reaches only their own vehicles, documents, bookings, payments, reminders and challans.
    - A provider reaches only bookings assigned to them. Admin reaches everything.
    - Vehicle-keyed lookups return 404 when not allowed; booking- and payment-keyed lookups return 403.
    - Officer and government accounts currently get empty vehicle and booking lists.
-8. **Roles.** Public signup accepts only `owner` or `provider`; any other role returns 400. Officer, government and admin accounts are created by an admin with `POST /api/v1/admin/users`. The seed script creates its demo accounts directly.
-9. **Reminders are "due and not sent".** The job processes `scheduledFor <= now AND sent: false`, so it catches up after downtime. It runs daily at 00:00 (node-cron), and `POST /reminders/trigger-job` with header `x-internal-job-secret` runs it on demand.
+9. **Roles.** Public signup accepts only `owner` or `provider`; any other role returns 400. Officer, government and admin accounts are created by an admin with `POST /api/v1/admin/users`. The seed script creates its demo accounts directly.
+10. **Reminders are "due and not sent".** The job processes `scheduledFor <= now AND sent: false`, so it catches up after downtime. It runs daily at 00:00 (node-cron), and `POST /reminders/trigger-job` with header `x-internal-job-secret` runs it on demand.
 
 ## API notes
 

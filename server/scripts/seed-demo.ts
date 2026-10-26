@@ -409,7 +409,8 @@ const run = async () => {
   console.log(' 7. Fix a RED car ....... Renewals > DL8CAF5678 > INSURANCE (expired) or PUC (unverified) -> Book & Pay');
   console.log(' 8. Upload papers ....... DL4CXY7788 (no documents) > Manage Papers -> upload -> stays UNVERIFIED until a station certifies');
   console.log(' 9. Vehicle Twin ........ HR26DK9012 > Manage Papers > Twin -> ownership history (bought 5 months ago)');
-  console.log('10. Buy a Car ........... owner: DL3CAB1234 Twin > Transfer; buyer@drivedock.com (no cars): Add Vehicle > Scan QR > accept');
+  console.log('10. Buy a Car ........... owner: DL3CAB1234 Twin > Transfer; buyer@drivedock.com: Add Vehicle > Scan QR > Apply;')
+  console.log('                         owner approves on the QR screen (or Twin page / dashboard banner) -> car moves to buyer');
   console.log('11. Officer ............. officer@drivedock.com -> scan QR, log a violation -> fee-table e-challan');
   console.log('12. Admin ............... admin@drivedock.com -> approve Raj Nagar Quick PUC (pending) / add staff');
   console.log('13. Government .......... gov@drivedock.com -> compliance index, districts, trends');
