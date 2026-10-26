@@ -57,7 +57,8 @@ export const BuyCarScreen = ({ navigation }: any) => {
       const status  = err.response?.status;
       const message = err.response?.data?.message;
       if (status === 410) {
-        Alert.alert('Link Expired', message ?? 'This QR code has expired or been revoked.');
+        // The server explains why (expired, wrong kind of QR, transfer no longer available)
+        Alert.alert("Can't Use This QR", message ?? 'This QR code has expired or been revoked.');
       } else if (status === 401 || status === 403) {
         Alert.alert('Access Denied', message ?? 'You do not have permission to view this report.');
       } else {

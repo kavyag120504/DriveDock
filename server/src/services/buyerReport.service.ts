@@ -12,6 +12,28 @@ import { OwnershipTransfer } from '../models/OwnershipTransfer';
 import { TwinShare }      from '../models/TwinShare';
 import { computeTwinScore }  from './twinScore.service';
 import { verifyTransferToken, verifyShareToken } from './transfer.service';
+import jwt from 'jsonwebtoken';
+
+/**
+ * Explains why a scanned code was rejected. The payload is only decoded (not trusted) here,
+ * to tell an expired transfer QR apart from, say, the car's officer compliance QR.
+ */
+const explainUnusableToken = (token: string): string => {
+  const decoded: any = jwt.decode(token);
+  const expired = typeof decoded?.exp === 'number' && decoded.exp * 1000 < Date.now();
+  if (decoded?.purpose === 'transfer') {
+    return expired
+      ? 'This transfer QR has expired (they last 10 minutes). Ask the seller to generate a new one from Vehicle Twin \u2192 Transfer Ownership.'
+      : 'This transfer QR is not valid. Ask the seller to generate a new one.';
+  }
+  if (decoded?.purpose === 'twinShare') {
+    return 'This share link has expired. Ask the seller to share the vehicle again.';
+  }
+  if (decoded?.regNumber && decoded?.nonce) {
+    return "This is the car's compliance QR for traffic checks, not a transfer QR. Ask the seller to open Vehicle Twin \u2192 Transfer Ownership and show that QR instead.";
+  }
+  return "This isn't a DriveDock transfer or share QR.";
+};
 
 const TWELVE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
 
@@ -83,14 +105,14 @@ export async function buildBuyerReport(token: string): Promise<BuyerReport> {
   if (transferParsed) {
     tokenType = 'transfer';
     const transfer = await OwnershipTransfer.findById(transferParsed.transferId);
-    if (!transfer) throw new BuyerReportError('Transfer not found', 410);
+    if (!transfer) throw new BuyerReportError('This transfer is no longer available (it was cancelled or reset). Ask the seller to generate a new transfer QR.', 410);
     vehicleId = transfer.vehicleId.toString();
     canAccept = transfer.status === 'pending' && transfer.expiresAt > new Date();
   } else {
     // Try share token
     let shareParsed;
     try { shareParsed = verifyShareToken(token); }
-    catch { throw new BuyerReportError('Invalid or expired token', 410); }
+    catch { throw new BuyerReportError(explainUnusableToken(token), 410); }
 
     tokenType = 'share';
     vehicleId = shareParsed.vehicleId;
