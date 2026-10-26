@@ -125,6 +125,7 @@ These are the product's core promise. Don't weaken them without discussing it wi
 2. **GREEN means all five documents exist, are valid, not expired, and verified.** Anything else is RED with reasons.
 3. **Rotating QR.** `GET /vehicles/:id/qr-token` returns a JWT signed with `QR_SECRET` that expires in 120 s. `GET /public/verify?token=` checks it; a forged or edited token returns 401.
 4. **Atomic slot booking.** `Slot.findOneAndUpdate({ _id, isBooked: false }, { isBooked: true })`. If nothing matches, the slot was taken and the API returns 409.
+   - **One active booking per vehicle and document.** While a vehicle has a `pending` or `confirmed` booking for a document type, another booking for the same document (at any station) returns 409 `ACTIVE_BOOKING_EXISTS` with the existing booking. A partial unique index on bookings (`one_active_booking_per_vehicle_document`) enforces it even for simultaneous requests. Only slots dated today or later can be booked.
 5. **Provider approval gate.** Only `approved` providers appear in search, take bookings or complete them. Admin sets status via `PATCH /admin/providers/:id/status`.
 6. **Payments.**
    - The server sets the amount from the booking's document type (`SERVICE_FEES_INR` in `paymentService.ts`: PUC 250, insurance 2400, others 1000) and ignores any amount from the client.

@@ -174,11 +174,19 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
           { $set: { isBooked: true } }
         );
         if (slot) {
-          updatedBooking = await Booking.findOneAndUpdate(
-            { _id: current._id, status: 'cancelled' },
-            { $set: { status: 'confirmed', cancellationReason: null } },
-            { new: true }
-          );
+          try {
+            updatedBooking = await Booking.findOneAndUpdate(
+              { _id: current._id, status: 'cancelled' },
+              { $set: { status: 'confirmed', cancellationReason: null } },
+              { new: true }
+            );
+          } catch (err: any) {
+            // The owner has since booked this renewal again (one active booking per vehicle and document)
+            if (err?.code !== 11000) throw err;
+          }
+          if (!updatedBooking) {
+            await Slot.findByIdAndUpdate(current.slotId, { $set: { isBooked: false } });
+          }
         }
       }
     }

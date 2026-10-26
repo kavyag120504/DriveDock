@@ -33,6 +33,23 @@ export const releaseExpiredPendingSlots = async (): Promise<void> => {
   }
 };
 
+const findActiveBooking = (vehicleId: string, documentType: string) =>
+  Booking.findOne({ vehicleId, documentType, status: { $in: ['pending', 'confirmed'] } })
+    .populate('providerId', 'businessName address')
+    .populate('slotId', 'date startTime endTime');
+
+const respondActiveBookingExists = (res: Response, existing: any): void => {
+  const station = existing.providerId?.businessName || 'another station';
+  const slot = existing.slotId ? ` on ${existing.slotId.date} at ${existing.slotId.startTime}` : '';
+  const state = existing.status === 'confirmed' ? 'a confirmed' : 'an unpaid';
+  res.status(409).json({
+    success: false,
+    code: 'ACTIVE_BOOKING_EXISTS',
+    message: `This vehicle already has ${state} ${String(existing.documentType).toUpperCase()} booking with ${station}${slot}. It can be booked again once that booking is completed or cancelled.`,
+    data: { booking: existing }
+  });
+};
+
 export const createBooking = async (req: Request, res: Response): Promise<void> => {
   try {
     const { vehicleId, providerId, slotId, documentType } = req.body;
@@ -57,6 +74,14 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // One active booking per vehicle and document: while one is pending or confirmed,
+    // the same renewal can't be booked again at this or any other station
+    const existing = await findActiveBooking(vehicleId, documentType);
+    if (existing) {
+      respondActiveBookingExists(res, existing);
+      return;
+    }
+
     // CRITICAL TRUST RULE 5:
     // Atomic Concurrent Slot Claim:
     // findOneAndUpdate with isBooked: false -> true, checking the result isn't null.
@@ -76,14 +101,26 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const booking = await Booking.create({
-      ownerId: vehicle.ownerId,
-      vehicleId,
-      providerId,
-      slotId,
-      documentType,
-      status: 'pending' // pending until payment confirmed
-    });
+    let booking;
+    try {
+      booking = await Booking.create({
+        ownerId: vehicle.ownerId,
+        vehicleId,
+        providerId,
+        slotId,
+        documentType,
+        status: 'pending' // pending until payment confirmed
+      });
+    } catch (err: any) {
+      // A parallel request created the active booking first (unique index); give the slot back
+      await Slot.findByIdAndUpdate(slot._id, { $set: { isBooked: false } });
+      const winner = err?.code === 11000 ? await findActiveBooking(vehicleId, documentType) : null;
+      if (winner) {
+        respondActiveBookingExists(res, winner);
+        return;
+      }
+      throw err;
+    }
 
     res.status(201).json({
       success: true,

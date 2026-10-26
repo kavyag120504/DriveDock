@@ -284,6 +284,7 @@ const run = async () => {
   }
 
   // ---------- Upcoming and cancelled bookings (open slots too) ----------
+  const activeBookingKeys = new Set<string>();
   for (const p of approved) {
     for (let d = 1; d <= 7; d++) {
       for (const [start, end] of SLOT_TIMES) {
@@ -292,6 +293,10 @@ const run = async () => {
         slots.push(slot);
         if (chance(0.25)) {
           const v = pick(vehicles.slice(3)); const type = pick(p.serviceTypes as DocumentType[]);
+          // One active booking per vehicle and document (matches the server's unique index)
+          const key = `${v._id}:${type}`;
+          if (activeBookingKeys.has(key)) continue;
+          activeBookingKeys.add(key);
           slot.isBooked = true;
           const bookingId = new Types.ObjectId(); const paymentId = new Types.ObjectId();
           payments.push({ _id: paymentId, bookingId, amount: SERVICE_FEES_INR[type], currency: 'INR', razorpayOrderId: `order_demo_${hex(14)}`, razorpayPaymentId: `pay_demo_${hex(14)}`, razorpaySignature: hex(64), status: 'paid', createdAt: slot.createdAt, updatedAt: slot.createdAt });
