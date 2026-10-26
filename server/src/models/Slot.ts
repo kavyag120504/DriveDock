@@ -26,4 +26,7 @@ const SlotSchema = new Schema<ISlot>(
 
 SlotSchema.index({ providerId: 1, date: 1 });
 
+/** Today's date as YYYY-MM-DD in the server's local time zone (slot dates are stored this way). */
+export const todayDateString = (): string => new Date().toLocaleDateString('en-CA');
+
 export const Slot = mongoose.model<ISlot>('Slot', SlotSchema);

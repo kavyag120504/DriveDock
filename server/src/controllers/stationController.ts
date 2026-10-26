@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { Provider } from '../models/Provider';
-import { Slot } from '../models/Slot';
+import { Slot, todayDateString } from '../models/Slot';
 
 /**
  * GET /api/v1/stations
@@ -89,8 +89,8 @@ export const getStationSlots = async (req: Request, res: Response): Promise<void
     const { id } = req.params;
     const { date } = req.query;
 
-    const query: Record<string, any> = { providerId: id, isBooked: false };
-    if (date) query.date = date;
+    const query: Record<string, any> = { providerId: id, isBooked: false, date: { $gte: todayDateString() } };
+    if (date) query.date = date >= todayDateString() ? date : { $gte: todayDateString() };
 
     const slots = await Slot.find(query).sort({ date: 1, startTime: 1 });
     res.status(200).json({ success: true, count: slots.length, data: slots });

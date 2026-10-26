@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { Booking } from '../models/Booking';
-import { Slot } from '../models/Slot';
+import { Slot, todayDateString } from '../models/Slot';
 import { Provider } from '../models/Provider';
 import { Vehicle } from '../models/Vehicle';
 import { DocumentModel, DocumentType } from '../models/Document';
@@ -61,8 +61,9 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     // Atomic Concurrent Slot Claim:
     // findOneAndUpdate with isBooked: false -> true, checking the result isn't null.
     // This strictly prevents race conditions and double-booking under concurrent requests.
+    // Only slots dated today or later can be booked
     const slot = await Slot.findOneAndUpdate(
-      { _id: slotId, providerId, isBooked: false },
+      { _id: slotId, providerId, isBooked: false, date: { $gte: todayDateString() } },
       { $set: { isBooked: true } },
       { new: true }
     );

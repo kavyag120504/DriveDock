@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { Provider } from '../models/Provider';
-import { Slot } from '../models/Slot';
+import { Slot, todayDateString } from '../models/Slot';
 
 export const getProviders = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -102,6 +102,14 @@ export const getProviderSlots = async (req: Request, res: Response): Promise<voi
     const query: Record<string, any> = { providerId: id };
     if (date) {
       query.date = date;
+    }
+
+    // Owners booking a renewal only see slots from today onwards; the station itself
+    // (and admin) still sees its full slot history
+    const provider = await Provider.findById(id).select('userId');
+    const isStationOrAdmin = req.user?.role === 'admin' || provider?.userId.toString() === req.user?.userId;
+    if (!isStationOrAdmin) {
+      query.date = date && date >= todayDateString() ? date : { $gte: todayDateString() };
     }
 
     const slots = await Slot.find(query).sort({ date: 1, startTime: 1 });
