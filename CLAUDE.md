@@ -64,6 +64,7 @@ Create `server/.env` (git-ignored):
 ```
 MONGO_URI=mongodb://127.0.0.1:27018/drivedock
 PORT=5001
+DEMO_MODE=true   # optional: enables the station picker on the demo login (never set on a hosted server)
 ```
 
 Use a port other than 5000 on a Mac: macOS AirPlay Receiver already listens on 5000 and the server fails with `EADDRINUSE`.
@@ -105,7 +106,7 @@ npx expo start --clear
 | Government | gov@drivedock.com |
 | Admin | admin@drivedock.com |
 
-The login screen also has one-tap demo buttons per role.
+The login screen also has one-tap demo buttons per role (development builds only). With `DEMO_MODE=true` on the server, the "Approved Provider" button opens a list of every station, so you can log in as the station a customer just booked and show the booking arriving on its "Inspection Orders" screen (`GET /api/v1/demo/stations`, which returns 404 when `DEMO_MODE` is off).
 
 Seeded vehicles: `MH01AB1234` scans GREEN, `MH02CD5678` scans RED, and `MH04EF9012` has a PUC expiring in 5 days with a due reminder.
 

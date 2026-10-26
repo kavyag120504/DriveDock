@@ -12,6 +12,7 @@ import challanRoutes from './challanRoutes';
 import adminRoutes from './adminRoutes';
 import stationRoutes from './stationRoutes';
 import twinRoutes from './twin.routes';
+import demoRoutes from './demoRoutes';
 import { updatePushToken } from '../controllers/authController';
 import { publicTwinView } from '../controllers/twin.controller';
 import { getBuyerReport } from '../controllers/buyerReport.controller';
@@ -20,6 +21,7 @@ import { authenticate, authorizeRoles } from '../middleware/auth';
 const router = Router();
 
 router.use('/auth', authRoutes);
+router.use('/demo', demoRoutes); // only active with DEMO_MODE=true
 router.use('/vehicles', vehicleRoutes);
 router.use('/documents', documentRoutes);
 router.use('/providers', providerRoutes);

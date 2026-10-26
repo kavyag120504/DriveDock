@@ -4,6 +4,8 @@ dotenv.config();
 export const ENV = {
   PORT: process.env.PORT || '5000',
   NODE_ENV: process.env.NODE_ENV || 'development',
+  // Demo-only endpoints (station login switcher). Off unless explicitly set to 'true'.
+  DEMO_MODE: process.env.DEMO_MODE === 'true',
   // Number of reverse proxies in front of the API (e.g. 1 on Render/Railway/Fly). 0 = connect directly.
   // Express only trusts that many X-Forwarded-For entries, so clients can't spoof their IP.
   TRUST_PROXY: parseInt(process.env.TRUST_PROXY || '0', 10) || 0,
