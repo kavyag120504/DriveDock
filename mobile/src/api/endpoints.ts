@@ -23,13 +23,26 @@ export const DocumentsAPI = {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
   getByVehicle: (vehicleId: string) => apiClient.get(`/vehicles/${vehicleId}/documents`),
-  update: (id: string, data: any) => apiClient.patch(`/documents/${id}`, data)
+  update: (id: string, data: any) => apiClient.patch(`/documents/${id}`, data),
+  // Best-effort OCR date pre-fill preview. Never creates/updates a document.
+  scan: (formData: FormData) =>
+    apiClient.post('/documents/scan', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
 };
 
 export const ProvidersAPI = {
   search: (params?: { type?: string; lat?: number; lng?: number; radius?: number }) =>
     apiClient.get('/providers', { params }),
   getProfile: () => apiClient.get('/providers/me'),
+  updateProfile: (data: {
+    businessName?: string;
+    address?: string;
+    coordinates?: [number, number];
+    serviceTypes?: string[];
+    workingHours?: string;
+    capacity?: number;
+  }) => apiClient.patch('/providers/me', data),
   getSlots: (providerId: string, date?: string) =>
     apiClient.get(`/providers/${providerId}/slots`, { params: { date } }),
   createSlots: (providerId: string, slots: any[]) =>

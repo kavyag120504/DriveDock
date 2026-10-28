@@ -23,5 +23,7 @@ export const ENV = {
   EXPO_ACCESS_TOKEN: process.env.EXPO_ACCESS_TOKEN || '',
   GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY || '',
   TRANSFER_SECRET: process.env.TRANSFER_SECRET || 'drivedock_twin_transfer_secret_key_2026',
-  TWIN_SHARE_SECRET: process.env.TWIN_SHARE_SECRET || 'drivedock_twin_share_secret_key_2026'
+  TWIN_SHARE_SECRET: process.env.TWIN_SHARE_SECRET || 'drivedock_twin_share_secret_key_2026',
+  // Lets ops disable OCR document-scanning (CPU-heavy per request) without a redeploy.
+  OCR_SCAN_ENABLED: (process.env.OCR_SCAN_ENABLED ?? 'true') === 'true'
 };

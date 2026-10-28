@@ -13,7 +13,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Colors } from '../../theme/colors';
 import { withCancelButton, DISMISSIBLE_ALERT } from '../../utils/alerts';
-import { BookingsAPI } from '../../api/endpoints';
+import { BookingsAPI, DocumentsAPI } from '../../api/endpoints';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 const nextYearStr = () => {
@@ -36,12 +36,53 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
   const [issueDate, setIssueDate] = useState(todayStr());
   const [expiryDate, setExpiryDate] = useState(nextYearStr());
 
+  // OCR scan state — same semantics as the owner upload screen: scanAttempted is
+  // false for PDFs (which skip scanning and keep the mount-time defaults above),
+  // and each *AutoFilled flag tracks whether that specific field was actually
+  // filled by the scan vs. left blank for manual entry.
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanAttempted, setScanAttempted] = useState(false);
+  const [issueAutoFilled, setIssueAutoFilled] = useState(false);
+  const [expiryAutoFilled, setExpiryAutoFilled] = useState(false);
+
   const handlePickFile = () => {
     Alert.alert('Attach Certificate', 'Choose source', withCancelButton([
       { text: 'Gallery (Photo)', onPress: pickFromGallery },
       { text: 'Camera (Take Photo)', onPress: pickFromCamera },
       { text: 'PDF Document', onPress: pickPDF }
     ]), DISMISSIBLE_ALERT);
+  };
+
+  // Scans a freshly-picked image to try to pre-fill the inline date fields. The
+  // fields are blanked first so a failed/partial scan never leaves the original
+  // mount-time today/next-year defaults looking like a real extraction.
+  const scanAndPrefill = async (uri: string, name: string, mimeType: string) => {
+    setIssueDate('');
+    setExpiryDate('');
+    setIssueAutoFilled(false);
+    setExpiryAutoFilled(false);
+    setScanAttempted(true);
+    setIsScanning(true);
+    try {
+      const formData = new FormData();
+      // @ts-ignore
+      formData.append('file', { uri, name, type: mimeType });
+      formData.append('type', booking.documentType);
+      const res = await DocumentsAPI.scan(formData);
+      const data = res.data?.data;
+      if (data?.issueDate) {
+        setIssueDate(data.issueDate);
+        setIssueAutoFilled(true);
+      }
+      if (data?.expiryDate) {
+        setExpiryDate(data.expiryDate);
+        setExpiryAutoFilled(true);
+      }
+    } catch (err) {
+      console.warn('Document scan failed:', err);
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const pickFromGallery = async () => {
@@ -54,7 +95,9 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
       const asset = res.assets[0];
       const name = asset.uri.split('/').pop() || 'certificate.jpg';
       const ext = /\.(\w+)$/.exec(name)?.[1] ?? 'jpg';
-      setSelectedFile({ uri: asset.uri, name, mimeType: `image/${ext}` });
+      const mimeType = `image/${ext}`;
+      setSelectedFile({ uri: asset.uri, name, mimeType });
+      await scanAndPrefill(asset.uri, name, mimeType);
     }
   };
 
@@ -69,7 +112,9 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
       const asset = res.assets[0];
       const name = asset.uri.split('/').pop() || 'certificate.jpg';
       const ext = /\.(\w+)$/.exec(name)?.[1] ?? 'jpg';
-      setSelectedFile({ uri: asset.uri, name, mimeType: `image/${ext}` });
+      const mimeType = `image/${ext}`;
+      setSelectedFile({ uri: asset.uri, name, mimeType });
+      await scanAndPrefill(asset.uri, name, mimeType);
     }
   };
 
@@ -77,6 +122,7 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
     const res = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
     if (!res.canceled && res.assets?.[0]) {
       const asset = res.assets[0];
+      // Tesseract.js can't read PDFs — skip scanning, keep the existing mount-time defaults untouched.
       setSelectedFile({ uri: asset.uri, name: asset.name || 'certificate.pdf', mimeType: 'application/pdf' });
     }
   };
@@ -168,11 +214,14 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
         <TouchableOpacity
           style={[styles.photoBox, selectedFile && styles.photoBoxSelected]}
           onPress={handlePickFile}
+          disabled={isScanning}
         >
           <Text style={styles.photoText}>
-            {selectedFile
-              ? `${selectedFile.name} - Tap to change`
-              : 'Tap to attach certificate (Photo, Camera or PDF)'}
+            {isScanning
+              ? 'Scanning document…'
+              : selectedFile
+                ? `${selectedFile.name} - Tap to change`
+                : 'Tap to attach certificate (Photo, Camera or PDF)'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -189,6 +238,11 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
             placeholderTextColor={Colors.textMuted}
             keyboardType="numbers-and-punctuation"
           />
+          {scanAttempted && (
+            <Text style={styles.scanNote}>
+              {issueAutoFilled ? 'Auto-filled from scan — please verify' : "Couldn't read automatically — please enter it"}
+            </Text>
+          )}
         </View>
         <View style={[styles.inputGroup, { flex: 1 }]}>
           <Text style={styles.label}>Expiry Date</Text>
@@ -200,6 +254,11 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
             placeholderTextColor={Colors.textMuted}
             keyboardType="numbers-and-punctuation"
           />
+          {scanAttempted && (
+            <Text style={styles.scanNote}>
+              {expiryAutoFilled ? 'Auto-filled from scan — please verify' : "Couldn't read automatically — please enter it"}
+            </Text>
+          )}
         </View>
       </View>
 
@@ -361,6 +420,11 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: 14,
     textAlignVertical: 'top'
+  },
+  scanNote: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 4
   },
   submitBtn: {
     backgroundColor: Colors.compliant,
