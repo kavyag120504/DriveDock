@@ -131,8 +131,8 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
     const isValid = verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
 
     if (!isValid) {
-      payment.status = 'failed';
-      await payment.save();
+      // Only an unpaid order can be marked failed: a bad call must never downgrade a payment that went through
+      await Payment.updateOne({ _id: payment._id, status: 'created' }, { $set: { status: 'failed' } });
 
       res.status(400).json({
         success: false,
@@ -141,11 +141,13 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Payment signature is valid
-    payment.status = 'paid';
-    payment.razorpayPaymentId = razorpayPaymentId;
-    payment.razorpaySignature = razorpaySignature;
-    await payment.save();
+    // Payment signature is valid. The first verified payment id is kept; a repeat call can't replace it.
+    if (payment.status !== 'paid') {
+      payment.status = 'paid';
+      payment.razorpayPaymentId = razorpayPaymentId;
+      payment.razorpaySignature = razorpaySignature;
+      await payment.save();
+    }
 
     // Re-verifying a payment for a booking that is already confirmed or completed changes nothing
     if (booking.status === 'confirmed' || booking.status === 'completed') {
