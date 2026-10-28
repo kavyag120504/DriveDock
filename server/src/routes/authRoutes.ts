@@ -3,12 +3,14 @@ import { signup, login, refresh, logout, getMe, updatePushToken } from '../contr
 import { authenticate } from '../middleware/auth';
 import { rateLimiter } from '../middleware/rateLimiter';
 
-const authLimit = rateLimiter(10, 15 * 60 * 1000); // 10 attempts per 15 minutes per IP
+const WINDOW_MS = 15 * 60 * 1000;
+const signupLimit = rateLimiter(10, WINDOW_MS); // 10 sign-ups per 15 minutes per IP
+const loginLimit = rateLimiter(10, WINDOW_MS, { countFailuresOnly: true }); // 10 failed logins per 15 minutes per IP
 
 const router = Router();
 
-router.post('/signup', authLimit, signup);
-router.post('/login', authLimit, login);
+router.post('/signup', signupLimit, signup);
+router.post('/login', loginLimit, login);
 router.post('/refresh', refresh);
 router.post('/logout', authenticate, logout);
 router.get('/me', authenticate, getMe);
