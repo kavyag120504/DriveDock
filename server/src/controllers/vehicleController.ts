@@ -160,7 +160,8 @@ export const deleteVehicle = async (req: Request, res: Response): Promise<void> 
     // wiped by deleting and re-adding the car. Work in progress can't be orphaned either.
     const [activeBooking, openTransfer, fine, violation] = await Promise.all([
       Booking.exists({ vehicleId: id, status: { $in: ['pending', 'confirmed'] } }),
-      OwnershipTransfer.exists({ vehicleId: id, status: { $in: ['pending', 'requested'] } }),
+      // Transfers are never flipped to 'expired', so only those still inside their window count
+      OwnershipTransfer.exists({ vehicleId: id, status: { $in: ['pending', 'requested'] }, expiresAt: { $gt: new Date() } }),
       Challan.exists({ vehicleId: id }),
       Violation.exists({ vehicleId: id })
     ]);

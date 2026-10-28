@@ -286,6 +286,18 @@ describe('DELETE /vehicles/:id', () => {
     expect(await Vehicle.findById(vehicle._id)).not.toBeNull();
   });
 
+  it('ignores a transfer QR that nobody scanned in time', async () => {
+    const owner = await makeUser('owner');
+    const vehicle = await makeVehicle(owner);
+    await OwnershipTransfer.create({
+      vehicleId: vehicle._id, fromOwnerId: owner._id, status: 'pending',
+      expiresAt: new Date(Date.now() - 60000),
+      snapshot: { score: 0, verifiedDocTypes: [], completedServiceCount: 0, violationCount: 0, ownershipIndex: 1 }
+    });
+
+    expect((await remove(owner, vehicle)).status).toBe(200);
+  });
+
   it('deletes a vehicle whose only bookings are finished', async () => {
     const { provider } = await makeProvider();
     const owner = await makeUser('owner');

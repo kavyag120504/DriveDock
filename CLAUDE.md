@@ -40,7 +40,7 @@ server/   Node.js + Express + TypeScript + MongoDB (Mongoose) API
 | State | Zustand (auth), TanStack Query (server data) |
 | Backend | Express + TypeScript, run with ts-node-dev |
 | Database | MongoDB via Mongoose |
-| Auth | JWT access token (15 min) + refresh token (7 days); expo-secure-store on device, localStorage on web |
+| Auth | JWT access token (15 min) + refresh token (7 days); expo-secure-store on device, localStorage on web. The app refreshes only on a `TOKEN_EXPIRED` 401; a refused refresh token returns the user to the login screen, but a network failure keeps the saved session. Requests time out after 30 s (2 min for uploads). |
 | Uploads | Local `server/uploads/` (AWS S3 if AWS keys are set). Only JPEG, PNG, WEBP and PDF are accepted, judged by content type; the stored extension comes from that type, never from the file name. Files are served with `nosniff`. Oversized files return 413. |
 | Payments | Razorpay test flow with server-side HMAC verification (see "Known gaps") |
 | Push | expo-notifications + Expo Push API |
@@ -146,6 +146,7 @@ These are the product's core promise. Don't weaken them without discussing it wi
    - The server sets the amount from the booking's document type (`SERVICE_FEES_INR` in `paymentService.ts`: PUC 250, insurance 2400, others 1000) and ignores any amount from the client.
    - The signature is an HMAC-SHA256 of `orderId|paymentId`; a bad or wrong-length signature returns 400.
    - A payment can only confirm the booking its order was created for.
+   - A bad signature only marks an unpaid (`created`) order `failed`; it can never downgrade a `paid` payment, and a repeat verification keeps the first payment id.
    - Only a `pending` booking can get an order or be confirmed. Bookings left unpaid for 30 minutes are cancelled with `cancellationReason: 'payment_timeout'` and their slot freed. A payment verified after that reinstates the booking only if the slot can be reclaimed; otherwise it returns 409 and the payment stays `paid` for a refund.
 7. **Ownership transfer needs both parties.** The seller creates a transfer QR (10 minutes); a buyer applies with `POST /twin/transfers/request` (status `requested`, only one buyer per QR, 48 hours for the seller to decide); the seller approves with `POST /twin/transfers/:id/approve` (ownership moves, ledger hash recorded) or declines with `/reject`. Nothing changes hands before approval, only the seller can approve, and approval is refused if the vehicle has an active booking or unpaid challan at that moment. There is no instant-accept endpoint.
 8. **Ownership on every record.** Shared helpers live in `server/src/services/accessService.ts`.
@@ -155,12 +156,12 @@ These are the product's core promise. Don't weaken them without discussing it wi
    - Officer and government accounts currently get empty vehicle and booking lists.
    - A vehicle's enforcement record stays with the vehicle: `DELETE /vehicles/:id` returns 409 `VEHICLE_IN_USE` while it has a pending or confirmed booking, a transfer in progress, or any e-challan or violation. Otherwise deleting and re-adding a car would wipe its fines.
 9. **Roles.** Public signup accepts only `owner` or `provider`; any other role returns 400. Officer, government and admin accounts are created by an admin with `POST /api/v1/admin/users`. The seed script creates its demo accounts directly.
-10. **Reminders are "due and not sent".** The job processes `scheduledFor <= now AND sent: false`, so it catches up after downtime. It runs daily at 00:00 (node-cron), and `POST /reminders/trigger-job` with header `x-internal-job-secret` runs it on demand.
+10. **Reminders are "due and not sent".** The job processes `scheduledFor <= now AND sent: false`, so it catches up after downtime. It runs daily at 00:00 (node-cron), and `POST /reminders/trigger-job` with header `x-internal-job-secret` runs it on demand. The same job moves valid documents inside 30 days of expiry to `expiring_soon`. `services/reminderService.ts` schedules reminders for an upload, an expiry edit or a provider completion: thresholds already passed are not all sent at once (one catch-up reminder with the real days left is queued instead), and an expired document gets none.
 
 ## API notes
 
 - Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/public/verify` and `/reminders/trigger-job` (internal secret instead).
-- Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`.
+- Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`. `documentTypeExpired` must list known document types (capitals accepted, stored lowercase), a non-blank `location` is required, and a document that is verified, valid and unexpired can't be cited (400).
 - `POST /auth/logout` clears the user's push token.
 
 ## Building the APK
@@ -271,7 +272,7 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 - [x] Push reminders: job only marks sent when Expo Push accepts; skips silently when no push token (retries next run).
 - [ ] Uploads go to private S3; the app gets short-lived signed URLs.
 - [x] `/public/verify` no longer returns owner phone number.
-- [x] Rate-limit login and signup: 10 attempts per IP per 15 minutes (in-memory limiter, no extra package). Keyed on `req.ip`, so set `TRUST_PROXY` when hosted behind a proxy; client-sent `X-Forwarded-For` values are ignored otherwise.
+- [x] Rate-limit login and signup (in-memory limiter, no extra package): 10 failed logins and, separately, 10 sign-ups per IP per 15 minutes. Successful logins are never counted, so switching demo roles can't lock anyone out. Keyed on `req.ip`, so set `TRUST_PROXY` when hosted behind a proxy; client-sent `X-Forwarded-For` values are ignored otherwise.
 - [x] `PATCH /vehicles/:id` restricted to type, make, model, year, fuelType, region — ownerId, regNumber, qrCodeId are blocked.
 
 ### Phase 7: release
