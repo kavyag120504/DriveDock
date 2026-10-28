@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { DocumentModel, DocumentType, DocumentStatus } from '../models/Document';
 import { Vehicle } from '../models/Vehicle';
-import { Reminder } from '../models/Reminder';
+import { scheduleDocumentReminders } from '../services/reminderService';
 import { processUploadedFile, discardUploadedFile } from '../services/uploadService';
 import { ownerScope } from '../services/accessService';
 import { ENV } from '../config/env';
@@ -17,38 +17,6 @@ const calculateStatus = (expiryDate: Date): DocumentStatus => {
   if (diffDays < 0) return 'expired';
   if (diffDays <= 30) return 'expiring_soon';
   return 'valid';
-};
-
-const scheduleDocumentReminders = async (
-  documentId: string,
-  vehicleId: string,
-  ownerId: string,
-  expiryDate: Date,
-  docType: DocumentType
-) => {
-  // Clear any existing pending reminders for this document
-  await Reminder.deleteMany({ documentId, sent: false });
-
-  const thresholds = [30, 7, 1]; // days before expiry
-  const newReminders = [];
-
-  for (const days of thresholds) {
-    const scheduledDate = new Date(expiryDate.getTime() - days * 24 * 60 * 60 * 1000);
-    newReminders.push({
-      documentId,
-      vehicleId,
-      ownerId,
-      scheduledFor: scheduledDate,
-      thresholdDays: days,
-      channel: 'push',
-      message: `Your vehicle's ${docType.toUpperCase()} document is expiring in ${days} day(s). Tap to book a renewal slot.`,
-      sent: false
-    });
-  }
-
-  if (newReminders.length > 0) {
-    await Reminder.insertMany(newReminders);
-  }
 };
 
 export const uploadDocument = async (req: Request, res: Response): Promise<void> => {
@@ -112,13 +80,14 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
     }
 
     // Schedule idempotent reminders (Trust Rule 7)
-    await scheduleDocumentReminders(
-      document._id.toString(),
-      vehicle._id.toString(),
-      vehicle.ownerId.toString(),
-      parsedExpiry,
-      type as DocumentType
-    );
+    await scheduleDocumentReminders({
+      documentId: document._id,
+      vehicleId: vehicle._id,
+      ownerId: vehicle.ownerId,
+      expiryDate: parsedExpiry,
+      docType: type as DocumentType,
+      verified: false
+    });
 
     res.status(201).json({
       success: true,
@@ -180,6 +149,18 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
     document.lastUpdatedBy = 'owner';
 
     await document.save();
+
+    // The expiry moved, so the old reminders point at the wrong date
+    if (expiryDate) {
+      await scheduleDocumentReminders({
+        documentId: document._id,
+        vehicleId: document.vehicleId,
+        ownerId: vehicle.ownerId,
+        expiryDate: document.expiryDate,
+        docType: document.type,
+        verified: document.verified
+      });
+    }
 
     res.status(200).json({ success: true, data: document });
   } catch (error: any) {

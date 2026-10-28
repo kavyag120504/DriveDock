@@ -65,6 +65,12 @@ export const runDueRemindersJob = async (): Promise<{ processed: number; sent: n
     { $set: { status: 'expired' } }
   );
 
+  // ...and valid documents that are now within 30 days of expiry to "expiring_soon"
+  await DocumentModel.updateMany(
+    { expiryDate: { $gt: now, $lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) }, status: 'valid' },
+    { $set: { status: 'expiring_soon' } }
+  );
+
   console.log(
     `[ReminderCron] Processed ${dueReminders.length} due reminders (sent: ${sentCount}). Expired ${expiredUpdate.modifiedCount} documents.`
   );

@@ -5,7 +5,7 @@ import { reserveSeat, releaseSeat } from '../services/slotService';
 import { Provider } from '../models/Provider';
 import { Vehicle } from '../models/Vehicle';
 import { DocumentModel, DocumentType } from '../models/Document';
-import { Reminder } from '../models/Reminder';
+import { scheduleDocumentReminders } from '../services/reminderService';
 import { processUploadedFile, discardUploadedFile } from '../services/uploadService';
 import { ownerScope, canAccessBooking } from '../services/accessService';
 import { renewalNotDueUntil, RENEWAL_WINDOW_DAYS } from '../services/complianceService';
@@ -397,20 +397,14 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
       }
 
       // Schedule fresh reminders for the newly verified document (Trust Rule 7)
-      await Reminder.deleteMany({ documentId: doc._id, sent: false });
-      const expiryTime = newExpiry.getTime();
-      const thresholds = [30, 7, 1];
-      const remindersToInsert = thresholds.map((days) => ({
-        documentId: doc!._id,
+      await scheduleDocumentReminders({
+        documentId: doc._id,
         vehicleId: booking.vehicleId,
         ownerId: booking.ownerId,
-        scheduledFor: new Date(expiryTime - days * 24 * 60 * 60 * 1000),
-        thresholdDays: days,
-        channel: 'push' as const,
-        message: `Your vehicle's verified ${booking.documentType.toUpperCase()} certificate will expire in ${days} days.`,
-        sent: false
-      }));
-      await Reminder.insertMany(remindersToInsert);
+        expiryDate: newExpiry,
+        docType: booking.documentType,
+        verified: true
+      });
     }
 
     await booking.save();
