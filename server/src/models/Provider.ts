@@ -13,6 +13,8 @@ export interface IProvider {
   };
   address: string;
   workingHours: string;
+  capacity: number; // service bays/benches that can work in parallel
+  profileCompleted: boolean;
   rating: number;
   status: ProviderStatus;
   createdAt?: Date;
@@ -42,6 +44,10 @@ const ProviderSchema = new Schema<IProvider>(
     },
     address: { type: String, required: true },
     workingHours: { type: String, default: '09:00 AM - 07:00 PM' },
+    capacity: { type: Number, default: 1, min: 1, max: 50 },
+    // Defaults to true so centres that existed before this field are not sent back to onboarding;
+    // signup sets it to false until the centre details are filled in
+    profileCompleted: { type: Boolean, default: true },
     rating: { type: Number, default: 4.8 },
     status: {
       type: String,

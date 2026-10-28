@@ -355,7 +355,10 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
                 <View key={s._id} style={styles.slotCard}>
                   <View>
                     <Text style={styles.slotTime}>{s.startTime} - {s.endTime}</Text>
-                    <Text style={styles.slotDate}>{s.date}</Text>
+                    <Text style={styles.slotDate}>
+                      {s.date}
+                      {(s.capacity ?? 1) > 1 ? `  ·  ${(s.capacity ?? 1) - (s.bookedCount ?? 0)} of ${s.capacity} bays free` : ''}
+                    </Text>
                   </View>
 
                   <TouchableOpacity

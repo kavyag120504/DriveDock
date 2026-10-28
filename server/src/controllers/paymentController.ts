@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Payment } from '../models/Payment';
 import { Booking } from '../models/Booking';
-import { Slot } from '../models/Slot';
+import { reserveSeat, releaseSeat } from '../services/slotService';
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
@@ -169,10 +169,7 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
     if (!updatedBooking) {
       const current = await Booking.findById(booking._id);
       if (current?.status === 'cancelled' && current.cancellationReason === 'payment_timeout') {
-        const slot = await Slot.findOneAndUpdate(
-          { _id: current.slotId, isBooked: false },
-          { $set: { isBooked: true } }
-        );
+        const slot = await reserveSeat({ _id: current.slotId });
         if (slot) {
           try {
             updatedBooking = await Booking.findOneAndUpdate(
@@ -185,7 +182,7 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
             if (err?.code !== 11000) throw err;
           }
           if (!updatedBooking) {
-            await Slot.findByIdAndUpdate(current.slotId, { $set: { isBooked: false } });
+            await releaseSeat(current.slotId);
           }
         }
       }

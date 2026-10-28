@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Booking } from '../models/Booking';
-import { Slot, todayDateString } from '../models/Slot';
+import { todayDateString } from '../models/Slot';
+import { reserveSeat, releaseSeat } from '../services/slotService';
 import { Provider } from '../models/Provider';
 import { Vehicle } from '../models/Vehicle';
 import { DocumentModel, DocumentType } from '../models/Document';
@@ -10,6 +11,8 @@ import { ownerScope, canAccessBooking } from '../services/accessService';
 import { renewalNotDueUntil, RENEWAL_WINDOW_DAYS } from '../services/complianceService';
 
 export const UNPAID_BOOKING_TIMEOUT_MS = 30 * 60 * 1000;
+
+const BOOKABLE_DOCUMENT_TYPES: DocumentType[] = ['insurance', 'puc', 'rc', 'license', 'fitness'];
 
 export const releaseExpiredPendingSlots = async (): Promise<void> => {
   const cutoff = new Date(Date.now() - UNPAID_BOOKING_TIMEOUT_MS);
@@ -25,7 +28,7 @@ export const releaseExpiredPendingSlots = async (): Promise<void> => {
     );
     if (!cancelled) continue;
 
-    await Slot.findByIdAndUpdate(booking.slotId, { $set: { isBooked: false } });
+    await releaseSeat(booking.slotId);
     released++;
   }
 
@@ -60,6 +63,11 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    if (typeof documentType !== 'string' || !BOOKABLE_DOCUMENT_TYPES.includes(documentType as DocumentType)) {
+      res.status(400).json({ success: false, message: `documentType must be one of: ${BOOKABLE_DOCUMENT_TYPES.join(', ')}` });
+      return;
+    }
+
     // A booking can only be created for the caller's own vehicle (admin: any vehicle).
     // Checked before the slot is claimed so a refused request never consumes a slot.
     const vehicle = await Vehicle.findOne({ _id: vehicleId, ...ownerScope(req.user!) });
@@ -72,6 +80,18 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     const provider = await Provider.findById(providerId);
     if (!provider || provider.status !== 'approved') {
       res.status(400).json({ success: false, message: 'Provider is not approved or not found' });
+      return;
+    }
+
+    // A centre can only certify the documents it is registered to handle (e.g. a PUC centre can't verify insurance)
+    if (!provider.serviceTypes.includes(documentType)) {
+      res.status(400).json({ success: false, message: `${provider.businessName} does not offer ${documentType.toUpperCase()} services` });
+      return;
+    }
+
+    // A centre can't book, and so certify, its own vehicle
+    if (provider.userId.toString() === vehicle.ownerId.toString()) {
+      res.status(403).json({ success: false, message: 'A service centre cannot book its own vehicle. Use another approved centre.' });
       return;
     }
 
@@ -98,16 +118,11 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // CRITICAL TRUST RULE 5:
-    // Atomic Concurrent Slot Claim:
-    // findOneAndUpdate with isBooked: false -> true, checking the result isn't null.
-    // This strictly prevents race conditions and double-booking under concurrent requests.
-    // Only slots dated today or later can be booked
-    const slot = await Slot.findOneAndUpdate(
-      { _id: slotId, providerId, isBooked: false, date: { $gte: todayDateString() } },
-      { $set: { isBooked: true } },
-      { new: true }
-    );
+    // CRITICAL TRUST RULE 4:
+    // Atomic seat claim: bookedCount only increments while it is below the slot's capacity,
+    // so concurrent requests can never take more seats than the centre has bays.
+    // Only slots dated today or later can be booked.
+    const slot = await reserveSeat({ _id: slotId, providerId, date: { $gte: todayDateString() } });
 
     if (!slot) {
       res.status(409).json({
@@ -129,7 +144,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       });
     } catch (err: any) {
       // A parallel request created the active booking first (unique index); give the slot back
-      await Slot.findByIdAndUpdate(slot._id, { $set: { isBooked: false } });
+      await releaseSeat(slot._id);
       const winner = err?.code === 11000 ? await findActiveBooking(vehicleId, documentType) : null;
       if (winner) {
         respondActiveBookingExists(res, winner);
@@ -274,6 +289,11 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
         return;
       }
 
+      if (booking.ownerId.toString() === provider.userId.toString()) {
+        reject(403, 'Forbidden: a service centre cannot certify its own vehicle');
+        return;
+      }
+
       if (!req.file) {
         reject(400, 'A certificate file is required to complete a booking');
         return;
@@ -313,7 +333,17 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
     }
 
     if (status === 'cancelled') {
-      await Slot.findByIdAndUpdate(booking.slotId, { $set: { isBooked: false } });
+      // The seat is released only by the one request that wins this transition, so a
+      // double-tap (or a race with the unpaid-booking job) can never free two seats
+      const claimed = await Booking.findOneAndUpdate(
+        { _id: booking._id, status: { $in: ['pending', 'confirmed'] } },
+        { $set: { status: 'cancelled', cancellationReason: 'cancelled' } }
+      );
+      if (!claimed) {
+        reject(409, 'Booking was already updated');
+        return;
+      }
+      await releaseSeat(booking.slotId);
       booking.cancellationReason = 'cancelled';
     }
 
