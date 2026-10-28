@@ -41,7 +41,7 @@ server/   Node.js + Express + TypeScript + MongoDB (Mongoose) API
 | Backend | Express + TypeScript, run with ts-node-dev |
 | Database | MongoDB via Mongoose |
 | Auth | JWT access token (15 min) + refresh token (7 days); expo-secure-store on device, localStorage on web |
-| Uploads | Local `server/uploads/` (AWS S3 if AWS keys are set) |
+| Uploads | Local `server/uploads/` (AWS S3 if AWS keys are set). Only JPEG, PNG, WEBP and PDF are accepted, judged by content type; the stored extension comes from that type, never from the file name. Files are served with `nosniff`. Oversized files return 413. |
 | Payments | Razorpay test flow with server-side HMAC verification (see "Known gaps") |
 | Push | expo-notifications + Expo Push API |
 | Maps | react-native-maps on phones; a placeholder on web (`src/components/Map.web.tsx`) |
@@ -135,10 +135,13 @@ These are the product's core promise. Don't weaken them without discussing it wi
    An owner's upload or manual edit always leaves or resets `verified: false`. Providers cannot set `confirmed` themselves; the status endpoint accepts only `completed` or `cancelled`.
 2. **GREEN means all five documents exist, are valid, not expired, and verified.** Anything else is RED with reasons.
 3. **Rotating QR.** `GET /vehicles/:id/qr-token` returns a JWT signed with `QR_SECRET` that expires in 120 s. `GET /public/verify?token=` checks it; a forged or edited token returns 401.
-4. **Atomic slot booking.** `Slot.findOneAndUpdate({ _id, isBooked: false }, { isBooked: true })`. If nothing matches, the slot was taken and the API returns 409.
+4. **Atomic slot booking, with capacity.** A centre has `capacity` service bays (set on its profile), and each slot copies it when created. `reserveSeat` in `services/slotService.ts` increments `bookedCount` in a single `findOneAndUpdate` that only matches while `isBooked: false`, and sets `isBooked` once `bookedCount` reaches `capacity`. If nothing matches, the slot is full and the API returns 409. `releaseSeat` gives one seat back on cancellation or payment timeout. Slots created before capacity existed count as capacity 1.
    - **One active booking per vehicle and document.** While a vehicle has a `pending` or `confirmed` booking for a document type, another booking for the same document (at any station) returns 409 `ACTIVE_BOOKING_EXISTS` with the existing booking. A partial unique index on bookings (`one_active_booking_per_vehicle_document`) enforces it even for simultaneous requests. Only slots dated today or later can be booked.
    - **Renewal window.** A document that is provider-verified and unexpired can only be booked within 30 days of its expiry (`RENEWAL_WINDOW_DAYS` in `services/complianceService.ts`); earlier attempts return 409 `RENEWAL_NOT_DUE` with the date renewal opens. Missing, unverified (owner-uploaded) or expired documents can always be booked.
 5. **Provider approval gate.** Only `approved` providers appear in search, take bookings or complete them. Admin sets status via `PATCH /admin/providers/:id/status`.
+   - A booking's `documentType` must be one of the five types and one of the centre's `serviceTypes` (a PUC centre can't verify insurance); anything else returns 400 before a seat is taken.
+   - A centre can't book or certify its own vehicle (403).
+   - Creating slots skips any date + start time the centre already has (a repeat returns 409 `SLOTS_EXIST`), validates the date and times, and refuses past dates. To add bays to a window, raise the centre's bay count.
 6. **Payments.**
    - The server sets the amount from the booking's document type (`SERVICE_FEES_INR` in `paymentService.ts`: PUC 250, insurance 2400, others 1000) and ignores any amount from the client.
    - The signature is an HMAC-SHA256 of `orderId|paymentId`; a bad or wrong-length signature returns 400.
@@ -150,6 +153,7 @@ These are the product's core promise. Don't weaken them without discussing it wi
    - A provider reaches only bookings assigned to them. Admin reaches everything.
    - Vehicle-keyed lookups return 404 when not allowed; booking- and payment-keyed lookups return 403.
    - Officer and government accounts currently get empty vehicle and booking lists.
+   - A vehicle's enforcement record stays with the vehicle: `DELETE /vehicles/:id` returns 409 `VEHICLE_IN_USE` while it has a pending or confirmed booking, a transfer in progress, or any e-challan or violation. Otherwise deleting and re-adding a car would wipe its fines.
 9. **Roles.** Public signup accepts only `owner` or `provider`; any other role returns 400. Officer, government and admin accounts are created by an admin with `POST /api/v1/admin/users`. The seed script creates its demo accounts directly.
 10. **Reminders are "due and not sent".** The job processes `scheduledFor <= now AND sent: false`, so it catches up after downtime. It runs daily at 00:00 (node-cron), and `POST /reminders/trigger-job` with header `x-internal-job-secret` runs it on demand.
 
@@ -234,6 +238,7 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 - [x] Bootstrap script that creates the first admin on the production DB from env values. Don't run the seed there.
 - [x] Admin screen to create officer and government accounts (the API `POST /admin/users` exists; there's no screen yet).
 - [ ] Provider sign-up → pending → admin approves — API and screens exist; requires end-to-end test on real devices after Phase 0 hosting is live.
+- [x] Centre profile: after signup a provider must fill in `CentreProfileScreen` (real GPS location, address, services, working hours, service bays) before seeing the rest of the app; it stays available as the "Centre" tab. Saved with `PATCH /providers/me`, which never changes `status`. Signup still creates the centre with placeholder location and `profileCompleted: false`.
 - [x] Password rules on signup: min 8 chars, must have a letter and a number.
 - [ ] "Forgot password" needs an email or SMS provider (decide which).
 
@@ -294,6 +299,8 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 |---|---|
 | `server/src/services/accessService.ts` | Ownership rule helpers (`ownerScope`, `isOwnerOrAdmin`, `canAccessBooking`) |
 | `server/src/controllers/bookingController.ts` | Atomic booking and completion rules (sets `verified: true`) |
+| `server/src/services/slotService.ts` | `reserveSeat` / `releaseSeat`: capacity-aware atomic slot booking |
+| `mobile/src/screens/provider/CentreProfileScreen.tsx` | Centre onboarding and edit form (location, services, bays) |
 | `server/src/controllers/paymentController.ts`, `services/paymentService.ts` | Server-side amount, HMAC verification |
 | `server/src/controllers/verificationController.ts`, `services/qrService.ts` | GREEN/RED check, rotating QR tokens |
 | `server/src/controllers/authController.ts`, `adminController.ts` | Signup role limits, logout, admin staff creation |
