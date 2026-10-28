@@ -4,6 +4,9 @@ import { Vehicle } from '../models/Vehicle';
 import { DocumentModel } from '../models/Document';
 import { Reminder } from '../models/Reminder';
 import { Challan } from '../models/Challan';
+import { Booking } from '../models/Booking';
+import { Violation } from '../models/Violation';
+import { OwnershipTransfer } from '../models/OwnershipTransfer';
 import { generateQRToken } from '../services/qrService';
 import { ownerScope } from '../services/accessService';
 import { isDocumentGood, isVehicleCompliant } from '../services/complianceService';
@@ -146,16 +149,38 @@ export const updateVehicle = async (req: Request, res: Response): Promise<void> 
 export const deleteVehicle = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const vehicle = await Vehicle.findOneAndDelete({ _id: id, ...ownerScope(req.user!) });
+    const found = await Vehicle.findOne({ _id: id, ...ownerScope(req.user!) });
 
-    if (!vehicle) {
+    if (!found) {
       res.status(404).json({ success: false, message: 'Vehicle not found or unauthorized' });
       return;
     }
 
+    // A vehicle's enforcement record belongs to the vehicle, not to its current owner, so it can't be
+    // wiped by deleting and re-adding the car. Work in progress can't be orphaned either.
+    const [activeBooking, openTransfer, fine, violation] = await Promise.all([
+      Booking.exists({ vehicleId: id, status: { $in: ['pending', 'confirmed'] } }),
+      OwnershipTransfer.exists({ vehicleId: id, status: { $in: ['pending', 'requested'] } }),
+      Challan.exists({ vehicleId: id }),
+      Violation.exists({ vehicleId: id })
+    ]);
+
+    const blockedBy = activeBooking ? 'an active service booking'
+      : openTransfer ? 'an ownership transfer in progress'
+      : (fine || violation) ? 'e-challan or violation records'
+      : null;
+    if (blockedBy) {
+      res.status(409).json({
+        success: false,
+        code: 'VEHICLE_IN_USE',
+        message: `This vehicle can't be deleted because it has ${blockedBy}.`
+      });
+      return;
+    }
+
+    await Vehicle.deleteOne({ _id: id });
     await DocumentModel.deleteMany({ vehicleId: id });
     await Reminder.deleteMany({ vehicleId: id });
-    await Challan.deleteMany({ vehicleId: id });
 
     res.status(200).json({ success: true, message: 'Vehicle deleted successfully' });
   } catch (error: any) {

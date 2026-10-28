@@ -11,12 +11,23 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // Multer storage engine - stores in memory temporarily or directly to disk
+// Accepted content types, and the extension each is stored under. The app sends `image/${ext}`,
+// so `image/jpg` is accepted too. The stored extension comes from this table, never from the
+// client's file name, so a file can't be saved as .html/.svg and then served as a web page.
+const STORED_EXTENSION: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf'
+};
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, uploadDir);
   },
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
+    const ext = STORED_EXTENSION[file.mimetype.toLowerCase()] ?? '';
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
   }
@@ -26,13 +37,12 @@ export const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (_req, file, cb) => {
-    const allowed = /jpeg|jpg|png|pdf|webp/;
-    const ext = path.extname(file.originalname).toLowerCase();
-    const mime = file.mimetype.toLowerCase();
-    if (allowed.test(ext) || allowed.test(mime)) {
+    if (STORED_EXTENSION[file.mimetype.toLowerCase()]) {
       cb(null, true);
     } else {
-      cb(new Error('Only images (JPEG, PNG, WEBP) and PDF documents are allowed.'));
+      const err: any = new Error('Only images (JPEG, PNG, WEBP) and PDF documents are allowed.');
+      err.statusCode = 400;
+      cb(err);
     }
   }
 });
