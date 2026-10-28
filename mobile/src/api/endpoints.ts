@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, UPLOAD_TIMEOUT_MS } from './client';
 
 export const AuthAPI = {
   login: (data: { email: string; password: string }) => apiClient.post('/auth/login', data),
@@ -20,14 +20,14 @@ export const VehiclesAPI = {
 export const DocumentsAPI = {
   upload: (vehicleId: string, formData: FormData) =>
     apiClient.post(`/vehicles/${vehicleId}/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' }, timeout: UPLOAD_TIMEOUT_MS
     }),
   getByVehicle: (vehicleId: string) => apiClient.get(`/vehicles/${vehicleId}/documents`),
   update: (id: string, data: any) => apiClient.patch(`/documents/${id}`, data),
   // Best-effort OCR date pre-fill preview. Never creates/updates a document.
   scan: (formData: FormData) =>
     apiClient.post('/documents/scan', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' }, timeout: UPLOAD_TIMEOUT_MS
     })
 };
 
@@ -57,7 +57,7 @@ export const BookingsAPI = {
   updateStatus: (id: string, formData: FormData | any) => {
     if (formData instanceof FormData) {
       return apiClient.patch(`/bookings/${id}/status`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' }, timeout: UPLOAD_TIMEOUT_MS
       });
     }
     return apiClient.patch(`/bookings/${id}/status`, formData);

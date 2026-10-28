@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { AuthAPI } from '../api/endpoints';
+import { setSessionExpiredHandler } from '../api/client';
 import { Storage } from '../utils/storage';
 import { registerPushToken } from '../utils/notifications';
 
@@ -132,9 +133,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false
       });
       registerPushToken();
-    } catch (err) {
-      await Storage.clearAuth();
-      set({ isAuthenticated: false, user: null, role: null, isLoading: false });
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const sessionGone = status === 401 || status === 403 || err?.message === 'No refresh token available';
+      if (sessionGone) {
+        await Storage.clearAuth();
+        set({ isAuthenticated: false, user: null, role: null, isLoading: false });
+      } else {
+        // The server couldn't be reached (or errored): keep the saved session so the next launch signs in again
+        set({
+          isAuthenticated: false,
+          user: null,
+          role: null,
+          isLoading: false,
+          error: "Can't reach DriveDock right now. Check your connection and try again."
+        });
+      }
     }
   }
 }));
+
+// If a refresh token is refused mid-session, drop back to the login screen instead of leaving a dead session on screen
+setSessionExpiredHandler(() => {
+  useAuthStore.setState({
+    user: null,
+    role: null,
+    isAuthenticated: false,
+    isLoading: false,
+    error: 'Your session expired. Please sign in again.'
+  });
+});
