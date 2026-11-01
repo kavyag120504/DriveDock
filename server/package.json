@@ -9,6 +9,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "seed": "ts-node scripts/seed.ts",
     "bootstrap": "ts-node scripts/bootstrap-admin.ts",
+    "paperwork:reencrypt": "ts-node scripts/paperwork-reencrypt.ts",
     "seed:demo": "ts-node scripts/seed/index.ts",
     "seed:twin": "ts-node scripts/seed-twin.ts",
     "seed:clear": "ts-node scripts/seed/clear.ts",
@@ -35,6 +36,7 @@
     "mongoose": "^8.9.5",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
+    "pdf-lib": "^1.17.1",
     "razorpay": "^2.9.5",
     "sharp": "^0.34.5",
     "tesseract.js": "^5.1.1"

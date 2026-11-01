@@ -25,5 +25,15 @@ export const ENV = {
   TRANSFER_SECRET: process.env.TRANSFER_SECRET || 'drivedock_twin_transfer_secret_key_2026',
   TWIN_SHARE_SECRET: process.env.TWIN_SHARE_SECRET || 'drivedock_twin_share_secret_key_2026',
   // Lets ops disable OCR document-scanning (CPU-heavy per request) without a redeploy.
-  OCR_SCAN_ENABLED: (process.env.OCR_SCAN_ENABLED ?? 'true') === 'true'
+  OCR_SCAN_ENABLED: (process.env.OCR_SCAN_ENABLED ?? 'true') === 'true',
+  // Personal details entered for a vehicle transfer are encrypted with these keys. Format:
+  // "keyId:base64Key,keyId2:base64Key2" (each key 32 bytes). New writes use the ACTIVE id; every listed
+  // key can still decrypt old records, so keep old keys until a re-encrypt run and all backups using them
+  // are gone (see "Transfer paperwork keys" in CLAUDE.md). Required in production; development has a fallback.
+  PAPERWORK_ENCRYPTION_KEYS: process.env.PAPERWORK_ENCRYPTION_KEYS || '',
+  PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID: process.env.PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID || '',
+  // Personal details on a finished transfer are wiped this many days after the transfer was approved.
+  PAPERWORK_RETENTION_DAYS: parseInt(process.env.PAPERWORK_RETENTION_DAYS || '180', 10) || 180,
+  // Where the worksheets tell people to get the official Form 29 / Form 30.
+  OFFICIAL_FORMS_URL: process.env.OFFICIAL_FORMS_URL || 'https://parivahan.gov.in/en/forms-all'
 };
