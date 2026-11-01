@@ -1,4 +1,4 @@
-import { apiClient } from '../../api/client';
+import { apiClient, UPLOAD_TIMEOUT_MS } from '../../api/client';
 
 export const TwinAPI = {
   // Score + ownership chain for a vehicle the caller owns
@@ -34,6 +34,29 @@ export const TwinAPI = {
   // List incoming and outgoing transfers for the current user
   listTransfers: () =>
     apiClient.get('/twin/transfers'),
+
+  // ── Transfer paperwork (RTO worksheets, insurer letter, checklist) ──────────
+  getPaperwork: (transferId: string) =>
+    apiClient.get(`/twin/transfers/${transferId}/paperwork`),
+
+  // Only the fields being changed need to be sent
+  savePaperwork: (transferId: string, body: Record<string, any>) =>
+    apiClient.put(`/twin/transfers/${transferId}/paperwork`, body),
+
+  // Buyer confirms the sale date the seller entered
+  confirmSaleDate: (transferId: string, date: string) =>
+    apiClient.post(`/twin/transfers/${transferId}/sale-date/confirm`, { date }),
+
+  // status: 'done' | 'skipped' | null (undo)
+  setChecklistStep: (transferId: string, key: string, status: 'done' | 'skipped' | null) =>
+    apiClient.put(`/twin/transfers/${transferId}/checklist/${key}`, { status }),
+
+  deleteMyDetails: (transferId: string) =>
+    apiClient.delete(`/twin/transfers/${transferId}/paperwork/me`),
+
+  // The PDF worksheet as bytes. Authenticated like every other call: there are no download links.
+  downloadForm: (transferId: string, form: 'form29' | 'form30' | 'insurer-letter') =>
+    apiClient.get(`/twin/transfers/${transferId}/forms/${form}`, { responseType: 'arraybuffer', timeout: UPLOAD_TIMEOUT_MS }),
 
   // Create a 7-day read-only share link
   createShare: (vehicleId: string) =>

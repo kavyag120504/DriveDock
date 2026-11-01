@@ -16,6 +16,7 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
   const [reminders, setReminders] = useState<any[]>([]);
   // Ownership transfers waiting for a decision (two-party approval)
   const [transfers, setTransfers] = useState<any[]>([]);
+  const [paperwork, setPaperwork] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
@@ -27,6 +28,8 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
       setVehicles(vRes.data.data || []);
       setReminders(rRes.data.data || []);
       setTransfers((tRes.data.data || []).filter((t: any) => t.status === 'requested'));
+      // Approved transfers that still have paperwork steps open for me
+      setPaperwork((tRes.data.data || []).filter((t: any) => t.status === 'accepted' && t.openTasks > 0));
     } catch (err) {
       console.error('Fetch error:', err);
     } finally {
@@ -90,6 +93,23 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
                 <Text style={styles.transferBtnText}>Review</Text>
               </TouchableOpacity>
             )}
+          </View>
+        ))}
+
+        {/* Paperwork still to do after an approved transfer */}
+        {paperwork.map((t) => (
+          <View key={'pw-' + t._id} style={styles.transferBanner}>
+            <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.transferTitle}>TRANSFER PAPERWORK</Text>
+              <Text style={styles.transferText}>
+                {t.openTasks} task{t.openTasks === 1 ? '' : 's'} left for {t.vehicle?.regNumber || 'your vehicle'}
+                {t.nextDue ? ', next due ' + new Date(t.nextDue).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.transferBtn} onPress={() => navigation.navigate('TransferChecklist', { transferId: t._id })}>
+              <Text style={styles.transferBtnText}>Open</Text>
+            </TouchableOpacity>
           </View>
         ))}
 

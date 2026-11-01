@@ -133,7 +133,13 @@ export const TransferOwnershipScreen = ({ route, navigation }: any) => {
               <Text style={styles.expiredSub}>
                 The vehicle has left your Vehicle Passport and now appears in {buyerRequest?.buyerName || "the buyer"}'s.
               </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('DashboardMain')} style={styles.refreshBtn}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('TransferChecklist', { transferId })}
+                style={styles.refreshBtn}
+              >
+                <Text style={styles.refreshText}>Open paperwork checklist</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('DashboardMain')} style={{ marginTop: 10 }}>
                 <Text style={styles.refreshText}>Back to Passport</Text>
               </TouchableOpacity>
             </View>

@@ -206,8 +206,8 @@ export const VehicleTwinScreen = ({ route, navigation }: any) => {
               transfer={buyerRequest}
               onDone={(result) => {
                 if (result === 'approved') {
-                  // The vehicle is no longer yours: back to the passport list
-                  navigation.navigate('DashboardMain');
+                  // The vehicle is no longer yours: on to the paperwork checklist for this sale
+                  navigation.navigate('TransferChecklist', { transferId: buyerRequest._id });
                 } else {
                   setBuyerRequest(null);
                   fetchData();

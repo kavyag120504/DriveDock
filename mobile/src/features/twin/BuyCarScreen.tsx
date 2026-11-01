@@ -8,6 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadow, BorderRadius } from '../../theme/colors';
 import { TwinAPI } from './api';
 import { getBuyerReport } from './buyerApi';
+import { useAuthStore } from '../../store/authStore';
+import { BuyerDetailsModal } from './paperwork/BuyerDetailsModal';
+import { partyFromServer, serverMessages } from './paperwork/validators';
 
 type BannerType = 'green' | 'amber' | 'red';
 
@@ -42,6 +45,8 @@ export const BuyCarScreen = ({ navigation }: any) => {
   const [report, setReport]             = useState<any>(null);
   const [scannedToken, setScannedToken] = useState<string | null>(null);
   const [isAccepting, setIsAccepting]   = useState(false);
+  const [buyerFormOpen, setBuyerFormOpen] = useState(false);
+  const user = useAuthStore((s) => s.user);
   // Two-party approval: after the buyer applies, follow the request until the seller decides
   const [request, setRequest] = useState<{ transferId: string; status: string; regNumber?: string } | null>(null);
 
@@ -112,7 +117,7 @@ export const BuyCarScreen = ({ navigation }: any) => {
   };
 
   // BUYER: apply for ownership. The seller must approve before anything changes hands.
-  const handleApply = async () => {
+  const handleApply = async (details?: Record<string, any>) => {
     if (!scannedToken || !report?.transferId) return;
     Alert.alert(
       'Apply for Ownership',
@@ -124,8 +129,20 @@ export const BuyCarScreen = ({ navigation }: any) => {
           onPress: async () => {
             setIsAccepting(true);
             try {
-              await TwinAPI.requestTransfer(scannedToken);
-              setRequest({ transferId: report.transferId, status: 'requested' });
+              const sent = await TwinAPI.requestTransfer(scannedToken);
+              const transferId = sent.data?.data?.transferId ?? report.transferId;
+              setRequest({ transferId, status: 'requested' });
+              if (details) {
+                try {
+                  await TwinAPI.savePaperwork(transferId, details);
+                } catch (saveErr: any) {
+                  // The request itself went through; the details can be added from the checklist after approval
+                  Alert.alert(
+                    'Request sent',
+                    `Your request was sent, but your details were not saved (${serverMessages(saveErr)}). You can add them from the paperwork checklist once the seller approves.`
+                  );
+                }
+              }
             } catch (err: any) {
               const code    = err.response?.data?.code;
               const message = err.response?.data?.message ?? 'Request failed';
@@ -156,6 +173,20 @@ export const BuyCarScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
+      <BuyerDetailsModal
+        visible={buyerFormOpen}
+        initial={partyFromServer(null, { fullName: user?.name, mobile: (user?.phone ?? '').replace(/\D/g, '').slice(-10), address: user?.address })}
+        submitLabel="Continue"
+        onCancel={() => setBuyerFormOpen(false)}
+        onSkip={() => {
+          setBuyerFormOpen(false);
+          handleApply();
+        }}
+        onSubmit={(details) => {
+          setBuyerFormOpen(false);
+          handleApply(details);
+        }}
+      />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
@@ -385,7 +416,8 @@ export const BuyCarScreen = ({ navigation }: any) => {
               <Ionicons name="information-circle-outline" size={14} color={Colors.warning} />
               <Text style={[styles.rtoText, { color: Colors.warning }]}>
                 Once the seller approves, the car's digital history moves to you. You must still complete the RTO transfer
-                on{' '}<Text style={{ fontWeight: '800' }}>Parivahan (parivahan.gov.in)</Text>{' '}to finalise legal ownership.
+                on{' '}<Text style={{ fontWeight: '800' }}>Parivahan (parivahan.gov.in)</Text>{' '}to finalise legal ownership. After approval,
+                DriveDock gives you a checklist and worksheets to help with the paperwork.
               </Text>
             </View>
 
@@ -410,9 +442,12 @@ export const BuyCarScreen = ({ navigation }: any) => {
                     </Text>
                     <TouchableOpacity
                       style={styles.openPassportBtn}
-                      onPress={() => navigation.navigate('Dashboard', { screen: 'DashboardMain' })}
+                      onPress={() => navigation.navigate('Dashboard', { screen: 'TransferChecklist', params: { transferId: request.transferId } })}
                     >
-                      <Text style={styles.acceptText}>Open Vehicle Passport</Text>
+                      <Text style={styles.acceptText}>Open paperwork checklist</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => navigation.navigate('Dashboard', { screen: 'DashboardMain' })}>
+                      <Text style={styles.scanAgainText}>Open Vehicle Passport</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -434,7 +469,7 @@ export const BuyCarScreen = ({ navigation }: any) => {
                   <Text style={styles.walkText}>Walk Away</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={handleApply}
+                  onPress={() => setBuyerFormOpen(true)}
                   style={[styles.acceptBtn, isAccepting && styles.btnDisabled]}
                   disabled={isAccepting}
                 >

@@ -12,6 +12,7 @@ import { OwnerChallansScreen }     from '../screens/owner/OwnerChallansScreen';
 import { StationMapScreen }        from '../screens/owner/StationMapScreen';
 import { VehicleTwinScreen }       from '../features/twin/VehicleTwinScreen';
 import { TransferOwnershipScreen } from '../features/twin/TransferOwnershipScreen';
+import { TransferChecklistScreen } from '../features/twin/TransferChecklistScreen';
 import { ShareTwinScreen }         from '../features/twin/ShareTwinScreen';
 import { BuyCarScreen }           from '../features/twin/BuyCarScreen';
 
@@ -26,6 +27,7 @@ const DashboardStack = () => (
     <Stack.Screen name="BookSlot"           component={BookSlotScreen} />
     <Stack.Screen name="VehicleTwin"        component={VehicleTwinScreen} />
     <Stack.Screen name="TransferOwnership"  component={TransferOwnershipScreen} />
+    <Stack.Screen name="TransferChecklist"  component={TransferChecklistScreen} />
     <Stack.Screen name="ShareTwin"          component={ShareTwinScreen} />
   </Stack.Navigator>
 );

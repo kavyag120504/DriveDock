@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } fr
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius } from '../../theme/colors';
 import { TwinAPI } from './api';
+import { SellerDetailsModal } from './paperwork/SellerDetailsModal';
+import { SellerForm, sellerFromServer, serverMessages } from './paperwork/validators';
 
 interface Props {
   transfer: { _id: string; buyerName?: string | null; requestedAt?: string | null; vehicle?: { regNumber?: string } | null };
@@ -15,8 +17,39 @@ interface Props {
  */
 export const TransferRequestCard: React.FC<Props> = ({ transfer, onDone }) => {
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [formSaving, setFormSaving] = useState(false);
+  const [formInitial, setFormInitial] = useState<SellerForm | null>(null);
   const buyer = transfer.buyerName || 'A buyer';
   const reg = transfer.vehicle?.regNumber || 'this vehicle';
+
+  // Approving first offers the sale-details form (the RTO paperwork needs them). It never blocks approval.
+  const startApprove = async () => {
+    setBusy('approve');
+    try {
+      const res = await TwinAPI.getPaperwork(transfer._id);
+      setFormInitial(sellerFromServer(res.data.data));
+      setFormOpen(true);
+    } catch {
+      // Can't load the form (e.g. offline): go straight to the confirmation
+      act('approve');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const saveSellerDetails = async (payload: Record<string, any>) => {
+    setFormSaving(true);
+    try {
+      await TwinAPI.savePaperwork(transfer._id, payload);
+      setFormOpen(false);
+      act('approve');
+    } catch (err: any) {
+      Alert.alert('Could not save your details', serverMessages(err));
+    } finally {
+      setFormSaving(false);
+    }
+  };
 
   const act = (kind: 'approve' | 'reject') => {
     Alert.alert(
@@ -62,10 +95,24 @@ export const TransferRequestCard: React.FC<Props> = ({ transfer, onDone }) => {
         <TouchableOpacity style={styles.rejectBtn} onPress={() => act('reject')} disabled={!!busy}>
           {busy === 'reject' ? <ActivityIndicator color={Colors.nonCompliant} size="small" /> : <Text style={styles.rejectText}>Decline</Text>}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.approveBtn} onPress={() => act('approve')} disabled={!!busy}>
+        <TouchableOpacity style={styles.approveBtn} onPress={startApprove} disabled={!!busy}>
           {busy === 'approve' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.approveText}>Approve Transfer</Text>}
         </TouchableOpacity>
       </View>
+      {formInitial ? (
+        <SellerDetailsModal
+          visible={formOpen}
+          initial={formInitial}
+          submitLabel="Save and continue"
+          busy={formSaving}
+          onCancel={() => setFormOpen(false)}
+          onSkip={() => {
+            setFormOpen(false);
+            act('approve');
+          }}
+          onSubmit={saveSellerDetails}
+        />
+      ) : null}
     </View>
   );
 };
