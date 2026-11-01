@@ -2,7 +2,7 @@
 
 Read this first. It is the shared, current picture of the project for both teammates and for Claude Code sessions. Update it in the same PR whenever you change how the project runs or what it guarantees.
 
-Last updated: 2026-10-18 (Phase 2–6 code complete; all remaining items need external accounts or manual testing)
+Last updated: 2026-10-28 (Phase 2–6 code complete; transfer paperwork added; remaining items need external accounts, manual testing, or checking legal rules against official text)
 
 ## What DriveDock is
 
@@ -65,6 +65,8 @@ Create `server/.env` (git-ignored):
 MONGO_URI=mongodb://127.0.0.1:27018/drivedock
 PORT=5001
 DEMO_MODE=true   # optional: enables the station picker on the demo login (never set on a hosted server)
+PAPERWORK_ENCRYPTION_KEYS=   # production only: "keyId:base64key" entries, each key 32 bytes (see "Transfer paperwork keys")
+PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID=   # production only: which key id new data is written with
 ```
 
 Use a port other than 5000 on a Mac: macOS AirPlay Receiver already listens on 5000 and the server fails with `EADDRINUSE`.
@@ -149,6 +151,14 @@ These are the product's core promise. Don't weaken them without discussing it wi
    - A bad signature only marks an unpaid (`created`) order `failed`; it can never downgrade a `paid` payment, and a repeat verification keeps the first payment id.
    - Only a `pending` booking can get an order or be confirmed. Bookings left unpaid for 30 minutes are cancelled with `cancellationReason: 'payment_timeout'` and their slot freed. A payment verified after that reinstates the booking only if the slot can be reclaimed; otherwise it returns 409 and the payment stays `paid` for a refund.
 7. **Ownership transfer needs both parties.** The seller creates a transfer QR (10 minutes); a buyer applies with `POST /twin/transfers/request` (status `requested`, only one buyer per QR, 48 hours for the seller to decide); the seller approves with `POST /twin/transfers/:id/approve` (ownership moves, ledger hash recorded) or declines with `/reject`. Nothing changes hands before approval, only the seller can approve, and approval is refused if the vehicle has an active booking or unpaid challan at that moment. There is no instant-accept endpoint.
+   - **Paperwork after approval.** Both people then get a checklist and "preparation worksheets" for the RTO and the insurer (all under `/twin/transfers/:id/...`, parties only, everyone else gets 404):
+     - `GET|PUT /paperwork` reads and saves their details. Every field is optional, so approval is never blocked by form data. Each party can write only their own section (a forbidden key returns 400 `FIELD_NOT_ALLOWED`).
+     - Before approval neither person sees the other's details. After approval each sees only the other's name, mobile and city/state; full details appear only inside the worksheets, with IDs masked to the last 4 characters. A full ID number is rejected and never stored.
+     - Personal fields (names, addresses, mobile, email, ID tail, chassis and engine numbers, lender, policy number) are AES-256-GCM encrypted at rest. Every read, change and download is written to `PaperworkAudit` (field names only, never values).
+     - **No deadline is shown until both people agree the sale date**: the seller enters it, the buyer confirms it (`POST /sale-date/confirm`). Changing a confirmed date clears the confirmation and deletes every unsent due-date reminder in the same request; a reminder that survived is re-checked and dropped when the job runs. The approval date is never used as the sale date.
+     - Worksheets (`GET /forms/form29|form30|insurer-letter`) are PDFs titled "...preparation worksheet", not the official forms, and say so on every page. The download needs the normal login on every request; the server never issues download links or tokens.
+     - Form 28 (NOC) is a pointer, never a ruling: the checklist says when one is "normally needed" for a different-state buyer and always tells the person to confirm with their RTO. It can be marked done or not needed.
+     - Personal details are deleted when a transfer is rejected, cancelled or never approved in time, 180 days (`PAPERWORK_RETENTION_DAYS`) after approval, or when a party deletes their own (`DELETE /paperwork/me`).
 8. **Ownership on every record.** Shared helpers live in `server/src/services/accessService.ts`.
    - An owner reaches only their own vehicles, documents, bookings, payments, reminders and challans.
    - A provider reaches only bookings assigned to them. Admin reaches everything.
@@ -192,6 +202,7 @@ Remember the APK talks to whatever `EXPO_PUBLIC_API_URL` was at build time.
 - ~~**Expiry date:** a provider can set any `expiryDate`~~ — fixed: server rejects past dates and dates > 10 years out.
 - ~~**Reminders:** the job marks a reminder sent even when the owner has no push token~~ — fixed: skips silently, retries next run.
 - **Officer and government roles** may need read access to vehicles. That's a product decision.
+- **Transfer deadlines for Form 29 and Form 30 are unresolved**, and the worksheets are unchecked against the official forms (see "Transfer deadlines").
 - ~~**Encoding:** some mobile source files saved as Windows-1252~~ — fixed: `LoginScreen.tsx`, `ScanQRScreen.tsx`, `StationMapScreen.tsx` converted to UTF-8; garbled chars replaced.
 
 ## Roadmap: from demo to live
@@ -288,6 +299,30 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 - Fee table (currently PUC 250, insurance 2400, others 1000) and challan penalties.
 - Email or SMS provider for password reset and notifications, if wanted.
 
+## Transfer deadlines (what is and is not known)
+
+`server/src/config/transferRules.ts` is the only place deadlines live. A number goes in only when the sources agree; otherwise `days` is `null` and the app says "complete this as soon as possible" with no date. Checked 2026-10-28:
+
+| Duty | Status |
+|---|---|
+| Buyer asks the insurer to transfer the policy | **14 days** from the confirmed sale date. Motor Vehicles Act s.157(2) and an NCDRC judgment applying it agree. The official India Code text returned HTTP 403 and was not read, so re-check it. |
+| Seller reports Form 29 | **No deadline shown.** Only an unofficial copy of the Act gives numbers (14 days, 45 if registered outside the state) and the official text could not be read. |
+| Buyer files Form 30 | **No deadline shown.** Parivahan's page says 14 days (45 if registered outside the state); the Act text as reproduced online says 30 days. Nothing official could be read to settle it, and the text of CMVR rule 55 itself was not read. |
+
+To fill a cell: read the official Act, rules and Parivahan instructions, then set `days`, `source`, `verifiedOn` and `resolution` together. A unit test fails the build for a number without a source. Worksheet layouts are our own and have **not** been checked against the official Form 29 / Form 30 (those files could not be read).
+
+## Transfer paperwork keys
+
+Personal details entered for a transfer are encrypted with a keyring: `PAPERWORK_ENCRYPTION_KEYS="id1:base64,id2:base64"` (each key 32 bytes, e.g. `openssl rand -base64 32`) and `PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID`. Values are stored as `v1:<keyId>:...`, so any key still in the list can read old data. Production refuses to start without a valid keyring; development uses a fixed fallback key.
+
+**Rotating a key**
+1. Generate a new key, add it to the list **keeping every old key**, set it active, deploy. New writes use it; old data still reads.
+2. Run `npm run paperwork:reencrypt -- --report` to see how many stored values sit under each key, then `npm run paperwork:reencrypt` to move them (safe to repeat or stop and resume; prints counts only).
+3. `--report` must show nothing under the old key.
+4. **Do not delete the old key** until every database backup taken while it was in use has aged out of your backup retention, or been re-encrypted. Keep retired keys in the secrets manager meanwhile.
+
+**Recovery.** Keep keys only in the host's secrets manager plus an offline copy held by two named team members, never in the repo. Restoring a backup needs the keys that were active when it was taken. If a key is lost, affected details cannot be read: the API answers 503 `PAPERWORK_UNAVAILABLE`, the app offers "Delete my details", and people can enter them again. Nothing else depends on those fields.
+
 ## Out of scope
 
 - EV charging module (`fuelType: "ev"` exists in the schema only).
@@ -301,6 +336,11 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 | `server/src/services/accessService.ts` | Ownership rule helpers (`ownerScope`, `isOwnerOrAdmin`, `canAccessBooking`) |
 | `server/src/controllers/bookingController.ts` | Atomic booking and completion rules (sets `verified: true`) |
 | `server/src/services/slotService.ts` | `reserveSeat` / `releaseSeat`: capacity-aware atomic slot booking |
+| `server/src/services/transferPaperwork.service.ts`, `controllers/transferPaperwork.controller.ts` | Transfer paperwork: access rules, checklist, deadlines, reminders, retention |
+| `server/src/config/transferRules.ts` | Deadline rules with sources; `null` where unresolved |
+| `server/src/services/fieldCrypto.ts`, `paperworkFields.ts`, `paperworkMaintenance.ts` | Keyring, which fields are encrypted, re-encrypt for key rotation |
+| `server/src/services/formPdfService.ts` | The three preparation worksheets (content model + pdf-lib rendering) |
+| `mobile/src/features/twin/TransferChecklistScreen.tsx`, `paperwork/` | Checklist screen and the buyer and seller detail forms |
 | `mobile/src/screens/provider/CentreProfileScreen.tsx` | Centre onboarding and edit form (location, services, bays) |
 | `server/src/controllers/paymentController.ts`, `services/paymentService.ts` | Server-side amount, HMAC verification |
 | `server/src/controllers/verificationController.ts`, `services/qrService.ts` | GREEN/RED check, rotating QR tokens |
