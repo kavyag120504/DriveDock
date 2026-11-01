@@ -129,10 +129,14 @@ describe('GET /bookings — scoping', () => {
     const owner = await makeOwner();
     const other = await makeOwner();
     const { provider } = await makeProvider('approved');
-    const vehicle = await makeVehicle(owner._id.toString());
+    // Each owner books on their OWN vehicle: the friends' branch added a partial
+    // unique index (one active booking per vehicle+documentType), so two active
+    // 'puc' bookings would have to be on different vehicles anyway.
+    const ownerVehicle = await makeVehicle(owner._id.toString());
+    const otherVehicle = await makeVehicle(other._id.toString());
 
-    await Booking.create({ ownerId: owner._id, vehicleId: vehicle._id, providerId: provider._id, slotId: (await makeSlot(provider._id.toString()))._id, documentType: 'puc', status: 'pending' });
-    await Booking.create({ ownerId: other._id, vehicleId: vehicle._id, providerId: provider._id, slotId: (await makeSlot(provider._id.toString()))._id, documentType: 'puc', status: 'pending' });
+    await Booking.create({ ownerId: owner._id, vehicleId: ownerVehicle._id, providerId: provider._id, slotId: (await makeSlot(provider._id.toString()))._id, documentType: 'puc', status: 'pending' });
+    await Booking.create({ ownerId: other._id, vehicleId: otherVehicle._id, providerId: provider._id, slotId: (await makeSlot(provider._id.toString()))._id, documentType: 'puc', status: 'pending' });
 
     const res = await request(app).get('/bookings').set('Authorization', authHeader(owner));
     expect(res.status).toBe(200);

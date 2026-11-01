@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Payment } from '../models/Payment';
 import { Booking } from '../models/Booking';
-import { Slot } from '../models/Slot';
+import { reserveSeat, releaseSeat } from '../services/slotService';
 import {
   createRazorpayOrder,
   verifyRazorpaySignature,
@@ -63,17 +63,21 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     booking.paymentId = payment._id as any;
     await booking.save();
 
+    // TEST MODE ONLY (until real Razorpay checkout): a simulated payment id and the signature
+    // Razorpay would send for it. Both must be sent back together to /payments/verify.
+    const testPaymentId = `pay_test_${Date.now()}`;
+
     res.status(201).json({
       success: true,
       message: 'Payment order created',
       data: {
         orderId: orderData.id,
-        amount: orderData.amount,
+        amount: orderData.amount, // in paise
         currency: orderData.currency,
         key: orderData.key,
         paymentId: payment._id,
-        // Development helper: signature generator hint for automated sandbox tests
-        testSignatureHelper: generateTestSignature(orderData.id, `pay_dev_${Date.now()}`)
+        testPaymentId,
+        testSignatureHelper: generateTestSignature(orderData.id, testPaymentId)
       }
     });
   } catch (error: any) {
@@ -127,8 +131,8 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
     const isValid = verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
 
     if (!isValid) {
-      payment.status = 'failed';
-      await payment.save();
+      // Only an unpaid order can be marked failed: a bad call must never downgrade a payment that went through
+      await Payment.updateOne({ _id: payment._id, status: 'created' }, { $set: { status: 'failed' } });
 
       res.status(400).json({
         success: false,
@@ -137,11 +141,13 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Payment signature is valid
-    payment.status = 'paid';
-    payment.razorpayPaymentId = razorpayPaymentId;
-    payment.razorpaySignature = razorpaySignature;
-    await payment.save();
+    // Payment signature is valid. The first verified payment id is kept; a repeat call can't replace it.
+    if (payment.status !== 'paid') {
+      payment.status = 'paid';
+      payment.razorpayPaymentId = razorpayPaymentId;
+      payment.razorpaySignature = razorpaySignature;
+      await payment.save();
+    }
 
     // Re-verifying a payment for a booking that is already confirmed or completed changes nothing
     if (booking.status === 'confirmed' || booking.status === 'completed') {
@@ -165,16 +171,21 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
     if (!updatedBooking) {
       const current = await Booking.findById(booking._id);
       if (current?.status === 'cancelled' && current.cancellationReason === 'payment_timeout') {
-        const slot = await Slot.findOneAndUpdate(
-          { _id: current.slotId, isBooked: false },
-          { $set: { isBooked: true } }
-        );
+        const slot = await reserveSeat({ _id: current.slotId });
         if (slot) {
-          updatedBooking = await Booking.findOneAndUpdate(
-            { _id: current._id, status: 'cancelled' },
-            { $set: { status: 'confirmed', cancellationReason: null } },
-            { new: true }
-          );
+          try {
+            updatedBooking = await Booking.findOneAndUpdate(
+              { _id: current._id, status: 'cancelled' },
+              { $set: { status: 'confirmed', cancellationReason: null } },
+              { new: true }
+            );
+          } catch (err: any) {
+            // The owner has since booked this renewal again (one active booking per vehicle and document)
+            if (err?.code !== 11000) throw err;
+          }
+          if (!updatedBooking) {
+            await releaseSeat(current.slotId);
+          }
         }
       }
     }

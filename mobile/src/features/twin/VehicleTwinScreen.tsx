@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadow, BorderRadius } from '../../theme/colors';
 import { TwinAPI } from './api';
+import { TransferRequestCard } from './TransferRequestCard';
 
 // ── Score badge ───────────────────────────────────────────────────────────────
 
@@ -84,16 +85,24 @@ export const VehicleTwinScreen = ({ route, navigation }: any) => {
   const [isLoading, setIsLoading]     = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError]             = useState<string | null>(null);
+  // A buyer's request waiting for this owner's approval (two-party transfer)
+  const [buyerRequest, setBuyerRequest] = useState<any>(null);
 
   const fetchData = useCallback(async () => {
     setError(null);
     try {
-      const [sRes, tRes] = await Promise.all([
+      const [sRes, tRes, trRes] = await Promise.all([
         TwinAPI.getScore(vehicleId),
-        TwinAPI.getTimeline(vehicleId)
+        TwinAPI.getTimeline(vehicleId),
+        TwinAPI.listTransfers()
       ]);
       setScoreData(sRes.data.data);
       setTimeline(tRes.data.data ?? []);
+      setBuyerRequest(
+        (trRes.data.data ?? []).find(
+          (t: any) => t.role === 'seller' && t.status === 'requested' && String(t.vehicleId) === String(vehicleId)
+        ) ?? null
+      );
     } catch (err: any) {
       setError(err.response?.data?.message ?? 'Failed to load Vehicle Twin data');
     } finally {
@@ -191,6 +200,23 @@ export const VehicleTwinScreen = ({ route, navigation }: any) => {
           </View>
         )}
 
+        {buyerRequest && (
+          <View style={{ marginBottom: 12 }}>
+            <TransferRequestCard
+              transfer={buyerRequest}
+              onDone={(result) => {
+                if (result === 'approved') {
+                  // The vehicle is no longer yours: on to the paperwork checklist for this sale
+                  navigation.navigate('TransferChecklist', { transferId: buyerRequest._id });
+                } else {
+                  setBuyerRequest(null);
+                  fetchData();
+                }
+              }}
+            />
+          </View>
+        )}
+
         {/* Action buttons */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
@@ -208,24 +234,7 @@ export const VehicleTwinScreen = ({ route, navigation }: any) => {
             <Ionicons name="share-outline" size={16} color={Colors.provider} />
             <Text style={[styles.actionBtnText, { color: Colors.provider }]}>Share with Buyer</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => navigation.navigate('BuyCar')}
-          >
-            <Ionicons name="car-sport-outline" size={16} color={Colors.compliant} />
-            <Text style={[styles.actionBtnText, { color: Colors.compliant }]}>Buy a Car</Text>
-          </TouchableOpacity>
         </View>
-
-        {/* Accept transfer button for incoming transfers */}
-        <TouchableOpacity
-          style={styles.acceptBtn}
-          onPress={() => navigation.navigate('AcceptTransfer')}
-        >
-          <Ionicons name="qr-code-outline" size={16} color={Colors.textSecondary} />
-          <Text style={styles.acceptBtnText}>Scan Incoming Transfer QR</Text>
-        </TouchableOpacity>
 
         {/* Timeline */}
         <Text style={[styles.sectionLabel, { marginTop: 20, marginBottom: 12 }]}>VEHICLE HISTORY</Text>
@@ -314,12 +323,6 @@ const styles = StyleSheet.create({
   },
   actionBtnText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
 
-  acceptBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
-    paddingVertical: 11, borderRadius: BorderRadius.md, marginBottom: 4, ...Shadow.card
-  },
-  acceptBtnText: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary },
 
   emptyTimeline: {
     backgroundColor: Colors.surface, borderRadius: BorderRadius.md,

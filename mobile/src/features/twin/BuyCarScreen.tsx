@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, ScrollView, TextInput,
@@ -8,6 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadow, BorderRadius } from '../../theme/colors';
 import { TwinAPI } from './api';
 import { getBuyerReport } from './buyerApi';
+import { useAuthStore } from '../../store/authStore';
+import { BuyerDetailsModal } from './paperwork/BuyerDetailsModal';
+import { partyFromServer, serverMessages } from './paperwork/validators';
 
 type BannerType = 'green' | 'amber' | 'red';
 
@@ -42,6 +45,25 @@ export const BuyCarScreen = ({ navigation }: any) => {
   const [report, setReport]             = useState<any>(null);
   const [scannedToken, setScannedToken] = useState<string | null>(null);
   const [isAccepting, setIsAccepting]   = useState(false);
+  const [buyerFormOpen, setBuyerFormOpen] = useState(false);
+  const user = useAuthStore((s) => s.user);
+  // Two-party approval: after the buyer applies, follow the request until the seller decides
+  const [request, setRequest] = useState<{ transferId: string; status: string; regNumber?: string } | null>(null);
+
+  useEffect(() => {
+    if (!request || request.status !== 'requested') return;
+    const check = async () => {
+      try {
+        const res = await TwinAPI.listTransfers();
+        const t = (res.data.data || []).find((x: any) => x._id === request.transferId);
+        if (t && t.status !== 'requested') {
+          setRequest({ transferId: request.transferId, status: t.status, regNumber: t.vehicle?.regNumber });
+        }
+      } catch { /* try again on the next tick */ }
+    };
+    const timer = setInterval(check, 4000);
+    return () => clearInterval(timer);
+  }, [request?.transferId, request?.status]);
   const [pasteMode, setPasteMode]       = useState(false);
   const [pastedToken, setPastedToken]   = useState('');
 
@@ -53,11 +75,15 @@ export const BuyCarScreen = ({ navigation }: any) => {
       const res = await getBuyerReport(token);
       setReport(res.data.data);
       setScannedToken(token);
+      setRequest(
+        res.data.data.requestedByYou ? { transferId: res.data.data.transferId, status: 'requested' } : null
+      );
     } catch (err: any) {
       const status  = err.response?.status;
       const message = err.response?.data?.message;
       if (status === 410) {
-        Alert.alert('Link Expired', message ?? 'This QR code has expired or been revoked.');
+        // The server explains why (expired, wrong kind of QR, transfer no longer available)
+        Alert.alert("Can't Use This QR", message ?? 'This QR code has expired or been revoked.');
       } else if (status === 401 || status === 403) {
         Alert.alert('Access Denied', message ?? 'You do not have permission to view this report.');
       } else {
@@ -69,53 +95,63 @@ export const BuyCarScreen = ({ navigation }: any) => {
     }
   };
 
+  // Transfer QRs hold the bare code, but share QRs hold a link (".../public/twin?token=...");
+  // take the code out of a link before asking for the report
+  const extractToken = (raw: string): string => {
+    const text = raw.trim();
+    const match = text.match(/[?&]token=([^&#\s]+)/);
+    return match ? decodeURIComponent(match[1]) : text;
+  };
+
   const onBarcodeScanned = ({ data }: { data: string }) => {
     if (scanned || isLoading) return;
     setScanned(true);
-    fetchReport(data);
+    fetchReport(extractToken(data));
   };
 
   const handlePasteSubmit = () => {
-    const t = pastedToken.trim();
+    const t = extractToken(pastedToken);
     if (!t) return;
     setPasteMode(false);
     fetchReport(t);
   };
 
-  const handleAcceptOwnership = async () => {
-    if (!scannedToken || !report?.vehicleId) return;
+  // BUYER: apply for ownership. The seller must approve before anything changes hands.
+  const handleApply = async (details?: Record<string, any>) => {
+    if (!scannedToken || !report?.transferId) return;
     Alert.alert(
-      'Accept Ownership',
-      "Transfer this vehicle to your account? This cannot be undone. You'll still need to complete the RTO transfer on Parivahan.",
+      'Apply for Ownership',
+      'Send a request to the seller to transfer this vehicle to you? It moves to your Vehicle Passport only after the seller approves.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Accept',
+          text: 'Send Request',
           onPress: async () => {
             setIsAccepting(true);
             try {
-              await TwinAPI.acceptTransfer(scannedToken);
-              Alert.alert(
-                'Transfer Complete',
-                'The vehicle is now in your account. Remember to complete the RTO transfer on Parivahan to finalise legal ownership.',
-                [{
-                  text: 'View Vehicle',
-                  onPress: () => navigation.navigate('VehicleTwin', { vehicleId: report.vehicleId }),
-                }]
-              );
-              setReport(null);
-              setScannedToken(null);
+              const sent = await TwinAPI.requestTransfer(scannedToken);
+              const transferId = sent.data?.data?.transferId ?? report.transferId;
+              setRequest({ transferId, status: 'requested' });
+              if (details) {
+                try {
+                  await TwinAPI.savePaperwork(transferId, details);
+                } catch (saveErr: any) {
+                  // The request itself went through; the details can be added from the checklist after approval
+                  Alert.alert(
+                    'Request sent',
+                    `Your request was sent, but your details were not saved (${serverMessages(saveErr)}). You can add them from the paperwork checklist once the seller approves.`
+                  );
+                }
+              }
             } catch (err: any) {
               const code    = err.response?.data?.code;
-              const message = err.response?.data?.message ?? 'Transfer failed';
-              if (code === 'ALREADY_PROCESSED') {
-                Alert.alert('Already Processed', 'This transfer has already been accepted by someone else.');
+              const message = err.response?.data?.message ?? 'Request failed';
+              if (code === 'ALREADY_REQUESTED') {
+                Alert.alert('Already Requested', 'Another buyer has already applied for this vehicle.');
               } else if (code === 'EXPIRED' || err.response?.status === 410) {
                 Alert.alert('Expired', 'The transfer QR has expired. Ask the seller to generate a new one.');
-              } else if (err.response?.status === 409) {
-                Alert.alert('Conflict', message);
               } else {
-                Alert.alert('Transfer Failed', message);
+                Alert.alert('Request Failed', message);
               }
             } finally {
               setIsAccepting(false);
@@ -127,6 +163,7 @@ export const BuyCarScreen = ({ navigation }: any) => {
   };
 
   const handleWalkAway = () => {
+    setRequest(null);
     setReport(null);
     setScannedToken(null);
     setScanned(false);
@@ -136,6 +173,20 @@ export const BuyCarScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
+      <BuyerDetailsModal
+        visible={buyerFormOpen}
+        initial={partyFromServer(null, { fullName: user?.name, mobile: (user?.phone ?? '').replace(/\D/g, '').slice(-10), address: user?.address })}
+        submitLabel="Continue"
+        onCancel={() => setBuyerFormOpen(false)}
+        onSkip={() => {
+          setBuyerFormOpen(false);
+          handleApply();
+        }}
+        onSubmit={(details) => {
+          setBuyerFormOpen(false);
+          handleApply(details);
+        }}
+      />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>← Back</Text>
@@ -364,25 +415,67 @@ export const BuyCarScreen = ({ navigation }: any) => {
             <View style={[styles.rtoNote, { borderColor: Colors.warningBorder, backgroundColor: Colors.warningBg }]}>
               <Ionicons name="information-circle-outline" size={14} color={Colors.warning} />
               <Text style={[styles.rtoText, { color: Colors.warning }]}>
-                Accepting here moves the car's digital history. You must still complete the RTO transfer
-                on{' '}<Text style={{ fontWeight: '800' }}>Parivahan (parivahan.gov.in)</Text>{' '}to finalise legal ownership.
+                Once the seller approves, the car's digital history moves to you. You must still complete the RTO transfer
+                on{' '}<Text style={{ fontWeight: '800' }}>Parivahan (parivahan.gov.in)</Text>{' '}to finalise legal ownership. After approval,
+                DriveDock gives you a checklist and worksheets to help with the paperwork.
               </Text>
             </View>
 
             {/* Action buttons */}
-            {report.canAccept ? (
+            {request ? (
+              <View style={[styles.requestCard, request.status === 'accepted' && styles.requestCardDone]}>
+                {request.status === 'requested' ? (
+                  <>
+                    <ActivityIndicator color={Colors.primary} size="small" />
+                    <Text style={styles.requestTitle}>Request sent</Text>
+                    <Text style={styles.requestText}>
+                      Waiting for the seller to approve. This screen updates as soon as they do.
+                    </Text>
+                  </>
+                ) : request.status === 'accepted' ? (
+                  <>
+                    <Ionicons name="checkmark-circle" size={32} color={Colors.compliant} />
+                    <Text style={styles.requestTitle}>Approved by the seller</Text>
+                    <Text style={styles.requestText}>
+                      {request.regNumber || 'The vehicle'} is now in your Vehicle Passport. Remember to complete the RTO
+                      transfer on Parivahan.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.openPassportBtn}
+                      onPress={() => navigation.navigate('Dashboard', { screen: 'TransferChecklist', params: { transferId: request.transferId } })}
+                    >
+                      <Text style={styles.acceptText}>Open paperwork checklist</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => navigation.navigate('Dashboard', { screen: 'DashboardMain' })}>
+                      <Text style={styles.scanAgainText}>Open Vehicle Passport</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="close-circle" size={32} color={Colors.nonCompliant} />
+                    <Text style={styles.requestTitle}>
+                      {request.status === 'rejected' ? 'The seller declined your request' : 'This transfer was cancelled'}
+                    </Text>
+                    <Text style={styles.requestText}>The vehicle stays with the seller.</Text>
+                    <TouchableOpacity onPress={handleWalkAway} style={styles.scanAgainBtn}>
+                      <Text style={styles.scanAgainText}>Scan Another QR</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            ) : report.canAccept ? (
               <View style={styles.actionRow}>
                 <TouchableOpacity onPress={handleWalkAway} style={styles.walkBtn}>
                   <Text style={styles.walkText}>Walk Away</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={handleAcceptOwnership}
+                  onPress={() => setBuyerFormOpen(true)}
                   style={[styles.acceptBtn, isAccepting && styles.btnDisabled]}
                   disabled={isAccepting}
                 >
                   {isAccepting
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={styles.acceptText}>Accept Ownership</Text>
+                    : <Text style={styles.acceptText}>Apply for Approval</Text>
                   }
                 </TouchableOpacity>
               </View>
@@ -525,6 +618,15 @@ const styles = StyleSheet.create({
   acceptBtn:  { flex: 2, paddingVertical: 13, borderRadius: 10, alignItems: 'center', backgroundColor: Colors.primary },
   acceptText: { color: '#fff', fontWeight: '800', fontSize: 14 },
   btnDisabled:{ opacity: 0.6 },
+
+  requestCard: {
+    alignItems: 'center', gap: 6, backgroundColor: Colors.surface, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border, padding: 16,
+  },
+  requestCardDone: { borderColor: Colors.compliant, borderWidth: 1.5 },
+  requestTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, textAlign: 'center' },
+  requestText:  { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', lineHeight: 17 },
+  openPassportBtn: { marginTop: 8, alignSelf: 'stretch', paddingVertical: 13, borderRadius: 10, alignItems: 'center', backgroundColor: Colors.compliant },
 
   shareOnlyNote: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,

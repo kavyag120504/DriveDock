@@ -3,10 +3,11 @@ import {
   getProviders,
   createProvider,
   getMyProviderProfile,
+  updateMyProviderProfile,
   getProviderSlots,
   createSlots
 } from '../controllers/providerController';
-import { authenticate } from '../middleware/auth';
+import { authenticate, authorizeRoles } from '../middleware/auth';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ const router = Router();
 router.get('/', authenticate, getProviders);
 router.post('/', authenticate, createProvider);
 router.get('/me', authenticate, getMyProviderProfile);
+router.patch('/me', authenticate, authorizeRoles('provider'), updateMyProviderProfile);
 router.get('/:id/slots', authenticate, getProviderSlots);
 router.post('/:id/slots', authenticate, createSlots);
 

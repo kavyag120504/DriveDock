@@ -12,6 +12,28 @@ import { OwnershipTransfer } from '../models/OwnershipTransfer';
 import { TwinShare }      from '../models/TwinShare';
 import { computeTwinScore }  from './twinScore.service';
 import { verifyTransferToken, verifyShareToken } from './transfer.service';
+import jwt from 'jsonwebtoken';
+
+/**
+ * Explains why a scanned code was rejected. The payload is only decoded (not trusted) here,
+ * to tell an expired transfer QR apart from, say, the car's officer compliance QR.
+ */
+const explainUnusableToken = (token: string): string => {
+  const decoded: any = jwt.decode(token);
+  const expired = typeof decoded?.exp === 'number' && decoded.exp * 1000 < Date.now();
+  if (decoded?.purpose === 'transfer') {
+    return expired
+      ? 'This transfer QR has expired (they last 10 minutes). Ask the seller to generate a new one from Vehicle Twin \u2192 Transfer Ownership.'
+      : 'This transfer QR is not valid. Ask the seller to generate a new one.';
+  }
+  if (decoded?.purpose === 'twinShare') {
+    return 'This share link has expired. Ask the seller to share the vehicle again.';
+  }
+  if (decoded?.regNumber && decoded?.nonce) {
+    return "This is the car's compliance QR for traffic checks, not a transfer QR. Ask the seller to open Vehicle Twin \u2192 Transfer Ownership and show that QR instead.";
+  }
+  return "This isn't a DriveDock transfer or share QR.";
+};
 
 const TWELVE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
 
@@ -60,7 +82,10 @@ export interface BuyerReport {
   ownershipCount:  number;        // 1 = first owner, 2 = second, etc.
   previousOwners:  string[];      // ["Owner 1 (–2021)", "Owner 2 (2021–2023)"]
   redFlags:        string[];
-  canAccept:       boolean;       // true only for a still-pending transfer token
+  canAccept:       boolean;       // true only for a still-pending transfer token: the buyer can apply
+  transferId:      string | null; // transfer tokens only, so the app can follow the request
+  transferStatus:  string | null; // pending | requested | accepted | rejected | cancelled
+  requestedByYou:  boolean;       // this buyer has applied and is waiting for the seller's approval
 }
 
 export class BuyerReportError extends Error {
@@ -69,11 +94,14 @@ export class BuyerReportError extends Error {
   }
 }
 
-export async function buildBuyerReport(token: string): Promise<BuyerReport> {
+export async function buildBuyerReport(token: string, viewerId?: string): Promise<BuyerReport> {
   // ── 1. Verify token — try transfer first, then share ──────────────────────
   let tokenType: 'transfer' | 'share';
   let vehicleId: string;
   let canAccept = false;
+  let transferId: string | null = null;
+  let transferStatus: string | null = null;
+  let requestedByYou = false;
 
   const transferParsed = (() => {
     try { return verifyTransferToken(token); }
@@ -83,14 +111,17 @@ export async function buildBuyerReport(token: string): Promise<BuyerReport> {
   if (transferParsed) {
     tokenType = 'transfer';
     const transfer = await OwnershipTransfer.findById(transferParsed.transferId);
-    if (!transfer) throw new BuyerReportError('Transfer not found', 410);
+    if (!transfer) throw new BuyerReportError('This transfer is no longer available (it was cancelled or reset). Ask the seller to generate a new transfer QR.', 410);
     vehicleId = transfer.vehicleId.toString();
     canAccept = transfer.status === 'pending' && transfer.expiresAt > new Date();
+    transferId = transfer._id!.toString();
+    transferStatus = transfer.status;
+    requestedByYou = transfer.status === 'requested' && !!viewerId && transfer.toOwnerId?.toString() === viewerId;
   } else {
     // Try share token
     let shareParsed;
     try { shareParsed = verifyShareToken(token); }
-    catch { throw new BuyerReportError('Invalid or expired token', 410); }
+    catch { throw new BuyerReportError(explainUnusableToken(token), 410); }
 
     tokenType = 'share';
     vehicleId = shareParsed.vehicleId;
@@ -221,5 +252,8 @@ export async function buildBuyerReport(token: string): Promise<BuyerReport> {
     previousOwners,
     redFlags,
     canAccept,
+    transferId,
+    transferStatus,
+    requestedByYou,
   };
 }

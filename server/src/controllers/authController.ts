@@ -66,6 +66,7 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
         },
         address: address ? `${address.city}, ${address.state}` : 'Mumbai, Maharashtra',
         workingHours: '09:00 AM - 07:00 PM',
+        profileCompleted: false, // location/services above are placeholders until the centre profile form is filled in
         status: 'pending' // Admin must approve before active
       });
     }

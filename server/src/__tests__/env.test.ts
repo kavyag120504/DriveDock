@@ -81,6 +81,10 @@ describe('production fail-fast gate', () => {
     process.env.NODE_ENV = 'production';
     for (const k of SECRET_KEYS) process.env[k] = `real-${k.toLowerCase()}-value-32chars-minimum`;
     process.env.MONGO_URI = 'mongodb+srv://real-atlas-cluster/drivedock';
+    // Merged from the friends' branch: a paperwork encryption keyring is also
+    // required in production, so the happy-path case must provide one.
+    process.env.PAPERWORK_ENCRYPTION_KEYS = 'k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+    process.env.PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID = 'k1';
 
     jest.isolateModules(() => {
       const { validateProductionSecrets } = require('../config/env');

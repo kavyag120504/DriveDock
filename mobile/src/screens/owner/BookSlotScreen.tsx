@@ -10,7 +10,7 @@ import {
   TextInput
 } from 'react-native';
 import { Colors } from '../../theme/colors';
-import { ProvidersAPI, BookingsAPI, PaymentsAPI, VehiclesAPI } from '../../api/endpoints';
+import { ProvidersAPI, BookingsAPI, PaymentsAPI, VehiclesAPI, DocumentsAPI } from '../../api/endpoints';
 
 export const BookSlotScreen = ({ route, navigation }: any) => {
   const initialVehicleId = route.params?.vehicleId;
@@ -30,13 +30,58 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Pick Provider, 2: Pick Slot, 3: Razorpay Payment
   const [serviceFee, setServiceFee] = useState<number | null>(null);
+  const [myBookings, setMyBookings] = useState<any[]>([]);
+
+  // One active (unpaid or confirmed) booking per vehicle and document; the server enforces the same rule
+  const activeBooking = myBookings.find(
+    (b) =>
+      (b.vehicleId?._id || b.vehicleId) === selectedVehicleId &&
+      b.documentType === selectedDocType &&
+      (b.status === 'pending' || b.status === 'confirmed')
+  );
+
+  // Same rule as the server: a verified, unexpired document can only be renewed within
+  // RENEWAL_WINDOW_DAYS of expiry; missing, unverified or expired documents can always be booked
+  const RENEWAL_WINDOW_DAYS = 30;
+  const [vehicleDocs, setVehicleDocs] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!selectedVehicleId) return;
+    DocumentsAPI.getByVehicle(selectedVehicleId)
+      .then((res) => setVehicleDocs(res.data.data || []))
+      .catch(() => setVehicleDocs([]));
+  }, [selectedVehicleId]);
+
+  const currentDoc = vehicleDocs
+    .filter((d) => d.type === selectedDocType)
+    .sort((a, b) => new Date(b.expiryDate).getTime() - new Date(a.expiryDate).getTime())[0];
+  const renewalOpensOn = (() => {
+    if (!currentDoc || !currentDoc.verified || currentDoc.status === 'expired') return null;
+    const expiry = new Date(currentDoc.expiryDate).getTime();
+    if (expiry < Date.now()) return null;
+    const opens = expiry - RENEWAL_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    return opens > Date.now() ? new Date(opens) : null;
+  })();
+  const formatDate = (d: Date | string) =>
+    new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const refreshMyBookings = async () => {
+    try {
+      const res = await BookingsAPI.list();
+      setMyBookings(res.data.data || []);
+    } catch (err) {
+      console.error('Error loading bookings:', err);
+    }
+  };
 
   const loadInitialData = async () => {
     try {
-      const [vRes, pRes] = await Promise.all([
+      const [vRes, pRes, bRes] = await Promise.all([
         VehiclesAPI.list(),
-        ProvidersAPI.search({ type: selectedDocType }) // Trust Rule 3: ONLY approved providers returned
+        ProvidersAPI.search({ type: selectedDocType }), // Trust Rule 3: ONLY approved providers returned
+        BookingsAPI.list()
       ]);
+      setMyBookings(bRes.data.data || []);
       setVehicles(vRes.data.data || []);
       if (!selectedVehicleId && vRes.data.data?.length > 0) {
         setSelectedVehicleId(vRes.data.data[0]._id);
@@ -67,6 +112,25 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
     }
   };
 
+  // Creates the payment order and verifies it. TEST MODE: uses the simulated payment id the
+  // server signed; real Razorpay checkout replaces this. Returns the fee in rupees.
+  const payForBooking = async (bookingId: string): Promise<number> => {
+    // Amount comes from the server, not the client
+    const orderRes = await PaymentsAPI.createOrder({ bookingId });
+    const { orderId, amount, testPaymentId, testSignatureHelper } = orderRes.data.data;
+    const feeInRupees = amount / 100; // the order amount is in paise
+    setServiceFee(feeInRupees);
+
+    // Verify with the HMAC signature check (Trust Rule 6)
+    await PaymentsAPI.verify({
+      razorpayOrderId: orderId,
+      razorpayPaymentId: testPaymentId,
+      razorpaySignature: testSignatureHelper,
+      bookingId
+    });
+    return feeInRupees;
+  };
+
   const handleClaimSlotAndPay = async (slot: any) => {
     setSelectedSlot(slot);
     setIsProcessing(true);
@@ -82,23 +146,12 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
 
       const booking = claimRes.data.data.booking;
 
-      // Step B: Razorpay Order Creation — amount comes from server, not the client
-      const orderRes = await PaymentsAPI.createOrder({ bookingId: booking._id });
-      const { orderId, amount, testSignatureHelper } = orderRes.data.data;
-      setServiceFee(amount);
-
-      // Step C: Trigger Razorpay Verification with HMAC Signature check (Trust Rule 6)
-      const paymentId = `pay_rzp_${Date.now()}`;
-      await PaymentsAPI.verify({
-        razorpayOrderId: orderId,
-        razorpayPaymentId: paymentId,
-        razorpaySignature: testSignatureHelper,
-        bookingId: booking._id
-      });
+      // Step B + C: payment order and verification
+      const feeInRupees = await payForBooking(booking._id);
 
       Alert.alert(
         'Booking & Payment Confirmed!',
-        `Service fee: ₹${amount}. Your slot with ${selectedProvider.businessName} is locked. The provider will issue your verified certificate at inspection.`,
+        `Service fee: ₹${feeInRupees}. Your slot with ${selectedProvider.businessName} is locked. The provider will issue your verified certificate at inspection.`,
         [{ text: 'View Dashboard', onPress: () => navigation.navigate('Dashboard') }]
       );
     } catch (err: any) {
@@ -106,6 +159,23 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
       Alert.alert('Booking Notice (Trust Rule 5)', msg);
     } finally {
       setIsProcessing(false);
+      setStep(1);
+      // Shows the booking just made (or the one that already existed) instead of the station list
+      refreshMyBookings();
+    }
+  };
+
+  const handlePayExistingBooking = async () => {
+    if (!activeBooking) return;
+    setIsProcessing(true);
+    try {
+      const feeInRupees = await payForBooking(activeBooking._id);
+      Alert.alert('Payment Confirmed', `Service fee: ₹${feeInRupees}. Your booking is confirmed.`);
+    } catch (err: any) {
+      Alert.alert('Payment Notice', err.response?.data?.message || 'Payment could not be completed.');
+    } finally {
+      setIsProcessing(false);
+      refreshMyBookings();
     }
   };
 
@@ -154,6 +224,58 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
 
       {isLoading ? (
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 30 }} />
+      ) : activeBooking ? (
+        <View style={styles.bookedCard}>
+          <Text style={styles.bookedLabel}>ALREADY BOOKED</Text>
+          <Text style={styles.pName}>{activeBooking.providerId?.businessName || 'Service station'}</Text>
+          {activeBooking.providerId?.address ? (
+            <Text style={styles.pAddress}>{activeBooking.providerId.address}</Text>
+          ) : null}
+          <View style={styles.bookedDetails}>
+            <Text style={styles.bookedDetailText}>
+              {selectedDocType.toUpperCase()} renewal
+              {activeBooking.slotId ? ` · ${activeBooking.slotId.date} · ${activeBooking.slotId.startTime} - ${activeBooking.slotId.endTime}` : ''}
+            </Text>
+            <Text
+              style={[
+                styles.bookedStatus,
+                { color: activeBooking.status === 'confirmed' ? Colors.compliant : Colors.warning }
+              ]}
+            >
+              {activeBooking.status === 'confirmed'
+                ? 'Confirmed and paid'
+                : 'Awaiting payment (released automatically if unpaid for 30 minutes)'}
+            </Text>
+          </View>
+          {activeBooking.status === 'pending' && (
+            <TouchableOpacity style={styles.payNowBtn} onPress={handlePayExistingBooking} disabled={isProcessing}>
+              {isProcessing ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.payNowBtnText}>Complete Payment</Text>
+              )}
+            </TouchableOpacity>
+          )}
+          <Text style={styles.bookedNote}>
+            This vehicle can't be booked for {selectedDocType.toUpperCase()} at another station until this booking is completed or cancelled.
+          </Text>
+        </View>
+      ) : renewalOpensOn ? (
+        <View style={styles.bookedCard}>
+          <Text style={[styles.bookedLabel, { color: Colors.compliant }]}>NO RENEWAL NEEDED YET</Text>
+          <Text style={styles.pName}>
+            {selectedDocType.toUpperCase()} is verified and valid until {formatDate(currentDoc.expiryDate)}
+          </Text>
+          {currentDoc.issuedByProviderId?.businessName ? (
+            <Text style={styles.pAddress}>Certified by {currentDoc.issuedByProviderId.businessName}</Text>
+          ) : null}
+          <View style={styles.bookedDetails}>
+            <Text style={styles.bookedDetailText}>Renewal opens on {formatDate(renewalOpensOn)}</Text>
+            <Text style={[styles.bookedStatus, { color: Colors.textSecondary }]}>
+              Renewals can be booked {RENEWAL_WINDOW_DAYS} days before expiry. You'll get a reminder.
+            </Text>
+          </View>
+        </View>
       ) : step === 1 ? (
         <View style={styles.providersList}>
           <Text style={styles.sectionHeader}>APPROVED SERVICE PROVIDERS ({providers.length})</Text>
@@ -233,7 +355,10 @@ export const BookSlotScreen = ({ route, navigation }: any) => {
                 <View key={s._id} style={styles.slotCard}>
                   <View>
                     <Text style={styles.slotTime}>{s.startTime} - {s.endTime}</Text>
-                    <Text style={styles.slotDate}>{s.date}</Text>
+                    <Text style={styles.slotDate}>
+                      {s.date}
+                      {(s.capacity ?? 1) > 1 ? `  ·  ${(s.capacity ?? 1) - (s.bookedCount ?? 0)} of ${s.capacity} bays free` : ''}
+                    </Text>
                   </View>
 
                   <TouchableOpacity
@@ -495,6 +620,56 @@ const styles = StyleSheet.create({
   },
   dateFilterRow: {
     marginBottom: 12,
+  },
+  bookedCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
+    padding: 16,
+    marginTop: 8,
+  },
+  bookedLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Colors.primary,
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  bookedDetails: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    gap: 4,
+  },
+  bookedDetailText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  bookedStatus: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  payNowBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  payNowBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  bookedNote: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 12,
   },
   dateFilterInput: {
     backgroundColor: Colors.surface,

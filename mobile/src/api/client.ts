@@ -25,12 +25,23 @@ const resolveApiBaseUrl = (): string => {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
+// Without a timeout a dead connection leaves a screen spinning forever
+export const REQUEST_TIMEOUT_MS = 30000;
+export const UPLOAD_TIMEOUT_MS = 120000; // photos and PDFs on a slow connection
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  timeout: REQUEST_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json'
   }
 });
+
+// The auth store registers this so a dead session sends the user back to the login screen
+let onSessionExpired: (() => void) | null = null;
+export const setSessionExpiredHandler = (handler: () => void): void => {
+  onSessionExpired = handler;
+};
 
 // Request interceptor: automatically attaches access token
 apiClient.interceptors.request.use(async (config) => {
@@ -61,7 +72,11 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/login' && originalRequest.url !== '/auth/refresh') {
+    // Only an expired or invalid access token is worth a refresh. Other 401s (a forged QR on
+    // /public/verify, a missing token) would just loop through a pointless refresh.
+    const accessTokenRejected = error.response?.status === 401 && error.response?.data?.code === 'TOKEN_EXPIRED';
+
+    if (accessTokenRejected && !originalRequest._retry && originalRequest.url !== '/auth/login' && originalRequest.url !== '/auth/refresh') {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -82,7 +97,7 @@ apiClient.interceptors.response.use(
           throw new Error('No refresh token available');
         }
 
-        const res = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
+        const res = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken }, { timeout: REQUEST_TIMEOUT_MS });
         const { accessToken, refreshToken: newRefreshToken } = res.data.data;
 
         await Storage.saveAuthTokens(accessToken, newRefreshToken);
@@ -90,9 +105,16 @@ apiClient.interceptors.response.use(
 
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return apiClient(originalRequest);
-      } catch (refreshErr) {
+      } catch (refreshErr: any) {
         processQueue(refreshErr, null);
-        await Storage.clearAuth();
+        // Only a refused or missing refresh token ends the session. A network failure just fails
+        // this request and keeps the user signed in for the next try.
+        const refused = [400, 401, 403].includes(refreshErr?.response?.status) ||
+          refreshErr?.message === 'No refresh token available';
+        if (refused) {
+          await Storage.clearAuth();
+          onSessionExpired?.();
+        }
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;

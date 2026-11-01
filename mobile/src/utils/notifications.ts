@@ -1,10 +1,18 @@
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
+import Constants, { AppOwnership } from 'expo-constants';
 import { Platform } from 'react-native';
 import { AuthAPI } from '../api/endpoints';
 
 export async function registerPushToken(): Promise<void> {
+  // Classic Expo Go no longer ships the native modules expo-notifications needs on
+  // Android (removed in SDK 53) — even importing the package there throws, before any
+  // try/catch below can run, because its topic-subscription module calls
+  // requireNativeModule() at module load time. A dev-client/standalone build (built via
+  // `eas build --profile development`) DOES include it, so only skip for Expo Go itself.
+  if (Constants.appOwnership === AppOwnership.Expo) return;
+
   try {
+    const Notifications = await import('expo-notifications');
+
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'DriveDock Alerts',

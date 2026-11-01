@@ -3,7 +3,9 @@ import { authenticate, authorizeRoles } from '../middleware/auth';
 import {
   createTransfer,
   previewTransfer,
-  acceptTransfer,
+  requestTransfer,
+  approveTransfer,
+  rejectTransfer,
   cancelTransfer,
   listTransfers,
   getTimeline,
@@ -12,6 +14,19 @@ import {
   revokeShare,
   listShares
 } from '../controllers/twin.controller';
+import {
+  getPaperwork,
+  putPaperwork,
+  deleteMyDetails,
+  postConfirmSaleDate,
+  putChecklistStep,
+  downloadForm
+} from '../controllers/transferPaperwork.controller';
+import { rateLimiter } from '../middleware/rateLimiter';
+
+const paperworkLimit = rateLimiter(600, 60 * 1000); // per IP; generous for real use, a brake on scripts
+
+const formLimit = rateLimiter(60, 60 * 1000); // PDF generation costs more than a read
 
 const router = Router();
 
@@ -24,14 +39,26 @@ router.post('/transfers', authorizeRoles('owner'), createTransfer);
 // Any authenticated owner: preview a pending transfer before accepting
 router.get('/transfers/preview', authorizeRoles('owner'), previewTransfer);
 
-// Any authenticated owner: accept a pending transfer (buyer)
-router.post('/transfers/accept', authorizeRoles('owner'), acceptTransfer);
+// Buyer: apply to take ownership (scanned transfer QR). Nothing changes hands yet.
+router.post('/transfers/request', authorizeRoles('owner'), requestTransfer);
+
+// Seller: approve the buyer's request (ownership moves now) or decline it
+router.post('/transfers/:id/approve', authorizeRoles('owner'), approveTransfer);
+router.post('/transfers/:id/reject', authorizeRoles('owner'), rejectTransfer);
 
 // Seller cancels their own pending transfer
 router.post('/transfers/:id/cancel', authorizeRoles('owner'), cancelTransfer);
 
 // List my incoming and outgoing transfers
 router.get('/transfers', authorizeRoles('owner'), listTransfers);
+
+// Paperwork for a transfer (RTO forms, insurer letter, checklist). Parties only; everyone else gets 404.
+router.get('/transfers/:id/paperwork', authorizeRoles('owner'), paperworkLimit, getPaperwork);
+router.put('/transfers/:id/paperwork', authorizeRoles('owner'), paperworkLimit, putPaperwork);
+router.get('/transfers/:id/forms/:form', authorizeRoles('owner'), formLimit, downloadForm);
+router.delete('/transfers/:id/paperwork/me', authorizeRoles('owner'), paperworkLimit, deleteMyDetails);
+router.post('/transfers/:id/sale-date/confirm', authorizeRoles('owner'), paperworkLimit, postConfirmSaleDate);
+router.put('/transfers/:id/checklist/:key', authorizeRoles('owner'), paperworkLimit, putChecklistStep);
 
 // Current owner: unified history timeline
 router.get('/vehicles/:id/timeline', authorizeRoles('owner'), getTimeline);

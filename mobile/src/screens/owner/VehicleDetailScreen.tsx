@@ -46,6 +46,15 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
   const [issueDate, setIssueDate] = useState(todayISO());
   const [expiryDate, setExpiryDate] = useState(nextYearISO());
 
+  // OCR scan state: the already-picked file waiting for the user to confirm dates,
+  // whether a scan was attempted at all (false for PDFs, which skip scanning), and
+  // whether each date field was actually filled in by that scan (vs. left blank).
+  const [isScanning, setIsScanning] = useState(false);
+  const [pendingFile, setPendingFile] = useState<{ uri: string; filename: string; mimeType: string } | null>(null);
+  const [scanAttempted, setScanAttempted] = useState(false);
+  const [issueAutoFilled, setIssueAutoFilled] = useState(false);
+  const [expiryAutoFilled, setExpiryAutoFilled] = useState(false);
+
   const fetchVehicleData = async () => {
     try {
       const res = await VehiclesAPI.getById(vehicleId);
@@ -62,11 +71,47 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
     fetchVehicleData();
   }, [vehicleId]);
 
-  const handleUpload = async (docType: string) => {
-    // Ask for dates first
-    setIssueDate(todayISO());
-    setExpiryDate(nextYearISO());
-    setDateModal({ visible: true, docType });
+  const handleUpload = (docType: string) => {
+    Alert.alert('Attach Document', 'Choose source', withCancelButton([
+      { text: 'Gallery (Photo)', onPress: () => pickFromGallery(docType) },
+      { text: 'Camera (Take Photo)', onPress: () => pickFromCamera(docType) },
+      { text: 'PDF Document', onPress: () => pickPDF(docType) }
+    ]), DISMISSIBLE_ALERT);
+  };
+
+  // Scans the already-picked image (never a PDF) to try to pre-fill the date modal.
+  // Best-effort only: a failed/partial scan leaves the relevant field blank rather
+  // than a fake default, since a stale-looking default is indistinguishable from a
+  // real extraction to the user.
+  const scanAndPrefill = async (docType: string, uri: string, filename: string, mimeType: string) => {
+    setIssueDate('');
+    setExpiryDate('');
+    setIssueAutoFilled(false);
+    setExpiryAutoFilled(false);
+    setScanAttempted(true);
+    setPendingFile({ uri, filename, mimeType });
+    setIsScanning(true);
+    try {
+      const formData = new FormData();
+      // @ts-ignore
+      formData.append('file', { uri, name: filename, type: mimeType });
+      formData.append('type', docType);
+      const res = await DocumentsAPI.scan(formData);
+      const data = res.data?.data;
+      if (data?.issueDate) {
+        setIssueDate(data.issueDate);
+        setIssueAutoFilled(true);
+      }
+      if (data?.expiryDate) {
+        setExpiryDate(data.expiryDate);
+        setExpiryAutoFilled(true);
+      }
+    } catch (err) {
+      console.warn('Document scan failed:', err);
+    } finally {
+      setIsScanning(false);
+      setDateModal({ visible: true, docType });
+    }
   };
 
   const confirmUpload = (docType: string) => {
@@ -78,14 +123,10 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
       Alert.alert('Invalid Date', 'Expiry date must be after issue date');
       return;
     }
+    if (!pendingFile) return;
 
     setDateModal(null);
-
-    Alert.alert('Attach Document', 'Choose source', withCancelButton([
-      { text: 'Gallery (Photo)', onPress: () => pickFromGallery(docType) },
-      { text: 'Camera (Take Photo)', onPress: () => pickFromCamera(docType) },
-      { text: 'PDF Document', onPress: () => pickPDF(docType) }
-    ]), DISMISSIBLE_ALERT);
+    doUpload(docType, pendingFile.uri, pendingFile.filename, pendingFile.mimeType);
   };
 
   const doUpload = async (docType: string, uri: string, filename: string, mimeType: string) => {
@@ -121,7 +162,7 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
     const asset = result.assets[0];
     const filename = asset.uri.split('/').pop() || `${docType}.jpg`;
     const ext = /\.(\w+)$/.exec(filename)?.[1] ?? 'jpg';
-    await doUpload(docType, asset.uri, filename, `image/${ext}`);
+    await scanAndPrefill(docType, asset.uri, filename, `image/${ext}`);
   };
 
   const pickFromCamera = async (docType: string) => {
@@ -135,7 +176,7 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
     const asset = result.assets[0];
     const filename = asset.uri.split('/').pop() || `${docType}.jpg`;
     const ext = /\.(\w+)$/.exec(filename)?.[1] ?? 'jpg';
-    await doUpload(docType, asset.uri, filename, `image/${ext}`);
+    await scanAndPrefill(docType, asset.uri, filename, `image/${ext}`);
   };
 
   const pickPDF = async (docType: string) => {
@@ -143,7 +184,14 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
     const filename = asset.name || `${docType}.pdf`;
-    await doUpload(docType, asset.uri, filename, 'application/pdf');
+    // Tesseract.js can't read PDFs — skip scanning entirely, same manual defaults as before.
+    setScanAttempted(false);
+    setIssueAutoFilled(false);
+    setExpiryAutoFilled(false);
+    setIssueDate(todayISO());
+    setExpiryDate(nextYearISO());
+    setPendingFile({ uri: asset.uri, filename, mimeType: 'application/pdf' });
+    setDateModal({ visible: true, docType });
   };
 
   if (isLoading || !vehicle) {
@@ -284,6 +332,16 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
         onClose={() => setQrModalVisible(false)}
       />
 
+      {/* Scanning indicator — shown while the picked image is being OCR'd, before the date modal opens */}
+      <Modal visible={isScanning} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { alignItems: 'center' }]}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={[styles.modalSubtitle, { marginTop: 12, marginBottom: 0 }]}>Scanning document…</Text>
+          </View>
+        </View>
+      </Modal>
+
       {/* Date picker modal for document upload */}
       <Modal
         visible={!!dateModal?.visible}
@@ -307,6 +365,11 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
               placeholderTextColor={Colors.textMuted}
               keyboardType="numbers-and-punctuation"
             />
+            {scanAttempted && (
+              <Text style={styles.scanNote}>
+                {issueAutoFilled ? 'Auto-filled from scan — please verify' : "Couldn't read this automatically — please enter it"}
+              </Text>
+            )}
 
             <Text style={styles.modalLabel}>Expiry Date (YYYY-MM-DD)</Text>
             <TextInput
@@ -317,6 +380,11 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
               placeholderTextColor={Colors.textMuted}
               keyboardType="numbers-and-punctuation"
             />
+            {scanAttempted && (
+              <Text style={styles.scanNote}>
+                {expiryAutoFilled ? 'Auto-filled from scan — please verify' : "Couldn't read this automatically — please enter it"}
+              </Text>
+            )}
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -586,6 +654,12 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: 14,
     marginBottom: 14,
+  },
+  scanNote: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: -8,
+    marginBottom: 12,
   },
   modalActions: {
     flexDirection: 'row',

@@ -48,6 +48,9 @@ Thumbs.db
 uploads/
 tmp/
 
+# Tesseract.js OCR language data, downloaded to cwd on first scan
+server/*.traineddata
+
 # Salesforce VS Code / CLI cache (not part of DriveDock)
 .sf/
 

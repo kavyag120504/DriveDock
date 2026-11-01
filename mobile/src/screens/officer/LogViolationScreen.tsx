@@ -27,14 +27,20 @@ const calcPenalty = (types: string[]): number =>
 export const LogViolationScreen = ({ route, navigation }: any) => {
   const { vehicleId, regNumber, expiredTypes = [] } = route.params;
 
-  const [location, setLocation] = useState('Marine Drive Checkpoint, Mumbai');
+  // The officer states where the check happened; no checkpoint is assumed
+  const [location, setLocation] = useState('');
   const [notes, setNotes] = useState(`Failed verification check. Offenses: ${expiredTypes.join(', ')}`);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const penalty = calcPenalty(expiredTypes);
+  const nothingToCite = expiredTypes.length === 0;
 
   const handleSubmit = async () => {
-    if (!location) {
+    if (nothingToCite) {
+      Alert.alert('Nothing to cite', 'This vehicle has no expired or unverified document to cite.');
+      return;
+    }
+    if (!location.trim()) {
       Alert.alert('Required', 'Please enter inspection location');
       return;
     }
@@ -43,8 +49,8 @@ export const LogViolationScreen = ({ route, navigation }: any) => {
     try {
       await OfficerAPI.logViolation({
         vehicleId,
-        documentTypeExpired: expiredTypes.length > 0 ? expiredTypes : ['puc'],
-        location,
+        documentTypeExpired: expiredTypes,
+        location: location.trim(),
         notes
       });
 
@@ -73,6 +79,14 @@ export const LogViolationScreen = ({ route, navigation }: any) => {
 
       <Text style={styles.title}>Issue Digital e-Challan</Text>
       <Text style={styles.subtitle}>Enforcement citation recorded against National Registry</Text>
+
+      {nothingToCite && (
+        <View style={styles.noticeBox}>
+          <Text style={styles.noticeText}>
+            No expired or unverified document was flagged on this scan, so there is nothing to cite.
+          </Text>
+        </View>
+      )}
 
       {/* Target Vehicle */}
       <View style={styles.vCard}>
@@ -117,9 +131,9 @@ export const LogViolationScreen = ({ route, navigation }: any) => {
         </View>
 
         <TouchableOpacity
-          style={[styles.submitBtn, isSubmitting && styles.btnDisabled]}
+          style={[styles.submitBtn, (isSubmitting || nothingToCite) && styles.btnDisabled]}
           onPress={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || nothingToCite}
         >
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -133,6 +147,19 @@ export const LogViolationScreen = ({ route, navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
+  noticeBox: {
+    backgroundColor: Colors.warningBg,
+    borderColor: Colors.warningBorder,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14
+  },
+  noticeText: {
+    fontSize: 12,
+    color: Colors.warning,
+    lineHeight: 17
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background

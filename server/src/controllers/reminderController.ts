@@ -4,6 +4,7 @@ import { User } from '../models/User';
 import { DocumentModel } from '../models/Document';
 import { sendPushNotification } from '../services/notificationService';
 import { ENV } from '../config/env';
+import { isTransferReminderStillValid } from '../services/transferPaperwork.service';
 
 export const getUserReminders = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -36,6 +37,13 @@ export const runDueRemindersJob = async (): Promise<{ processed: number; sent: n
   let sentCount = 0;
 
   for (const rem of dueReminders) {
+    // A paperwork reminder is re-checked at send time: if the sale date changed, the step was done or
+    // the paperwork is gone since it was queued, it is dropped rather than sent with a stale date
+    if (rem.kind === 'transfer' && !(await isTransferReminderStillValid(rem))) {
+      await Reminder.deleteOne({ _id: rem._id });
+      continue;
+    }
+
     const owner = rem.ownerId as any;
     if (owner && owner.expoPushToken) {
       const dispatched = await sendPushNotification({
@@ -45,6 +53,8 @@ export const runDueRemindersJob = async (): Promise<{ processed: number; sent: n
         data: {
           reminderId: rem._id,
           documentId: rem.documentId,
+          kind: rem.kind,
+          transferId: rem.transferId,
           vehicleId: rem.vehicleId
         }
       });
@@ -63,6 +73,12 @@ export const runDueRemindersJob = async (): Promise<{ processed: number; sent: n
   const expiredUpdate = await DocumentModel.updateMany(
     { expiryDate: { $lte: now }, status: { $ne: 'expired' } },
     { $set: { status: 'expired' } }
+  );
+
+  // ...and valid documents that are now within 30 days of expiry to "expiring_soon"
+  await DocumentModel.updateMany(
+    { expiryDate: { $gt: now, $lte: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) }, status: 'valid' },
+    { $set: { status: 'expiring_soon' } }
   );
 
   console.log(

@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadow, BorderRadius } from '../../theme/colors';
 import { useAuthStore, UserRole } from '../../store/authStore';
+import { DemoAPI } from '../../api/endpoints';
 
 const DEMO_ROLES: { role: UserRole; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
   { role: 'owner',      label: 'Vehicle Owner',           desc: 'Vehicles, verified docs, rotating QR, renewals',      icon: 'car-outline',           color: Colors.owner },
@@ -25,8 +26,32 @@ export const LoginScreen = ({ navigation }: any) => {
     try { await login(email, password); } catch (err) {}
   };
 
+  // Demo only: the provider button lets you pick which station to log in as, so a booking
+  // made at any station can be shown on that station's screen
+  const [stations, setStations] = useState<any[] | null>(null);
+  const [isLoadingStations, setIsLoadingStations] = useState(false);
+
   const handleDemo = async (role: UserRole) => {
     clearError();
+    if (role === 'provider') {
+      if (stations) {
+        setStations(null); // tap again to collapse
+        return;
+      }
+      setIsLoadingStations(true);
+      try {
+        const res = await DemoAPI.stations();
+        const list = res.data.data || [];
+        if (list.length > 1) {
+          setStations(list);
+          return;
+        }
+      } catch {
+        // Demo endpoint off (DEMO_MODE not set): fall back to the default provider account
+      } finally {
+        setIsLoadingStations(false);
+      }
+    }
     await quickDemoLogin(role);
   };
 
@@ -118,20 +143,50 @@ export const LoginScreen = ({ navigation }: any) => {
 
           <View style={styles.demoGrid}>
             {DEMO_ROLES.map(({ role, label, desc, icon, color }) => (
-              <TouchableOpacity
-                key={role}
-                style={[styles.demoCard, { borderLeftColor: color }]}
-                onPress={() => handleDemo(role)}
-              >
-                <View style={[styles.demoIconWrap, { backgroundColor: color + '15' }]}>
-                  <Ionicons name={icon} size={20} color={color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.demoCardTitle}>{label}</Text>
-                  <Text style={styles.demoCardDesc}>{desc}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
-              </TouchableOpacity>
+              <React.Fragment key={role}>
+                <TouchableOpacity
+                  style={[styles.demoCard, { borderLeftColor: color }]}
+                  onPress={() => handleDemo(role)}
+                >
+                  <View style={[styles.demoIconWrap, { backgroundColor: color + '15' }]}>
+                    <Ionicons name={icon} size={20} color={color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.demoCardTitle}>{label}</Text>
+                    <Text style={styles.demoCardDesc}>{desc}</Text>
+                  </View>
+                  {role === 'provider' && isLoadingStations ? (
+                    <ActivityIndicator size="small" color={color} />
+                  ) : (
+                    <Ionicons
+                      name={role === 'provider' && stations ? 'chevron-down' : 'chevron-forward'}
+                      size={16}
+                      color={Colors.textMuted}
+                    />
+                  )}
+                </TouchableOpacity>
+
+                {role === 'provider' && stations && (
+                  <View style={styles.stationList}>
+                    <Text style={styles.stationListTitle}>LOG IN AS STATION</Text>
+                    {stations.map((st) => (
+                      <TouchableOpacity
+                        key={st.providerId}
+                        style={styles.stationRow}
+                        onPress={() => st.email && quickDemoLogin('provider', st.email)}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.stationName}>{st.businessName}</Text>
+                          <Text style={styles.stationAddr} numberOfLines={1}>{st.address}</Text>
+                        </View>
+                        {st.status !== 'approved' && (
+                          <Text style={styles.stationPending}>{String(st.status).toUpperCase()}</Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </React.Fragment>
             ))}
           </View>
         </View>
@@ -226,5 +281,27 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   demoCardTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
+  stationList: {
+    marginLeft: 12,
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: Colors.provider + '40',
+    gap: 6,
+  },
+  stationListTitle: { fontSize: 10, fontWeight: '800', color: Colors.provider, letterSpacing: 0.8, marginBottom: 2 },
+  stationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  stationName: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
+  stationAddr: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  stationPending: { fontSize: 9, fontWeight: '800', color: Colors.warning, letterSpacing: 0.6 },
   demoCardDesc: { fontSize: 11, color: Colors.textSecondary, lineHeight: 15 },
 });

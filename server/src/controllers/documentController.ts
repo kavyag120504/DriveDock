@@ -1,9 +1,13 @@
 import { Request, Response } from 'express';
 import { DocumentModel, DocumentType, DocumentStatus } from '../models/Document';
 import { Vehicle } from '../models/Vehicle';
-import { Reminder } from '../models/Reminder';
+import { scheduleDocumentReminders } from '../services/reminderService';
 import { processUploadedFile, discardUploadedFile } from '../services/uploadService';
 import { ownerScope } from '../services/accessService';
+import { ENV } from '../config/env';
+import { scanDocumentImage } from '../services/ocrService';
+
+const VALID_DOC_TYPES: DocumentType[] = ['insurance', 'puc', 'rc', 'license', 'fitness'];
 
 const calculateStatus = (expiryDate: Date): DocumentStatus => {
   const now = new Date();
@@ -13,38 +17,6 @@ const calculateStatus = (expiryDate: Date): DocumentStatus => {
   if (diffDays < 0) return 'expired';
   if (diffDays <= 30) return 'expiring_soon';
   return 'valid';
-};
-
-const scheduleDocumentReminders = async (
-  documentId: string,
-  vehicleId: string,
-  ownerId: string,
-  expiryDate: Date,
-  docType: DocumentType
-) => {
-  // Clear any existing pending reminders for this document
-  await Reminder.deleteMany({ documentId, sent: false });
-
-  const thresholds = [30, 7, 1]; // days before expiry
-  const newReminders = [];
-
-  for (const days of thresholds) {
-    const scheduledDate = new Date(expiryDate.getTime() - days * 24 * 60 * 60 * 1000);
-    newReminders.push({
-      documentId,
-      vehicleId,
-      ownerId,
-      scheduledFor: scheduledDate,
-      thresholdDays: days,
-      channel: 'push',
-      message: `Your vehicle's ${docType.toUpperCase()} document is expiring in ${days} day(s). Tap to book a renewal slot.`,
-      sent: false
-    });
-  }
-
-  if (newReminders.length > 0) {
-    await Reminder.insertMany(newReminders);
-  }
 };
 
 export const uploadDocument = async (req: Request, res: Response): Promise<void> => {
@@ -108,13 +80,14 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
     }
 
     // Schedule idempotent reminders (Trust Rule 7)
-    await scheduleDocumentReminders(
-      document._id.toString(),
-      vehicle._id.toString(),
-      vehicle.ownerId.toString(),
-      parsedExpiry,
-      type as DocumentType
-    );
+    await scheduleDocumentReminders({
+      documentId: document._id,
+      vehicleId: vehicle._id,
+      ownerId: vehicle.ownerId,
+      expiryDate: parsedExpiry,
+      docType: type as DocumentType,
+      verified: false
+    });
 
     res.status(201).json({
       success: true,
@@ -177,8 +150,78 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
 
     await document.save();
 
+    // The expiry moved, so the old reminders point at the wrong date
+    if (expiryDate) {
+      await scheduleDocumentReminders({
+        documentId: document._id,
+        vehicleId: document.vehicleId,
+        ownerId: vehicle.ownerId,
+        expiryDate: document.expiryDate,
+        docType: document.type,
+        verified: document.verified
+      });
+    }
+
     res.status(200).json({ success: true, data: document });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * NON-AUTHORITATIVE SUGGESTION ONLY: best-effort OCR pre-fill for the date fields the
+ * user still types manually. This never creates/updates a Document row and never
+ * influences `verified` — the uploaded file is discarded immediately after reading,
+ * and the real upload (uploadDocument / bookingController.updateBookingStatus) is a
+ * separate, unchanged request the user still confirms afterward.
+ */
+export const scanDocument = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { type } = req.body;
+
+    if (!req.file) {
+      res.status(400).json({ success: false, message: 'A document image is required to scan' });
+      return;
+    }
+
+    if (!type || !VALID_DOC_TYPES.includes(type)) {
+      discardUploadedFile(req.file);
+      res.status(400).json({ success: false, message: `Document type must be one of: ${VALID_DOC_TYPES.join(', ')}` });
+      return;
+    }
+
+    if (!ENV.OCR_SCAN_ENABLED) {
+      discardUploadedFile(req.file);
+      res.status(200).json({
+        success: true,
+        data: { issueDate: null, expiryDate: null, warning: 'Scanning is temporarily disabled; please enter dates manually.' }
+      });
+      return;
+    }
+
+    // Tesseract.js cannot OCR PDFs directly — mobile already skips calling this
+    // endpoint for PDF picks, but guard server-side too since this is a public contract.
+    const isPdf = req.file.mimetype === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      discardUploadedFile(req.file);
+      res.status(200).json({
+        success: true,
+        data: { issueDate: null, expiryDate: null, warning: 'PDF scanning is not supported; enter dates manually.' }
+      });
+      return;
+    }
+
+    const result = await scanDocumentImage(req.file.path, type as DocumentType);
+    discardUploadedFile(req.file);
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    console.error('[DocumentController.scanDocument] error:', error);
+    discardUploadedFile(req.file);
+    // OCR failure must never block the manual flow — degrade to nulls, not a 500.
+    res.status(200).json({
+      success: true,
+      data: { issueDate: null, expiryDate: null, warning: 'Could not read dates automatically; please enter them manually.' }
+    });
   }
 };

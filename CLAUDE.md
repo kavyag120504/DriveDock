@@ -2,7 +2,7 @@
 
 Read this first. It is the shared, current picture of the project for both teammates and for Claude Code sessions. Update it in the same PR whenever you change how the project runs or what it guarantees.
 
-Last updated: 2026-10-25 (Vehicle Twin + Buy a Car complete; seed toolkit replaces seed-demo; all remaining items need external accounts or manual testing)
+Last updated: 2026-11-01 (transfer paperwork, two-party ownership transfer and OCR scanning complete; Phase 1 production-hardening foundation merged on the `phase-1-foundation` branch; remaining items need external accounts, manual testing, or checking legal rules against official text)
 
 ## What DriveDock is
 
@@ -41,8 +41,8 @@ server/   Node.js + Express + TypeScript + MongoDB (Mongoose) API
 | State | Zustand (auth), TanStack Query (server data) |
 | Backend | Express + TypeScript, run with ts-node-dev |
 | Database | MongoDB via Mongoose |
-| Auth | JWT access token (15 min) + refresh token (7 days); expo-secure-store on device, localStorage on web |
-| Uploads | Local `server/uploads/` (AWS S3 if AWS keys are set) |
+| Auth | JWT access token (15 min) + refresh token (7 days); expo-secure-store on device, localStorage on web. The app refreshes only on a `TOKEN_EXPIRED` 401; a refused refresh token returns the user to the login screen, but a network failure keeps the saved session. Requests time out after 30 s (2 min for uploads). |
+| Uploads | Local `server/uploads/` (AWS S3 if AWS keys are set). Only JPEG, PNG, WEBP and PDF are accepted, judged by content type; the stored extension comes from that type, never from the file name. Files are served with `nosniff`. Oversized files return 413. |
 | Payments | Razorpay test flow with server-side HMAC verification (see "Known gaps") |
 | Push | expo-notifications + Expo Push API |
 | Maps | react-native-maps on phones; a placeholder on web (`src/components/Map.web.tsx`) |
@@ -65,6 +65,9 @@ Create `server/.env` (git-ignored):
 ```
 MONGO_URI=mongodb://127.0.0.1:27018/drivedock
 PORT=5001
+DEMO_MODE=true   # optional: enables the station picker on the demo login (never set on a hosted server)
+PAPERWORK_ENCRYPTION_KEYS=   # production only: "keyId:base64key" entries, each key 32 bytes (see "Transfer paperwork keys")
+PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID=   # production only: which key id new data is written with
 ```
 
 Use a port other than 5000 on a Mac: macOS AirPlay Receiver already listens on 5000 and the server fails with `EADDRINUSE`.
@@ -108,12 +111,24 @@ npx expo start --clear
 | Government | gov@drivedock.com |
 | Admin | admin@drivedock.com |
 
-The login screen also has one-tap demo buttons per role.
+The login screen also has one-tap demo buttons per role (development builds only). With `DEMO_MODE=true` on the server, the "Approved Provider" button opens a list of every station, so you can log in as the station a customer just booked and show the booking arriving on its "Inspection Orders" screen (`GET /api/v1/demo/stations`, which returns 404 when `DEMO_MODE` is off).
 
 Seeded vehicles: `MH01AB1234` scans GREEN, `MH02CD5678` scans RED, and `MH04EF9012` has a PUC expiring in 5 days with a due reminder.
 
 
-**NCR seed toolkit (`npm run seed:demo`).** Lives in `server/scripts/seed/`. On first run it fetches real fuel-station locations from OpenStreetMap (cached to `data/osm_fuel.json`) and reads optional VAHAN CSV data for regional vehicle proportions. It then generates owners, vehicles, providers, bookings, payments, violations, challans and reminders deterministically from a fixed seed so the same run always produces the same data. Use `seed:clear` to remove only what the toolkit inserted (tracked in the `SeedRegistry` collection); `seed:report` prints counts without touching data. The script refuses to run if `NODE_ENV === 'production'`. OSM data is © OpenStreetMap contributors (ODbL); station names are real but those businesses have not joined DriveDock — never present them as partners. See `server/scripts/seed/README.md` for column format, flags and attribution.
+**NCR demo dataset (`npm run seed:demo`).** Synthetic data for presentations. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Also `buyer@drivedock.com`, a second owner with no vehicles: on **Add Vehicle → Buying a used car? → Scan QR** they scan the seller's transfer QR (Vehicle Twin → Transfer Ownership), read the buyer report and tap **Apply for Approval**; the seller then approves on the QR screen (or from the Vehicle Twin page or dashboard banner), and only then does the car move to the buyer's passport. Walkthrough vehicles for `owner@drivedock.com`:
+
+| Vehicle | Set up to show |
+|---|---|
+| `DL3CAB1234` Nexon EV | QR GREEN; renewal "not due yet"; ownership transfer to the buyer |
+| `DL8CAF5678` Creta | QR RED (PUC and licence unverified, insurance expired, fitness missing), pending e-challan; booking renewals to fix it |
+| `HR26DK9012` Classic 350 | PUC expires in 5 days, so book and pay now; Vehicle Twin with a previous owner |
+| `UP16KB4321` Swift | PUC renewal already booked and paid at Capital Auto for tomorrow ("Already booked"); appears as NEW on Capital Auto's station screen |
+| `DL4CXY7788` City | Just registered, no documents: upload papers and see them stay unverified |
+
+The script prints a checklist (13 scenarios, including officer, admin and government) when it finishes. Everything is generated and the proportions are illustrative; always present it as sample data.
+
+The underlying generator lives in `server/scripts/seed/` (entry `scripts/seed/index.ts`, which `seed:demo` runs). On first run it fetches real fuel-station locations from OpenStreetMap (cached to `data/osm_fuel.json`) and reads optional VAHAN CSV data for regional vehicle proportions, then generates everything deterministically from a fixed seed so the same run always produces the same data. Use `npm run seed:clear` to remove only what the toolkit inserted (tracked in the `SeedRegistry` collection) and `npm run seed:report` to print counts without touching data. It refuses to run if `NODE_ENV === 'production'`. OSM data is © OpenStreetMap contributors (ODbL); station names are real but those businesses have not joined DriveDock — never present them as partners. See `server/scripts/seed/README.md` for column format, flags and attribution.
 
 ## Trust rules the server enforces
 
@@ -127,27 +142,43 @@ These are the product's core promise. Don't weaken them without discussing it wi
    An owner's upload or manual edit always leaves or resets `verified: false`. Providers cannot set `confirmed` themselves; the status endpoint accepts only `completed` or `cancelled`.
 2. **GREEN means all five documents exist, are valid, not expired, and verified.** Anything else is RED with reasons.
 3. **Rotating QR.** `GET /vehicles/:id/qr-token` returns a JWT signed with `QR_SECRET` that expires in 120 s. `GET /public/verify?token=` checks it; a forged or edited token returns 401.
-4. **Atomic slot booking.** `Slot.findOneAndUpdate({ _id, isBooked: false }, { isBooked: true })`. If nothing matches, the slot was taken and the API returns 409.
+4. **Atomic slot booking, with capacity.** A centre has `capacity` service bays (set on its profile), and each slot copies it when created. `reserveSeat` in `services/slotService.ts` increments `bookedCount` in a single `findOneAndUpdate` that only matches while `isBooked: false`, and sets `isBooked` once `bookedCount` reaches `capacity`. If nothing matches, the slot is full and the API returns 409. `releaseSeat` gives one seat back on cancellation or payment timeout. Slots created before capacity existed count as capacity 1.
+   - **One active booking per vehicle and document.** While a vehicle has a `pending` or `confirmed` booking for a document type, another booking for the same document (at any station) returns 409 `ACTIVE_BOOKING_EXISTS` with the existing booking. A partial unique index on bookings (`one_active_booking_per_vehicle_document`) enforces it even for simultaneous requests. Only slots dated today or later can be booked.
+   - **Renewal window.** A document that is provider-verified and unexpired can only be booked within 30 days of its expiry (`RENEWAL_WINDOW_DAYS` in `services/complianceService.ts`); earlier attempts return 409 `RENEWAL_NOT_DUE` with the date renewal opens. Missing, unverified (owner-uploaded) or expired documents can always be booked.
 5. **Provider approval gate.** Only `approved` providers appear in search, take bookings or complete them. Admin sets status via `PATCH /admin/providers/:id/status`.
+   - A booking's `documentType` must be one of the five types and one of the centre's `serviceTypes` (a PUC centre can't verify insurance); anything else returns 400 before a seat is taken.
+   - A centre can't book or certify its own vehicle (403).
+   - Creating slots skips any date + start time the centre already has (a repeat returns 409 `SLOTS_EXIST`), validates the date and times, and refuses past dates. To add bays to a window, raise the centre's bay count.
 6. **Payments.**
    - The server sets the amount from the booking's document type (`SERVICE_FEES_INR` in `paymentService.ts`: PUC 250, insurance 2400, others 1000) and ignores any amount from the client.
    - The signature is an HMAC-SHA256 of `orderId|paymentId`; a bad or wrong-length signature returns 400.
    - A payment can only confirm the booking its order was created for.
+   - A bad signature only marks an unpaid (`created`) order `failed`; it can never downgrade a `paid` payment, and a repeat verification keeps the first payment id.
    - Only a `pending` booking can get an order or be confirmed. Bookings left unpaid for 30 minutes are cancelled with `cancellationReason: 'payment_timeout'` and their slot freed. A payment verified after that reinstates the booking only if the slot can be reclaimed; otherwise it returns 409 and the payment stays `paid` for a refund.
-7. **Ownership on every record.** Shared helpers live in `server/src/services/accessService.ts`.
+7. **Ownership transfer needs both parties.** The seller creates a transfer QR (10 minutes); a buyer applies with `POST /twin/transfers/request` (status `requested`, only one buyer per QR, 48 hours for the seller to decide); the seller approves with `POST /twin/transfers/:id/approve` (ownership moves, ledger hash recorded) or declines with `/reject`. Nothing changes hands before approval, only the seller can approve, and approval is refused if the vehicle has an active booking or unpaid challan at that moment. There is no instant-accept endpoint.
+   - **Paperwork after approval.** Both people then get a checklist and "preparation worksheets" for the RTO and the insurer (all under `/twin/transfers/:id/...`, parties only, everyone else gets 404):
+     - `GET|PUT /paperwork` reads and saves their details. Every field is optional, so approval is never blocked by form data. Each party can write only their own section (a forbidden key returns 400 `FIELD_NOT_ALLOWED`).
+     - Before approval neither person sees the other's details. After approval each sees only the other's name, mobile and city/state; full details appear only inside the worksheets, with IDs masked to the last 4 characters. A full ID number is rejected and never stored.
+     - Personal fields (names, addresses, mobile, email, ID tail, chassis and engine numbers, lender, policy number) are AES-256-GCM encrypted at rest. Every read, change and download is written to `PaperworkAudit` (field names only, never values).
+     - **No deadline is shown until both people agree the sale date**: the seller enters it, the buyer confirms it (`POST /sale-date/confirm`). Changing a confirmed date clears the confirmation and deletes every unsent due-date reminder in the same request; a reminder that survived is re-checked and dropped when the job runs. The approval date is never used as the sale date.
+     - Worksheets (`GET /forms/form29|form30|insurer-letter`) are PDFs titled "...preparation worksheet", not the official forms, and say so on every page. The download needs the normal login on every request; the server never issues download links or tokens.
+     - Form 28 (NOC) is a pointer, never a ruling: the checklist says when one is "normally needed" for a different-state buyer and always tells the person to confirm with their RTO. It can be marked done or not needed.
+     - Personal details are deleted when a transfer is rejected, cancelled or never approved in time, 180 days (`PAPERWORK_RETENTION_DAYS`) after approval, or when a party deletes their own (`DELETE /paperwork/me`).
+8. **Ownership on every record.** Shared helpers live in `server/src/services/accessService.ts`.
    - An owner reaches only their own vehicles, documents, bookings, payments, reminders and challans.
    - A provider reaches only bookings assigned to them. Admin reaches everything.
    - Vehicle-keyed lookups return 404 when not allowed; booking- and payment-keyed lookups return 403.
    - Officer and government accounts currently get empty vehicle and booking lists.
-8. **Roles.** Public signup accepts only `owner` or `provider`; any other role returns 400. Officer, government and admin accounts are created by an admin with `POST /api/v1/admin/users`. The seed script creates its demo accounts directly.
-9. **Reminders are "due and not sent".** The job processes `scheduledFor <= now AND sent: false`, so it catches up after downtime. It runs daily at 00:00 (node-cron), and `POST /reminders/trigger-job` with header `x-internal-job-secret` runs it on demand.
-10. **Vehicle Twin ledger is append-only.** Each accepted transfer stores a SHA-256 hash chained to the previous record (`prevHash → hash`). `verifyLedger()` recomputes every hash; any mismatch sets `ledgerIntact: false` on the score response.
-11. **Buyer report never exposes personal data.** `GET /twin/buyer-report` returns masked reg number, business names only (never provider user details), and anonymous ownership labels ("Owner 1 (2021–2023)"). Seller name, email, phone, address, full reg, and user IDs are never returned. `canAccept: true` only when the token is a transfer token AND the transfer is still `pending` and not past `expiresAt`.
+   - A vehicle's enforcement record stays with the vehicle: `DELETE /vehicles/:id` returns 409 `VEHICLE_IN_USE` while it has a pending or confirmed booking, a transfer in progress, or any e-challan or violation. Otherwise deleting and re-adding a car would wipe its fines.
+9. **Roles.** Public signup accepts only `owner` or `provider`; any other role returns 400. Officer, government and admin accounts are created by an admin with `POST /api/v1/admin/users`. The seed script creates its demo accounts directly.
+10. **Reminders are "due and not sent".** The job processes `scheduledFor <= now AND sent: false`, so it catches up after downtime. It runs daily at 00:00 (node-cron), and `POST /reminders/trigger-job` with header `x-internal-job-secret` runs it on demand. The same job moves valid documents inside 30 days of expiry to `expiring_soon`. `services/reminderService.ts` schedules reminders for an upload, an expiry edit or a provider completion: thresholds already passed are not all sent at once (one catch-up reminder with the real days left is queued instead), and an expired document gets none.
+11. **Vehicle Twin ledger is append-only.** Each accepted transfer stores a SHA-256 hash chained to the previous record (`prevHash → hash`). `verifyLedger()` recomputes every hash; any mismatch sets `ledgerIntact: false` on the score response.
+12. **Buyer report never exposes personal data.** `GET /twin/buyer-report` returns masked reg number, business names only (never provider user details), and anonymous ownership labels ("Owner 1 (2021–2023)"). Seller name, email, phone, address, full reg, and user IDs are never returned. `canAccept: true` only when the token is a transfer token AND the transfer is still `pending` and not past `expiresAt`.
 
 ## API notes
 
 - Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/public/verify`, `/public/twin` and `/reminders/trigger-job` (internal secret instead).
-- Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`.
+- Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`. `documentTypeExpired` must list known document types (capitals accepted, stored lowercase), a non-blank `location` is required, and a document that is verified, valid and unexpired can't be cited (400).
 - `POST /auth/logout` clears the user's push token.
 
 **Vehicle Twin endpoints** (all require auth + `owner` role unless noted):
@@ -195,6 +226,7 @@ Remember the APK talks to whatever `EXPO_PUBLIC_API_URL` was at build time.
 - ~~**Expiry date:** a provider can set any `expiryDate`~~ — fixed: server rejects past dates and dates > 10 years out.
 - ~~**Reminders:** the job marks a reminder sent even when the owner has no push token~~ — fixed: skips silently, retries next run.
 - **Officer and government roles** may need read access to vehicles. That's a product decision.
+- **Transfer deadlines for Form 29 and Form 30 are unresolved**, and the worksheets are unchecked against the official forms (see "Transfer deadlines").
 - ~~**Encoding:** some mobile source files saved as Windows-1252~~ — fixed: `LoginScreen.tsx`, `ScanQRScreen.tsx`, `StationMapScreen.tsx` converted to UTF-8; garbled chars replaced.
 
 ## Roadmap: from demo to live
@@ -243,6 +275,7 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 - [x] Bootstrap script that creates the first admin on the production DB from env values. Don't run the seed there.
 - [x] Admin screen to create officer and government accounts (the API `POST /admin/users` exists; there's no screen yet).
 - [ ] Provider sign-up → pending → admin approves — API and screens exist; requires end-to-end test on real devices after Phase 0 hosting is live.
+- [x] Centre profile: after signup a provider must fill in `CentreProfileScreen` (real GPS location, address, services, working hours, service bays) before seeing the rest of the app; it stays available as the "Centre" tab. Saved with `PATCH /providers/me`, which never changes `status`. Signup still creates the centre with placeholder location and `profileCompleted: false`.
 - [x] Password rules on signup: min 8 chars, must have a letter and a number.
 - [ ] "Forgot password" needs an email or SMS provider (decide which).
 
@@ -275,7 +308,7 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 - [x] Push reminders: job only marks sent when Expo Push accepts; skips silently when no push token (retries next run).
 - [ ] Uploads go to private S3; the app gets short-lived signed URLs.
 - [x] `/public/verify` no longer returns owner phone number.
-- [x] Rate-limit login and signup: 10 attempts per IP per 15 minutes (in-memory limiter, no extra package). Keyed on `req.ip`, so set `TRUST_PROXY` when hosted behind a proxy; client-sent `X-Forwarded-For` values are ignored otherwise.
+- [x] Rate-limit login and signup (in-memory limiter, no extra package): 10 failed logins and, separately, 10 sign-ups per IP per 15 minutes. Successful logins are never counted, so switching demo roles can't lock anyone out. Keyed on `req.ip`, so set `TRUST_PROXY` when hosted behind a proxy; client-sent `X-Forwarded-For` values are ignored otherwise.
 - [x] `PATCH /vehicles/:id` restricted to type, make, model, year, fuelType, region — ownerId, regNumber, qrCodeId are blocked.
 
 ### Phase 7: release
@@ -291,6 +324,30 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 - Fee table (currently PUC 250, insurance 2400, others 1000) and challan penalties.
 - Email or SMS provider for password reset and notifications, if wanted.
 
+## Transfer deadlines (what is and is not known)
+
+`server/src/config/transferRules.ts` is the only place deadlines live. A number goes in only when the sources agree; otherwise `days` is `null` and the app says "complete this as soon as possible" with no date. Checked 2026-10-28:
+
+| Duty | Status |
+|---|---|
+| Buyer asks the insurer to transfer the policy | **14 days** from the confirmed sale date. Motor Vehicles Act s.157(2) and an NCDRC judgment applying it agree. The official India Code text returned HTTP 403 and was not read, so re-check it. |
+| Seller reports Form 29 | **No deadline shown.** Only an unofficial copy of the Act gives numbers (14 days, 45 if registered outside the state) and the official text could not be read. |
+| Buyer files Form 30 | **No deadline shown.** Parivahan's page says 14 days (45 if registered outside the state); the Act text as reproduced online says 30 days. Nothing official could be read to settle it, and the text of CMVR rule 55 itself was not read. |
+
+To fill a cell: read the official Act, rules and Parivahan instructions, then set `days`, `source`, `verifiedOn` and `resolution` together. A unit test fails the build for a number without a source. Worksheet layouts are our own and have **not** been checked against the official Form 29 / Form 30 (those files could not be read).
+
+## Transfer paperwork keys
+
+Personal details entered for a transfer are encrypted with a keyring: `PAPERWORK_ENCRYPTION_KEYS="id1:base64,id2:base64"` (each key 32 bytes, e.g. `openssl rand -base64 32`) and `PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID`. Values are stored as `v1:<keyId>:...`, so any key still in the list can read old data. Production refuses to start without a valid keyring; development uses a fixed fallback key.
+
+**Rotating a key**
+1. Generate a new key, add it to the list **keeping every old key**, set it active, deploy. New writes use it; old data still reads.
+2. Run `npm run paperwork:reencrypt -- --report` to see how many stored values sit under each key, then `npm run paperwork:reencrypt` to move them (safe to repeat or stop and resume; prints counts only).
+3. `--report` must show nothing under the old key.
+4. **Do not delete the old key** until every database backup taken while it was in use has aged out of your backup retention, or been re-encrypted. Keep retired keys in the secrets manager meanwhile.
+
+**Recovery.** Keep keys only in the host's secrets manager plus an offline copy held by two named team members, never in the repo. Restoring a backup needs the keys that were active when it was taken. If a key is lost, affected details cannot be read: the API answers 503 `PAPERWORK_UNAVAILABLE`, the app offers "Delete my details", and people can enter them again. Nothing else depends on those fields.
+
 ## Out of scope
 
 - EV charging module (`fuelType: "ev"` exists in the schema only).
@@ -303,6 +360,13 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 |---|---|
 | `server/src/services/accessService.ts` | Ownership rule helpers (`ownerScope`, `isOwnerOrAdmin`, `canAccessBooking`) |
 | `server/src/controllers/bookingController.ts` | Atomic booking and completion rules (sets `verified: true`) |
+| `server/src/services/slotService.ts` | `reserveSeat` / `releaseSeat`: capacity-aware atomic slot booking |
+| `server/src/services/transferPaperwork.service.ts`, `controllers/transferPaperwork.controller.ts` | Transfer paperwork: access rules, checklist, deadlines, reminders, retention |
+| `server/src/config/transferRules.ts` | Deadline rules with sources; `null` where unresolved |
+| `server/src/services/fieldCrypto.ts`, `paperworkFields.ts`, `paperworkMaintenance.ts` | Keyring, which fields are encrypted, re-encrypt for key rotation |
+| `server/src/services/formPdfService.ts` | The three preparation worksheets (content model + pdf-lib rendering) |
+| `mobile/src/features/twin/TransferChecklistScreen.tsx`, `paperwork/` | Checklist screen and the buyer and seller detail forms |
+| `mobile/src/screens/provider/CentreProfileScreen.tsx` | Centre onboarding and edit form (location, services, bays) |
 | `server/src/controllers/paymentController.ts`, `services/paymentService.ts` | Server-side amount, HMAC verification |
 | `server/src/controllers/verificationController.ts`, `services/qrService.ts` | GREEN/RED check, rotating QR tokens |
 | `server/src/controllers/authController.ts`, `adminController.ts` | Signup role limits, logout, admin staff creation |

@@ -1,6 +1,8 @@
 import mongoose, { Schema, Types } from 'mongoose';
 
-export type TransferStatus = 'pending' | 'accepted' | 'cancelled' | 'expired';
+// pending: QR shown by the seller | requested: a buyer applied, waiting for the seller's approval
+// accepted: seller approved, ownership moved | rejected: seller declined | cancelled / expired
+export type TransferStatus = 'pending' | 'requested' | 'accepted' | 'rejected' | 'cancelled' | 'expired';
 
 export interface ITransferSnapshot {
   score: number;
@@ -22,6 +24,8 @@ export interface IOwnershipTransfer {
   prevHash: string;
   hash: string;
   createdAt?: Date;
+  requestedAt?: Date | null;
+  rejectedAt?: Date | null;
   acceptedAt?: Date | null;
 }
 
@@ -32,7 +36,7 @@ const OwnershipTransferSchema = new Schema<IOwnershipTransfer>(
     toOwnerId:    { type: Schema.Types.ObjectId, ref: 'User',    default: null },
     status: {
       type: String,
-      enum: ['pending', 'accepted', 'cancelled', 'expired'],
+      enum: ['pending', 'requested', 'accepted', 'rejected', 'cancelled', 'expired'],
       default: 'pending',
       required: true,
       index: true
@@ -48,6 +52,8 @@ const OwnershipTransferSchema = new Schema<IOwnershipTransfer>(
     snapshotHash: { type: String, default: '' },
     prevHash:     { type: String, default: '' },
     hash:         { type: String, default: '' },
+    requestedAt:  { type: Date, default: null },
+    rejectedAt:   { type: Date, default: null },
     acceptedAt:   { type: Date, default: null }
   },
   { timestamps: true }

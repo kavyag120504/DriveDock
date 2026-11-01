@@ -12,6 +12,7 @@ import { assertProductionReady } from './providers';
 import apiRoutes from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { initCronJobs } from './cron/reminderCron';
+import { assertPaperworkKeyring } from './services/fieldCrypto';
 
 const app = express();
 
@@ -33,7 +34,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve local uploads statically
-app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir, {
+  setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff')
+}));
 
 // Liveness: the process is up. Must never touch the database.
 app.get('/healthz', (_req: Request, res: Response) => {
@@ -97,8 +100,10 @@ const shutdown = async (signal: string): Promise<void> => {
 const start = async () => {
   try {
     // Refuse to start in production with missing or default security secrets,
-    // or with any external adapter still running on a sandbox/mock implementation.
+    // with a missing/invalid paperwork encryption keyring, or with any external
+    // adapter still running on a sandbox/mock implementation.
     validateProductionSecrets();
+    assertPaperworkKeyring();
     assertProductionReady();
 
     await connectDB();

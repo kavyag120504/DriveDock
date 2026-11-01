@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -32,7 +33,8 @@ const TIME_TEMPLATES = [
   ]},
 ];
 
-const todayDate = () => new Date().toISOString().split('T')[0];
+// Local calendar date (toISOString is UTC, which is still "yesterday" in India until 5:30 am)
+const todayDate = () => new Date().toLocaleDateString('en-CA');
 
 export const ManageSlotsScreen = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -60,9 +62,12 @@ export const ManageSlotsScreen = () => {
     }
   };
 
-  useEffect(() => {
-    fetchProfileAndSlots();
-  }, []);
+  // Reload on every visit so a capacity change made in the Centre tab shows up here
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfileAndSlots();
+    }, [])
+  );
 
   const handleCreateSlots = async () => {
     if (!profile) return;
@@ -80,8 +85,8 @@ export const ManageSlotsScreen = () => {
     const newSlots = template.slots.map(s => ({ date: slotDate, ...s }));
 
     try {
-      await ProvidersAPI.createSlots(profile._id, newSlots);
-      Alert.alert('Slots Created', `${newSlots.length} slots added for ${slotDate}.`);
+      const res = await ProvidersAPI.createSlots(profile._id, newSlots);
+      Alert.alert('Slots Created', `${res.data.message} (${slotDate}).`);
       setShowForm(false);
       fetchProfileAndSlots();
     } catch (err: any) {
@@ -108,6 +113,10 @@ export const ManageSlotsScreen = () => {
         ) : (
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>New Slots</Text>
+            <Text style={styles.bayNote}>
+              Each slot takes up to {profile?.capacity ?? 1} booking{(profile?.capacity ?? 1) === 1 ? '' : 's'} at the same
+              time (your centre's service bays). Change this in the Centre tab.
+            </Text>
 
             <Text style={styles.formLabel}>Date (YYYY-MM-DD)</Text>
             <TextInput
@@ -166,30 +175,37 @@ export const ManageSlotsScreen = () => {
             <Text style={styles.emptyDesc}>Tap "+ Add Slots" to open booking capacity for owners.</Text>
           </View>
         ) : (
-          slots.map((s) => (
-            <View key={s._id} style={styles.slotRow}>
-              <View>
-                <Text style={styles.slotTime}>{s.startTime} - {s.endTime}</Text>
-                <Text style={styles.slotDate}>{s.date}</Text>
-              </View>
+          slots.map((s) => {
+            const capacity = s.capacity ?? 1;
+            const booked = s.bookedCount ?? (s.isBooked ? 1 : 0);
+            return (
+              <View key={s._id} style={styles.slotRow}>
+                <View>
+                  <Text style={styles.slotTime}>{s.startTime} - {s.endTime}</Text>
+                  <Text style={styles.slotDate}>{s.date}</Text>
+                </View>
 
-              <View
-                style={[
-                  styles.slotBadge,
-                  { backgroundColor: s.isBooked ? Colors.nonCompliantBg : Colors.compliantBg }
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.slotBadgeText,
-                    { color: s.isBooked ? Colors.nonCompliant : Colors.compliant }
-                  ]}
-                >
-                  {s.isBooked ? 'CLAIMED' : 'AVAILABLE'}
-                </Text>
+                <View style={styles.slotRight}>
+                  <Text style={styles.slotCount}>{booked}/{capacity} bays booked</Text>
+                  <View
+                    style={[
+                      styles.slotBadge,
+                      { backgroundColor: s.isBooked ? Colors.nonCompliantBg : Colors.compliantBg }
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.slotBadgeText,
+                        { color: s.isBooked ? Colors.nonCompliant : Colors.compliant }
+                      ]}
+                    >
+                      {s.isBooked ? 'FULL' : 'AVAILABLE'}
+                    </Text>
+                  </View>
+                </View>
               </View>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
     </View>
@@ -341,6 +357,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textSecondary,
     marginTop: 2
+  },
+  bayNote: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+    marginBottom: 14
+  },
+  slotRight: {
+    alignItems: 'flex-end',
+    gap: 6
+  },
+  slotCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary
   },
   slotBadge: {
     paddingHorizontal: 10,

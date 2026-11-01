@@ -50,5 +50,11 @@ const BookingSchema = new Schema<IBooking>(
 
 BookingSchema.index({ ownerId: 1, createdAt: -1 });
 BookingSchema.index({ providerId: 1, status: 1 });
+// One active booking per vehicle and document: while a renewal is pending or confirmed,
+// the database refuses a second one, even if two requests arrive at the same moment
+BookingSchema.index(
+  { vehicleId: 1, documentType: 1 },
+  { unique: true, partialFilterExpression: { status: { $in: ['pending', 'confirmed'] } }, name: 'one_active_booking_per_vehicle_document' }
+);
 
 export const Booking = mongoose.model<IBooking>('Booking', BookingSchema);
