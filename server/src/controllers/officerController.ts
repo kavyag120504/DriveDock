@@ -5,6 +5,7 @@ import { Challan } from '../models/Challan';
 import { Vehicle } from '../models/Vehicle';
 import { DocumentModel } from '../models/Document';
 import { isDocumentGood } from '../services/complianceService';
+import { recordAudit } from '../services/auditLog';
 
 const PENALTY_MAP: Record<string, number> = {
   puc: 1000,
@@ -80,6 +81,18 @@ export const logViolation = async (req: Request, res: Response): Promise<void> =
       location: location.trim(),
       notes: typeof notes === 'string' ? notes : '',
       challanId: challan._id
+    });
+
+    // Append-only audit of the officer action (ids/flags only, never owner PII).
+    await recordAudit({
+      actorId: req.user!.userId,
+      actorRole: 'officer',
+      action: 'officer_violation_logged',
+      entityType: 'vehicle',
+      entityId: vehicleId,
+      fields: expiredTypes,
+      metadata: { challanId: String(challan._id), amount: totalPenalty },
+      ip: req.ip
     });
 
     res.status(201).json({

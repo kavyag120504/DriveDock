@@ -6,6 +6,7 @@ import { Vehicle } from '../models/Vehicle';
 import { DocumentModel } from '../models/Document';
 import { Violation } from '../models/Violation';
 import { Challan } from '../models/Challan';
+import { recordAudit } from '../services/auditLog';
 import { isVehicleCompliant } from '../services/complianceService';
 
 const STAFF_ROLES: UserRole[] = ['officer', 'government', 'admin'];
@@ -122,6 +123,17 @@ export const updateProviderStatus = async (req: Request, res: Response): Promise
       res.status(404).json({ success: false, message: 'Provider not found' });
       return;
     }
+
+    // Append-only audit of the approval decision (ids/flags only, never PII).
+    await recordAudit({
+      actorId: req.user?.userId,
+      actorRole: 'admin',
+      action: 'provider_status_change',
+      entityType: 'provider',
+      entityId: provider._id,
+      metadata: { status },
+      ip: req.ip
+    });
 
     res.status(200).json({
       success: true,
