@@ -19,7 +19,7 @@ import { PushProvider, ExpoPushProvider } from './push';
 import { StorageProvider, FileStorageProvider } from './storage';
 import { SmsProvider, EmailProvider, LogOnlySmsProvider, LogOnlyEmailProvider } from './messaging';
 import { GeocodingProvider, SandboxGeocodingProvider } from './maps';
-import { OcrProvider, MockOcrProvider } from './ocr';
+import { OcrProvider, TesseractOcrProvider } from './ocr';
 
 export interface Providers {
   registry: RegistryProvider;
@@ -45,7 +45,8 @@ export const providers: Providers = {
   sms: new LogOnlySmsProvider(),
   email: new LogOnlyEmailProvider(),
   geocoding: new SandboxGeocodingProvider(),
-  ocr: new MockOcrProvider()
+  // Local Tesseract engine; the OCR_SCAN_ENABLED toggle is applied in the controller.
+  ocr: new TesseractOcrProvider()
 };
 
 export function getAdapterStatus(): Array<{ adapter: string; mode: AdapterMode }> {

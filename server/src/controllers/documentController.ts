@@ -5,7 +5,7 @@ import { scheduleDocumentReminders } from '../services/reminderService';
 import { processUploadedFile, discardUploadedFile } from '../services/uploadService';
 import { ownerScope } from '../services/accessService';
 import { ENV } from '../config/env';
-import { scanDocumentImage } from '../services/ocrService';
+import { providers } from '../providers';
 
 const VALID_DOC_TYPES: DocumentType[] = ['insurance', 'puc', 'rc', 'license', 'fitness'];
 
@@ -211,7 +211,7 @@ export const scanDocument = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const result = await scanDocumentImage(req.file.path, type as DocumentType);
+    const result = await providers.ocr.scanDates(req.file.path, type as DocumentType);
     discardUploadedFile(req.file);
 
     res.status(200).json({ success: true, data: result });
