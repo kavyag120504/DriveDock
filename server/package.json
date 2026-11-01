@@ -4,7 +4,7 @@
   "description": "DriveDock Production Backend - Multi-role Vehicle Compliance & Renewal Platform",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "seed": "ts-node scripts/seed.ts",
@@ -13,6 +13,10 @@
     "seed:twin": "ts-node scripts/seed-twin.ts",
     "seed:clear": "ts-node scripts/seed/clear.ts",
     "seed:report": "ts-node scripts/seed/report.ts",
+    "migrate:status": "migrate-mongo status",
+    "migrate:up": "migrate-mongo up",
+    "migrate:down": "migrate-mongo down",
+    "migrate:create": "migrate-mongo create",
     "test": "jest"
   },
   "keywords": [
@@ -32,10 +36,14 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "migrate-mongo": "^11.0.0",
     "mongoose": "^8.9.5",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
-    "razorpay": "^2.9.5"
+    "pino": "^9.14.0",
+    "pino-http": "^10.5.0",
+    "razorpay": "^2.9.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

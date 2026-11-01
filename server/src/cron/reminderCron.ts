@@ -2,9 +2,13 @@ import cron from 'node-cron';
 import { runDueRemindersJob } from '../controllers/reminderController';
 import { releaseExpiredPendingSlots } from '../controllers/bookingController';
 
-export const initCronJobs = (): void => {
+/**
+ * Starts the scheduled jobs and returns their handles so a graceful shutdown can
+ * stop them before the process exits. Phase 4 replaces node-cron with BullMQ.
+ */
+export const initCronJobs = (): cron.ScheduledTask[] => {
   // Daily midnight: send due reminders and mark expired documents
-  cron.schedule('0 0 * * *', async () => {
+  const reminderTask = cron.schedule('0 0 * * *', async () => {
     console.log('[Cron] Running daily midnight reminder and document expiry check...');
     try {
       await runDueRemindersJob();
@@ -14,7 +18,7 @@ export const initCronJobs = (): void => {
   });
 
   // Every 5 minutes: cancel bookings that stayed in "pending" (unpaid) for >30 min and free the slot
-  cron.schedule('*/5 * * * *', async () => {
+  const slotCleanupTask = cron.schedule('*/5 * * * *', async () => {
     try {
       await releaseExpiredPendingSlots();
     } catch (error) {
@@ -23,4 +27,5 @@ export const initCronJobs = (): void => {
   });
 
   console.log('[Cron] Node-cron initialized. Daily reminder at 00:00; slot cleanup every 5 min.');
+  return [reminderTask, slotCleanupTask];
 };

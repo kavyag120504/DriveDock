@@ -1,0 +1,45 @@
+# Local development stack: API + MongoDB + Redis.
+# Redis is here for the Phase 4 queue (BullMQ) and Redis-backed rate limits; the
+# API doesn't require it yet. Production uses managed MongoDB Atlas + managed Redis,
+# not these containers.
+
+services:
+  api:
+    build:
+      context: ./server
+    environment:
+      NODE_ENV: development
+      PORT: "5000"
+      MONGO_URI: mongodb://mongo:27017/drivedock
+      REDIS_URL: redis://redis:6379
+    env_file:
+      - ./server/.env
+    ports:
+      - "5001:5000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  mongo_data:

@@ -2,8 +2,13 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import { ENV } from './config/env';
+import mongoose from 'mongoose';
+import type { Server } from 'http';
+import type { ScheduledTask } from 'node-cron';
+import { ENV, validateProductionSecrets } from './config/env';
 import { connectDB } from './config/db';
+import { logger, httpLogger } from './config/logger';
+import { assertProductionReady } from './providers';
 import apiRoutes from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { initCronJobs } from './cron/reminderCron';
@@ -19,6 +24,9 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Structured request logging + correlation id (before routes so every request is traced)
+app.use(httpLogger);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -27,7 +35,18 @@ app.use(express.urlencoded({ extended: true }));
 // Serve local uploads statically
 app.use('/uploads', express.static(uploadsDir));
 
-// Health check endpoint
+// Liveness: the process is up. Must never touch the database.
+app.get('/healthz', (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+// Readiness: the process can serve traffic (DB connected). Used by orchestrators/LBs.
+app.get('/readyz', (_req: Request, res: Response) => {
+  const ready = mongoose.connection.readyState === 1; // 1 = connected
+  res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not-ready', db: mongoose.connection.readyState });
+});
+
+// Backwards-compatible health check (kept for existing clients/docs)
 app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'online',
@@ -43,24 +62,67 @@ app.use('/api/v1', apiRoutes);
 // Error Handler
 app.use(errorHandler);
 
+export { app };
+
+let server: Server | undefined;
+let cronTasks: ScheduledTask[] = [];
+let shuttingDown = false;
+
+/** Stop accepting connections, stop cron, close the DB, then exit. Idempotent. */
+const shutdown = async (signal: string): Promise<void> => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[DriveDock] ${signal} received — shutting down gracefully...`);
+
+  const forceExit = setTimeout(() => {
+    console.error('[DriveDock] Graceful shutdown timed out; forcing exit.');
+    process.exit(1);
+  }, 10_000);
+  forceExit.unref();
+
+  try {
+    cronTasks.forEach((t) => t.stop());
+    await new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve()));
+    await mongoose.connection.close(false);
+    clearTimeout(forceExit);
+    console.log('[DriveDock] Shutdown complete.');
+    process.exit(0);
+  } catch (err) {
+    console.error('[DriveDock] Error during shutdown:', err);
+    process.exit(1);
+  }
+};
+
 // Start server
 const start = async () => {
   try {
+    // Refuse to start in production with missing or default security secrets,
+    // or with any external adapter still running on a sandbox/mock implementation.
+    validateProductionSecrets();
+    assertProductionReady();
+
     await connectDB();
-    initCronJobs();
+    cronTasks = initCronJobs();
 
     const PORT = parseInt(ENV.PORT, 10) || 5000;
-    app.listen(PORT, '0.0.0.0', () => {
+    server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`====================================================`);
       console.log(`DriveDock Server running on http://localhost:${PORT}`);
       console.log(`Health Check: http://localhost:${PORT}/api/health`);
+      console.log(`Liveness: /healthz   Readiness: /readyz`);
       console.log(`Base API: http://localhost:${PORT}/api/v1`);
       console.log(`====================================================`);
     });
+
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('SIGINT', () => void shutdown('SIGINT'));
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);
   }
 };
 
-start();
+// Only auto-start when run directly (not when imported by tests/tools).
+if (require.main === module) {
+  start();
+}

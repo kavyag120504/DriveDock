@@ -2,7 +2,7 @@
 
 Read this first. It is the shared, current picture of the project for both teammates and for Claude Code sessions. Update it in the same PR whenever you change how the project runs or what it guarantees.
 
-Last updated: 2026-10-18 (Phase 2–6 code complete; all remaining items need external accounts or manual testing)
+Last updated: 2026-10-25 (Vehicle Twin + Buy a Car complete; seed toolkit replaces seed-demo; all remaining items need external accounts or manual testing)
 
 ## What DriveDock is
 
@@ -19,6 +19,7 @@ A multi-role vehicle compliance platform. Other apps store photos of vehicle pap
 | Renewing means queuing | Find approved stations nearby, book a slot, pay in the app |
 | Paper fines are hard to track | Officer logs a violation and a digital e-challan is issued |
 | Authorities lack a live picture | Government dashboard: compliance rate, regions, document trends |
+| Buying a used car is risky | Scan the seller's QR → instant buyer report: Twin Score, verified docs, service history, violations, red flags |
 
 Five roles: **owner, provider, officer, government, admin**.
 
@@ -35,7 +36,7 @@ server/   Node.js + Express + TypeScript + MongoDB (Mongoose) API
 
 | Layer | Choice |
 |---|---|
-| Mobile | Expo **SDK 57** (React 19.2, React Native 0.86), managed workflow |
+| Mobile | Expo **SDK 58** (React 19.3, React Native 0.88), managed workflow |
 | Navigation | React Navigation (stack + bottom tabs, picked by role in `RootNavigator.tsx`) |
 | State | Zustand (auth), TanStack Query (server data) |
 | Backend | Express + TypeScript, run with ts-node-dev |
@@ -71,9 +72,11 @@ Use a port other than 5000 on a Mac: macOS AirPlay Receiver already listens on 5
 ```bash
 cd server
 npm install
-npm run seed     # wipes and re-seeds demo data
-npm run seed:demo # or: wipes and loads the NCR sample dataset (synthetic, ~250 vehicles)
-npm run dev      # http://localhost:5001/api/health should return 200
+npm run seed        # wipes and re-seeds the fixed demo dataset (MH01AB1234 etc.)
+npm run seed:demo   # or: runs the NCR synthetic seed toolkit (OSM + VAHAN + generated data)
+npm run seed:clear  # removes only the toolkit's records; leaves manually created data
+npm run seed:report # prints counts and a vehicle/station breakdown without touching data
+npm run dev         # http://localhost:5001/api/health should return 200
 ```
 
 Every other setting in `server/src/config/env.ts` has a built-in development default (see "Known gaps").
@@ -90,7 +93,7 @@ npm install
 npx expo start --clear
 ```
 
-- **Phone:** install Expo Go (it must support SDK 57), connect to the same Wi-Fi, scan the QR code.
+- **Phone:** install Expo Go (SDK 58), connect to the same Wi-Fi, scan the QR code.
 - **Browser:** press `w`, or open http://localhost:8081. Maps show a placeholder and the camera may not work.
 - **Push notifications do not arrive in Expo Go on Android** (removed in SDK 53). They need the APK build below.
 
@@ -110,7 +113,7 @@ The login screen also has one-tap demo buttons per role.
 Seeded vehicles: `MH01AB1234` scans GREEN, `MH02CD5678` scans RED, and `MH04EF9012` has a PUC expiring in 5 days with a due reminder.
 
 
-**NCR sample dataset (`npm run seed:demo`).** Synthetic data for presentations: 156 owners, 250 vehicles across Delhi, Gurugram, Faridabad, Sonipat, Noida, Ghaziabad, Meerut and Alwar, 9 approved stations plus 1 pending (fictional names in real localities), about six months of bookings, payments, violations, e-challans and reminders. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Walkthrough vehicles for `owner@drivedock.com`: `DL3CAB1234` GREEN, `DL8CAF5678` RED, `HR26DK9012` GREEN with PUC expiring in 5 days. Everything is generated and the proportions are illustrative (see the header of `server/scripts/seed-demo.ts`); always present it as sample data.
+**NCR seed toolkit (`npm run seed:demo`).** Lives in `server/scripts/seed/`. On first run it fetches real fuel-station locations from OpenStreetMap (cached to `data/osm_fuel.json`) and reads optional VAHAN CSV data for regional vehicle proportions. It then generates owners, vehicles, providers, bookings, payments, violations, challans and reminders deterministically from a fixed seed so the same run always produces the same data. Use `seed:clear` to remove only what the toolkit inserted (tracked in the `SeedRegistry` collection); `seed:report` prints counts without touching data. The script refuses to run if `NODE_ENV === 'production'`. OSM data is © OpenStreetMap contributors (ODbL); station names are real but those businesses have not joined DriveDock — never present them as partners. See `server/scripts/seed/README.md` for column format, flags and attribution.
 
 ## Trust rules the server enforces
 
@@ -138,12 +141,31 @@ These are the product's core promise. Don't weaken them without discussing it wi
    - Officer and government accounts currently get empty vehicle and booking lists.
 8. **Roles.** Public signup accepts only `owner` or `provider`; any other role returns 400. Officer, government and admin accounts are created by an admin with `POST /api/v1/admin/users`. The seed script creates its demo accounts directly.
 9. **Reminders are "due and not sent".** The job processes `scheduledFor <= now AND sent: false`, so it catches up after downtime. It runs daily at 00:00 (node-cron), and `POST /reminders/trigger-job` with header `x-internal-job-secret` runs it on demand.
+10. **Vehicle Twin ledger is append-only.** Each accepted transfer stores a SHA-256 hash chained to the previous record (`prevHash → hash`). `verifyLedger()` recomputes every hash; any mismatch sets `ledgerIntact: false` on the score response.
+11. **Buyer report never exposes personal data.** `GET /twin/buyer-report` returns masked reg number, business names only (never provider user details), and anonymous ownership labels ("Owner 1 (2021–2023)"). Seller name, email, phone, address, full reg, and user IDs are never returned. `canAccept: true` only when the token is a transfer token AND the transfer is still `pending` and not past `expiresAt`.
 
 ## API notes
 
-- Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/public/verify` and `/reminders/trigger-job` (internal secret instead).
+- Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/public/verify`, `/public/twin` and `/reminders/trigger-job` (internal secret instead).
 - Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`.
 - `POST /auth/logout` clears the user's push token.
+
+**Vehicle Twin endpoints** (all require auth + `owner` role unless noted):
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/twin/vehicles/:id/score` | Twin Score 0–100, breakdown, ledger-intact flag |
+| GET | `/twin/vehicles/:id/timeline` | Chronological history (docs, services, violations, transfers) |
+| POST | `/twin/transfers` | Create a transfer token (10-min JWT); blocked by pending booking or challan |
+| GET | `/twin/transfers/preview?token=` | Buyer preview from a transfer token; no seller personal data |
+| POST | `/twin/transfers/accept` | Atomic accept — one winner on concurrent calls (409 for the rest) |
+| DELETE | `/twin/transfers/:id` | Cancel a pending outgoing transfer |
+| GET | `/twin/transfers` | List own transfers |
+| POST | `/twin/vehicles/:id/share` | Create a 7-day share link (JWT) |
+| DELETE | `/twin/shares/:id` | Revoke a share |
+| GET | `/twin/shares` | List own shares for a vehicle |
+| GET | `/twin/buyer-report?token=` | **Buy a Car** report from a transfer or share token; `canAccept:true` only for a still-pending transfer token |
+| GET | `/public/twin?token=` | Public share view — no auth; never returns owner personal data |
 
 ## Building the APK
 
@@ -193,6 +215,7 @@ Goal: real people sign up, add real vehicles and documents, pay real money, and 
 | ~~`StationMapScreen.tsx`~~ | ~~Silent Mumbai fallback~~ — fixed: real GPS; city-name modal when permission denied |
 | ~~`ScanQRScreen.tsx`~~ | ~~Manual paste JWT box always visible~~ — fixed: hidden behind `__DEV__` |
 | ~~`LogViolationScreen.tsx`~~ | ~~Officer types any penalty~~ — fixed: server fee table; shown read-only |
+| ~~`BuyCarScreen.tsx`~~ | ~~Token paste box always visible~~ — fixed: paste input hidden behind `__DEV__`; camera-only in production builds |
 | Server | Seeded data, default secrets in source, local-disk uploads, only runs on a laptop |
 
 ### Phase 0: accounts and infrastructure (blocks everything else)
@@ -285,7 +308,8 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 | `server/src/controllers/authController.ts`, `adminController.ts` | Signup role limits, logout, admin staff creation |
 | `server/src/routes/index.ts`, `routes/officerRoutes.ts` | Route mounting, including violations |
 | `server/src/controllers/reminderController.ts`, `cron/reminderCron.ts` | Reminder job |
-| `server/scripts/seed.ts` | Demo data (wipes the database first) |
+| `server/scripts/seed.ts` | Fixed demo data (wipes the database first) |
+| `server/scripts/seed/index.ts` | NCR synthetic seed toolkit entry point; see `seed/README.md` |
 | `server/scripts/bootstrap-admin.ts` | Creates the first admin on a production DB from env vars (`ADMIN_NAME/EMAIL/PHONE/PASSWORD`); run once, safe to re-run |
 | `mobile/src/api/client.ts`, `api/endpoints.ts` | API base URL (`EXPO_PUBLIC_API_URL`) and calls |
 | `mobile/src/store/authStore.ts`, `utils/notifications.ts` | Auth flow, push token registration |
@@ -293,6 +317,20 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 | `mobile/src/components/Map.tsx`, `Map.web.tsx` | Native map and web placeholder |
 | `mobile/src/screens/admin/CreateStaffScreen.tsx` | Admin UI to create officer and government accounts |
 | `mobile/app.json`, `mobile/eas.json` | Expo config and APK build profiles |
+| `server/src/services/twinScore.service.ts` | Twin Score 0–100 computation; unverified docs are explicitly zero |
+| `server/src/services/twinTimeline.service.ts` | Chronological vehicle history builder |
+| `server/src/services/transfer.service.ts` | Transfer and share JWT signing/verification, SHA-256 hash chain |
+| `server/src/controllers/twin.controller.ts` | All twin endpoints; `maskRegNumber` helper; atomic accept logic |
+| `server/src/routes/twin.routes.ts` | Twin route definitions (auth + owner role on all) |
+| `server/src/models/OwnershipTransfer.ts` | Transfer record with tamper-proof ledger fields (`prevHash`, `hash`) |
+| `server/src/models/TwinShare.ts` | 7-day share link records |
+| `server/src/services/buyerReport.service.ts` | Buyer-safe report from a transfer or share token; never returns personal data |
+| `server/src/controllers/buyerReport.controller.ts` | Handler for `GET /twin/buyer-report` |
+| `mobile/src/features/twin/VehicleTwinScreen.tsx` | Twin Score, timeline, transfer/share/buy entry buttons |
+| `mobile/src/features/twin/AcceptTransferScreen.tsx` | Camera + atomic accept flow for incoming transfers |
+| `mobile/src/features/twin/BuyCarScreen.tsx` | Buyer report screen: scan QR → full report → accept or walk away |
+| `mobile/src/features/twin/api.ts` | `TwinAPI` object with all twin API calls |
+| `mobile/src/features/twin/buyerApi.ts` | `getBuyerReport(token)` call for the buyer report endpoint |
 
 ## Working conventions
 

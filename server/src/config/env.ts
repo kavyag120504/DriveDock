@@ -1,25 +1,115 @@
 import dotenv from 'dotenv';
+import { z } from 'zod';
+
 dotenv.config();
 
-export const ENV = {
-  PORT: process.env.PORT || '5000',
-  NODE_ENV: process.env.NODE_ENV || 'development',
-  // Number of reverse proxies in front of the API (e.g. 1 on Render/Railway/Fly). 0 = connect directly.
-  // Express only trusts that many X-Forwarded-For entries, so clients can't spoof their IP.
-  TRUST_PROXY: parseInt(process.env.TRUST_PROXY || '0', 10) || 0,
-  MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/drivedock',
-  JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || 'drivedock_jwt_access_secret_super_secure_key_2026',
-  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'drivedock_jwt_refresh_secret_super_secure_key_2026',
-  QR_SECRET: process.env.QR_SECRET || 'drivedock_rotating_qr_compliance_secret_key_2026',
-  INTERNAL_JOB_SECRET: process.env.INTERNAL_JOB_SECRET || 'drivedock_internal_cron_job_secure_secret_2026',
-  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
-  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
-  AWS_S3_BUCKET: process.env.AWS_S3_BUCKET || 'drivedock-documents',
-  AWS_REGION: process.env.AWS_REGION || 'ap-south-1',
-  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_DriveDockDev2026',
-  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'rzp_test_secret_DriveDockDev2026',
-  EXPO_ACCESS_TOKEN: process.env.EXPO_ACCESS_TOKEN || '',
-  GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY || '',
-  TRANSFER_SECRET: process.env.TRANSFER_SECRET || 'drivedock_twin_transfer_secret_key_2026',
-  TWIN_SHARE_SECRET: process.env.TWIN_SHARE_SECRET || 'drivedock_twin_share_secret_key_2026'
-};
+/**
+ * Centralised, validated environment configuration.
+ *
+ * In development and test, every value has a built-in default so the project runs
+ * with zero configuration (unchanged behaviour). In production the server REFUSES
+ * TO START when any security-critical secret is missing or still equals its built-in
+ * default — see validateProductionSecrets(). Integration credentials (Razorpay, AWS,
+ * Expo, Maps) are gated at the adapter layer instead, so the core can boot without
+ * accounts that aren't provisioned yet.
+ */
+
+// Security-critical secrets. In production each MUST be set to a real value; the
+// built-in value here is a development convenience only and is rejected in prod.
+const INSECURE_SECRET_DEFAULTS = {
+  JWT_ACCESS_SECRET: 'drivedock_jwt_access_secret_super_secure_key_2026',
+  JWT_REFRESH_SECRET: 'drivedock_jwt_refresh_secret_super_secure_key_2026',
+  QR_SECRET: 'drivedock_rotating_qr_compliance_secret_key_2026',
+  INTERNAL_JOB_SECRET: 'drivedock_internal_cron_job_secure_secret_2026',
+  TRANSFER_SECRET: 'drivedock_twin_transfer_secret_key_2026',
+  TWIN_SHARE_SECRET: 'drivedock_twin_share_secret_key_2026'
+} as const;
+
+const DEFAULT_MONGO_URI = 'mongodb://127.0.0.1:27017/drivedock';
+const PLACEHOLDER_RAZORPAY_KEY_ID = 'rzp_test_DriveDockDev2026';
+const PLACEHOLDER_RAZORPAY_KEY_SECRET = 'rzp_test_secret_DriveDockDev2026';
+
+// Treat empty-string numeric env vars as "unset" so defaults apply cleanly.
+const numericFromEnv = (fallback: number) =>
+  z.preprocess(
+    (v) => (v === '' || v === undefined || v === null ? fallback : v),
+    z.coerce.number().int().min(0)
+  );
+
+const envSchema = z.object({
+  PORT: z.string().default('5000'),
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // Number of reverse proxies in front of the API. Express trusts exactly this many
+  // X-Forwarded-For entries, so clients can't spoof their IP for the rate limiter.
+  TRUST_PROXY: numericFromEnv(0),
+  MONGO_URI: z.string().min(1).default(DEFAULT_MONGO_URI),
+
+  JWT_ACCESS_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.JWT_ACCESS_SECRET),
+  JWT_REFRESH_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.JWT_REFRESH_SECRET),
+  QR_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.QR_SECRET),
+  INTERNAL_JOB_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.INTERNAL_JOB_SECRET),
+  TRANSFER_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.TRANSFER_SECRET),
+  TWIN_SHARE_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.TWIN_SHARE_SECRET),
+
+  AWS_ACCESS_KEY_ID: z.string().default(''),
+  AWS_SECRET_ACCESS_KEY: z.string().default(''),
+  AWS_S3_BUCKET: z.string().default('drivedock-documents'),
+  AWS_REGION: z.string().default('ap-south-1'),
+
+  RAZORPAY_KEY_ID: z.string().default(PLACEHOLDER_RAZORPAY_KEY_ID),
+  RAZORPAY_KEY_SECRET: z.string().default(PLACEHOLDER_RAZORPAY_KEY_SECRET),
+
+  EXPO_ACCESS_TOKEN: z.string().default(''),
+  GOOGLE_MAPS_API_KEY: z.string().default('')
+});
+
+export type AppEnv = z.infer<typeof envSchema>;
+
+const parsed = envSchema.safeParse(process.env);
+if (!parsed.success) {
+  const issues = parsed.error.issues.map((i) => ` - ${i.path.join('.')}: ${i.message}`).join('\n');
+  throw new Error(`Invalid environment configuration:\n${issues}`);
+}
+
+export const ENV: AppEnv = parsed.data;
+
+export const isProduction = (): boolean => ENV.NODE_ENV === 'production';
+
+/**
+ * In production, fail fast if any security-critical secret is missing or still the
+ * built-in development default. Called once at startup (index.ts) so misconfigured
+ * deployments never come up with forgeable tokens. No-op outside production.
+ */
+export function validateProductionSecrets(): void {
+  if (ENV.NODE_ENV !== 'production') return;
+
+  const errors: string[] = [];
+  for (const [key, insecureDefault] of Object.entries(INSECURE_SECRET_DEFAULTS)) {
+    const value = process.env[key];
+    if (!value || value === insecureDefault) {
+      errors.push(`${key} is missing or still set to the built-in development default`);
+    }
+  }
+  if (!process.env.MONGO_URI || process.env.MONGO_URI === DEFAULT_MONGO_URI) {
+    errors.push('MONGO_URI is missing or pointing at the local development database');
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      'Refusing to start in production — fix these environment variables:\n' +
+        errors.map((e) => ` - ${e}`).join('\n')
+    );
+  }
+}
+
+/** True when Razorpay is configured with real (non-placeholder) credentials. */
+export const hasRealRazorpayKeys = (): boolean =>
+  !!ENV.RAZORPAY_KEY_ID &&
+  !!ENV.RAZORPAY_KEY_SECRET &&
+  ENV.RAZORPAY_KEY_ID !== PLACEHOLDER_RAZORPAY_KEY_ID &&
+  ENV.RAZORPAY_KEY_SECRET !== PLACEHOLDER_RAZORPAY_KEY_SECRET &&
+  !ENV.RAZORPAY_KEY_ID.includes('placeholder');
+
+/** True when AWS S3 credentials are present. */
+export const hasS3Config = (): boolean =>
+  !!ENV.AWS_ACCESS_KEY_ID && !!ENV.AWS_SECRET_ACCESS_KEY && !!ENV.AWS_S3_BUCKET;

@@ -1,0 +1,19 @@
+# gitleaks configuration for DriveDock.
+# Extends the default ruleset and allowlists the KNOWN, documented development-only
+# default secrets. These are not real credentials: the production env gate
+# (config/env.ts → validateProductionSecrets) refuses to start if any of them are
+# used in production. Real secrets always come from the host environment.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documented non-production development default secrets and placeholders"
+paths = [
+  '''server/src/config/env\.ts''',
+  '''server/\.env\.example''',
+]
+regexes = [
+  '''drivedock_[a-z_]+_2026''',
+  '''rzp_test_(secret_)?DriveDockDev2026''',
+]

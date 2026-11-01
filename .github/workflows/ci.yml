@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Server — type-check, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+
+      # Type-check acts as the lint/static gate (no eslint config yet).
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      # Tests use mongodb-memory-server (real Mongo, no external service needed).
+      - name: Tests
+        run: npm test -- --runInBand --ci
+        env:
+          NODE_ENV: test
+
+      - name: Build
+        run: npm run build
+
+      # Fail the build on known high/critical vulnerabilities in prod deps.
+      - name: Dependency audit (prod, high+)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
+  mobile:
+    name: Mobile — type-check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+      - name: Type-check
+        run: npx tsc --noEmit
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
