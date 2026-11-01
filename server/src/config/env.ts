@@ -118,6 +118,10 @@ export function validateProductionSecrets(): void {
   if (!process.env.MONGO_URI || process.env.MONGO_URI === DEFAULT_MONGO_URI) {
     errors.push('MONGO_URI is missing or pointing at the local development database');
   }
+  // Demo-only endpoints (station login switcher, demo logins) must never be live in prod.
+  if (process.env.DEMO_MODE === 'true') {
+    errors.push('DEMO_MODE must not be enabled in production');
+  }
   // Transfer paperwork PII cannot be encrypted without a real keyring in production.
   if (!process.env.PAPERWORK_ENCRYPTION_KEYS) {
     errors.push('PAPERWORK_ENCRYPTION_KEYS is required in production');

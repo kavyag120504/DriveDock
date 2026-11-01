@@ -91,4 +91,18 @@ describe('production fail-fast gate', () => {
       expect(() => validateProductionSecrets()).not.toThrow();
     });
   });
+
+  test('refuses to start in production when DEMO_MODE is enabled', () => {
+    process.env.NODE_ENV = 'production';
+    for (const k of SECRET_KEYS) process.env[k] = `real-${k.toLowerCase()}-value-32chars-minimum`;
+    process.env.MONGO_URI = 'mongodb+srv://real-atlas-cluster/drivedock';
+    process.env.PAPERWORK_ENCRYPTION_KEYS = 'k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+    process.env.PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID = 'k1';
+    process.env.DEMO_MODE = 'true';
+
+    jest.isolateModules(() => {
+      const { validateProductionSecrets } = require('../config/env');
+      expect(() => validateProductionSecrets()).toThrow(/DEMO_MODE/);
+    });
+  });
 });
