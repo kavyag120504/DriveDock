@@ -7,6 +7,7 @@ import { connectDB } from './config/db';
 import apiRoutes from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { initCronJobs } from './cron/reminderCron';
+import { assertPaperworkKeyring } from './services/fieldCrypto';
 
 const app = express();
 
@@ -48,6 +49,8 @@ app.use(errorHandler);
 // Start server
 const start = async () => {
   try {
+    // A production server with no usable paperwork encryption keys must not start at all
+    assertPaperworkKeyring();
     await connectDB();
     initCronJobs();
 

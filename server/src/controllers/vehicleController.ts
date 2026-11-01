@@ -96,7 +96,8 @@ export const getVehicleById = async (req: Request, res: Response): Promise<void>
       .populate('issuedByProviderId', 'businessName address rating')
       .sort({ expiryDate: 1 });
 
-    const reminders = await Reminder.find({ vehicleId: vehicle._id }).sort({ scheduledFor: 1 });
+    // Document reminders only: paperwork reminders for a past or current transfer belong to those people
+    const reminders = await Reminder.find({ vehicleId: vehicle._id, kind: { $ne: 'transfer' } }).sort({ scheduledFor: 1 });
     const challans = await Challan.find({ vehicleId: vehicle._id }).sort({ issuedAt: -1 });
 
     res.status(200).json({
@@ -181,7 +182,7 @@ export const deleteVehicle = async (req: Request, res: Response): Promise<void> 
 
     await Vehicle.deleteOne({ _id: id });
     await DocumentModel.deleteMany({ vehicleId: id });
-    await Reminder.deleteMany({ vehicleId: id });
+    await Reminder.deleteMany({ vehicleId: id, kind: { $ne: 'transfer' } });
 
     res.status(200).json({ success: true, message: 'Vehicle deleted successfully' });
   } catch (error: any) {

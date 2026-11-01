@@ -15,6 +15,7 @@ import {
 import { computeTwinScore } from '../services/twinScore.service';
 import { buildTimeline } from '../services/twinTimeline.service';
 import { isDocumentGood } from '../services/complianceService';
+import { ensureAcceptedPaperwork, purgePaperworkFor, taskSummaries } from '../services/transferPaperwork.service';
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
@@ -54,10 +55,13 @@ export const createTransfer = async (req: Request, res: Response): Promise<void>
     }
 
     // Cancel any existing pending transfer for this vehicle before creating a new one
+    const superseded = await OwnershipTransfer.find({ vehicleId, status: { $in: ['pending', 'requested'] } }).select('_id');
     await OwnershipTransfer.updateMany(
       { vehicleId, status: { $in: ['pending', 'requested'] } },
       { $set: { status: 'cancelled' } }
     );
+    // A buyer's details must not linger on a transfer that will never happen
+    await purgePaperworkFor(superseded.map((t) => t._id));
 
     // Build snapshot
     const scoreData = await computeTwinScore(vehicleId, vehicle.fuelType);
@@ -316,8 +320,9 @@ export const approveTransfer = async (req: Request, res: Response): Promise<void
 
     // ── SIDE EFFECTS ─────────────────────────────────────────────────────────
     // Reassign unsent reminders to the buyer so they receive future expiry alerts
+    // Document reminders only: a transfer's paperwork reminders belong to the person they were set for
     await Reminder.updateMany(
-      { vehicleId: transfer.vehicleId, sent: false },
+      { vehicleId: transfer.vehicleId, sent: false, kind: { $ne: 'transfer' } },
       { $set: { ownerId: buyerId } }
     );
 
@@ -348,6 +353,9 @@ export const approveTransfer = async (req: Request, res: Response): Promise<void
       $set: { prevHash, hash, acceptedAt }
     });
 
+    // Set up the paperwork checklist. This never fails the approval.
+    await ensureAcceptedPaperwork(id);
+
     res.status(200).json({ success: true, message: 'Vehicle transferred successfully', data: { vehicleId: transfer.vehicleId } });
   } catch (err: any) {
     console.error('[TwinController.approveTransfer]', err);
@@ -367,6 +375,7 @@ export const rejectTransfer = async (req: Request, res: Response): Promise<void>
       res.status(404).json({ success: false, message: 'No buyer request to decline' });
       return;
     }
+    await purgePaperworkFor([transfer._id]);
     res.status(200).json({ success: true, message: 'Request declined. The vehicle stays with you.' });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
@@ -387,6 +396,7 @@ export const cancelTransfer = async (req: Request, res: Response): Promise<void>
       res.status(404).json({ success: false, message: 'Pending transfer not found or unauthorized' });
       return;
     }
+    await purgePaperworkFor([transfer._id]);
 
     res.status(200).json({ success: true, message: 'Transfer cancelled' });
   } catch (err: any) {
@@ -406,6 +416,11 @@ export const listTransfers = async (req: Request, res: Response): Promise<void> 
       .populate('vehicleId', 'regNumber make model year')
       .populate('toOwnerId', 'name');
 
+    const tasks = await taskSummaries(
+      transfers.map((t: any) => ({ _id: t._id, vehicleId: t.vehicleId?._id ?? t.vehicleId, status: t.status, fromOwnerId: t.fromOwnerId })),
+      userId
+    );
+
     // The seller sees who applied (name only); the buyer never sees the seller's identity,
     // and sees the full plate only once the vehicle is theirs
     const data = transfers.map((t: any) => {
@@ -424,7 +439,10 @@ export const listTransfers = async (req: Request, res: Response): Promise<void> 
         requestedAt: t.requestedAt,
         acceptedAt: t.acceptedAt,
         rejectedAt: t.rejectedAt,
-        expiresAt: t.expiresAt
+        expiresAt: t.expiresAt,
+        // Paperwork progress, for accepted transfers only (nextDue is null until the sale date is confirmed)
+        openTasks: tasks.get(t._id.toString())?.openTasks,
+        nextDue: tasks.get(t._id.toString())?.nextDue
       };
     });
 

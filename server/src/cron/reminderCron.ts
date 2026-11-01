@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { runDueRemindersJob } from '../controllers/reminderController';
 import { releaseExpiredPendingSlots } from '../controllers/bookingController';
+import { runPaperworkRetention } from '../services/transferPaperwork.service';
 
 export const initCronJobs = (): void => {
   // Daily midnight: send due reminders and mark expired documents
@@ -10,6 +11,16 @@ export const initCronJobs = (): void => {
       await runDueRemindersJob();
     } catch (error) {
       console.error('[Cron] Error running daily reminder job:', error);
+    }
+  });
+
+  // Daily 00:30: delete paperwork for transfers that never completed and wipe personal details past retention
+  cron.schedule('30 0 * * *', async () => {
+    try {
+      const { deleted, wiped } = await runPaperworkRetention();
+      console.log(`[Cron] Paperwork retention: deleted ${deleted}, wiped personal details on ${wiped}.`);
+    } catch (error) {
+      console.error('[Cron] Error running paperwork retention:', error);
     }
   });
 

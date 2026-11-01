@@ -14,6 +14,19 @@ import {
   revokeShare,
   listShares
 } from '../controllers/twin.controller';
+import {
+  getPaperwork,
+  putPaperwork,
+  deleteMyDetails,
+  postConfirmSaleDate,
+  putChecklistStep,
+  downloadForm
+} from '../controllers/transferPaperwork.controller';
+import { rateLimiter } from '../middleware/rateLimiter';
+
+const paperworkLimit = rateLimiter(600, 60 * 1000); // per IP; generous for real use, a brake on scripts
+
+const formLimit = rateLimiter(60, 60 * 1000); // PDF generation costs more than a read
 
 const router = Router();
 
@@ -38,6 +51,14 @@ router.post('/transfers/:id/cancel', authorizeRoles('owner'), cancelTransfer);
 
 // List my incoming and outgoing transfers
 router.get('/transfers', authorizeRoles('owner'), listTransfers);
+
+// Paperwork for a transfer (RTO forms, insurer letter, checklist). Parties only; everyone else gets 404.
+router.get('/transfers/:id/paperwork', authorizeRoles('owner'), paperworkLimit, getPaperwork);
+router.put('/transfers/:id/paperwork', authorizeRoles('owner'), paperworkLimit, putPaperwork);
+router.get('/transfers/:id/forms/:form', authorizeRoles('owner'), formLimit, downloadForm);
+router.delete('/transfers/:id/paperwork/me', authorizeRoles('owner'), paperworkLimit, deleteMyDetails);
+router.post('/transfers/:id/sale-date/confirm', authorizeRoles('owner'), paperworkLimit, postConfirmSaleDate);
+router.put('/transfers/:id/checklist/:key', authorizeRoles('owner'), paperworkLimit, putChecklistStep);
 
 // Current owner: unified history timeline
 router.get('/vehicles/:id/timeline', authorizeRoles('owner'), getTimeline);

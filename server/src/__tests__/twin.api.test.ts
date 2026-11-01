@@ -28,6 +28,8 @@ import { Vehicle } from '../models/Vehicle';
 import { Booking } from '../models/Booking';
 import { Challan } from '../models/Challan';
 import { Reminder } from '../models/Reminder';
+import { TransferPaperwork } from '../models/TransferPaperwork';
+import { PaperworkAudit } from '../models/PaperworkAudit';
 import { DocumentModel } from '../models/Document';
 import { OwnershipTransfer } from '../models/OwnershipTransfer';
 import { TwinShare } from '../models/TwinShare';
@@ -64,7 +66,9 @@ afterEach(async () => {
     Reminder.deleteMany({}),
     DocumentModel.deleteMany({}),
     OwnershipTransfer.deleteMany({}),
-    TwinShare.deleteMany({})
+    TwinShare.deleteMany({}),
+    TransferPaperwork.deleteMany({}),
+    PaperworkAudit.deleteMany({})
   ]);
 });
 
@@ -308,8 +312,10 @@ describe('POST /twin/transfers/:id/approve — side effects after approval', () 
     expect(res.status).toBe(200);
   });
 
-  test('unsent reminders now belong to buyer', async () => {
-    const reminders = await Reminder.find({ vehicleId: vehicle._id, sent: false });
+  test('unsent document reminders now belong to buyer', async () => {
+    // Paperwork reminders (kind: 'transfer') stay with the person they were set for
+    const reminders = await Reminder.find({ vehicleId: vehicle._id, sent: false, kind: { $ne: 'transfer' } });
+    expect(reminders.length).toBeGreaterThan(0);
     for (const r of reminders) {
       expect(r.ownerId.toString()).toBe(buyer._id.toString());
     }
