@@ -95,7 +95,9 @@ export const makeSlot = (providerId: string, overrides: Record<string, any> = {}
     date: overrides.date || '2099-01-01',
     startTime: overrides.startTime || '10:00',
     endTime: overrides.endTime || '11:00',
-    isBooked: overrides.isBooked ?? false
+    isBooked: overrides.isBooked ?? false,
+    // Bay capacity (friends' branch); default 1 keeps existing single-seat behaviour.
+    ...(overrides.capacity ? { capacity: overrides.capacity } : {})
   });
 
 /** Build an "Authorization: Bearer <jwt>" header value for a user document. */

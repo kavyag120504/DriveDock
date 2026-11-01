@@ -122,6 +122,29 @@ describe('POST /bookings — create', () => {
     expect(statuses).toEqual([201, 409]);
     expect(await Booking.countDocuments({ slotId: slot._id, status: 'pending' })).toBe(1);
   });
+
+  test('capacity>1 slot: parallel bookings fill all bays, the extra one gets 409', async () => {
+    // HTTP-layer check of the friends' bay-capacity model (slotCapacity.api.test covers
+    // the service directly). A capacity-2 slot accepts two concurrent bookings (distinct
+    // vehicles, per the one-active-booking index) and rejects the third.
+    const owner = await makeOwner();
+    const { provider } = await makeProvider('approved');
+    const vehicles = await Promise.all([1, 2, 3].map(() => makeVehicle(owner._id.toString())));
+    const slot = await makeSlot(provider._id.toString(), { capacity: 2 });
+
+    const book = (vid: any) =>
+      request(app)
+        .post('/bookings')
+        .set('Authorization', authHeader(owner))
+        .send({ vehicleId: vid, providerId: provider._id, slotId: slot._id, documentType: 'puc' });
+
+    const results = await Promise.all(vehicles.map((v) => book(v._id)));
+    const ok = results.filter((r) => r.status === 201).length;
+    const full = results.filter((r) => r.status === 409).length;
+    expect(ok).toBe(2); // both bays
+    expect(full).toBe(1); // third turned away
+    expect(await Booking.countDocuments({ slotId: slot._id, status: 'pending' })).toBe(2);
+  });
 });
 
 describe('GET /bookings — scoping', () => {
