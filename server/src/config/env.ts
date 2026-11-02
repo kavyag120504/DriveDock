@@ -52,6 +52,11 @@ const envSchema = z.object({
   TRUST_PROXY: numericFromEnv(0),
   MONGO_URI: z.string().min(1).default(DEFAULT_MONGO_URI),
 
+  // Browser CORS allowlist: comma-separated origins (e.g. "https://app.drivedock.in,https://admin.drivedock.in").
+  // When empty the server reflects any Origin (current/dev behaviour); the native mobile app sends no Origin
+  // and is unaffected either way. Set this in production so only known web origins may call the API from a browser.
+  CORS_ALLOWED_ORIGINS: z.string().default(''),
+
   JWT_ACCESS_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.JWT_ACCESS_SECRET),
   JWT_REFRESH_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.JWT_REFRESH_SECRET),
   QR_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.QR_SECRET),

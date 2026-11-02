@@ -1,5 +1,4 @@
 import express, { Request, Response } from 'express';
-import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import mongoose from 'mongoose';
@@ -9,6 +8,7 @@ import { ENV, validateProductionSecrets } from './config/env';
 import { connectDB } from './config/db';
 import { logger, httpLogger } from './config/logger';
 import { assertProductionReady } from './providers';
+import { securityHeaders, corsMiddleware, sanitizeRequest } from './middleware/security';
 import apiRoutes from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { initCronJobs } from './cron/reminderCron';
@@ -25,13 +25,19 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Security headers (helmet) before anything else so every response carries them.
+app.use(securityHeaders);
+
 // Structured request logging + correlation id (before routes so every request is traced)
 app.use(httpLogger);
 
 // Middleware
-app.use(cors());
+app.use(corsMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Strip MongoDB-operator / prototype-pollution keys from every parsed request.
+app.use(sanitizeRequest);
 
 // Serve local uploads statically
 app.use('/uploads', express.static(uploadsDir, {
