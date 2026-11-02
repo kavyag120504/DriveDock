@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { signup, login, refresh, logout, getMe, updatePushToken } from '../controllers/authController';
+import { signup, login, refresh, logout, logoutAll, listSessions, getMe, updatePushToken } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
 import { rateLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
@@ -15,6 +15,8 @@ router.post('/signup', signupLimit, validate({ body: signupBody }), signup);
 router.post('/login', loginLimit, validate({ body: loginBody }), login);
 router.post('/refresh', validate({ body: refreshBody }), refresh);
 router.post('/logout', authenticate, logout);
+router.post('/logout-all', authenticate, logoutAll);
+router.get('/sessions', authenticate, listSessions);
 router.get('/me', authenticate, getMe);
 router.post('/push-token', authenticate, validate({ body: pushTokenBody }), updatePushToken);
 

@@ -2,9 +2,20 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { User, UserRole } from '../models/User';
 import { Provider } from '../models/Provider';
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../services/tokenService';
+import { generateAccessToken, verifyRefreshToken } from '../services/tokenService';
+import {
+  issueRefreshToken,
+  rotateRefreshToken,
+  revokeRefreshToken,
+  revokeAllForUser,
+  listActiveSessions,
+  RefreshError
+} from '../services/refreshTokenService';
 
 const PUBLIC_SIGNUP_ROLES: UserRole[] = ['owner', 'provider'];
+
+/** Best-effort device label for the sessions list (client-supplied, else user-agent). */
+const deviceOf = (req: Request): string => String(req.body?.device || req.headers['user-agent'] || '');
 
 export const signup = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -78,7 +89,7 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
     };
 
     const accessToken = generateAccessToken(tokenPayload);
-    const refreshToken = generateRefreshToken(tokenPayload);
+    const refreshToken = await issueRefreshToken(tokenPayload, deviceOf(req));
 
     res.status(201).json({
       success: true,
@@ -135,7 +146,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     };
 
     const accessToken = generateAccessToken(tokenPayload);
-    const refreshToken = generateRefreshToken(tokenPayload);
+    const refreshToken = await issueRefreshToken(tokenPayload, deviceOf(req));
 
     res.status(200).json({
       success: true,
@@ -169,9 +180,16 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const payload = verifyRefreshToken(refreshToken);
-    const user = await User.findById(payload.userId);
+    // Step 1: the token must be a well-formed, unexpired JWT signed by us.
+    let payload;
+    try {
+      payload = verifyRefreshToken(refreshToken);
+    } catch {
+      res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+      return;
+    }
 
+    const user = await User.findById(payload.userId);
     if (!user) {
       res.status(401).json({ success: false, message: 'User not found' });
       return;
@@ -183,8 +201,21 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
       role: user.role
     };
 
+    // Step 2: rotate against the server-side store. A reuse of an already-rotated or
+    // revoked token revokes the whole family inside the service and lands here.
+    let newRefreshToken: string;
+    try {
+      newRefreshToken = await rotateRefreshToken(refreshToken, newPayload, deviceOf(req));
+    } catch (err) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid or expired refresh token',
+        code: err instanceof RefreshError && err.reason === 'reuse' ? 'REFRESH_REUSE' : undefined
+      });
+      return;
+    }
+
     const newAccessToken = generateAccessToken(newPayload);
-    const newRefreshToken = generateRefreshToken(newPayload);
 
     res.status(200).json({
       success: true,
@@ -195,6 +226,35 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error: any) {
     res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+  }
+};
+
+/** GET /auth/sessions — the caller's active (non-revoked, non-expired) refresh sessions. */
+export const listSessions = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Unauthenticated' });
+      return;
+    }
+    const sessions = await listActiveSessions(req.user.userId);
+    res.status(200).json({ success: true, data: sessions });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/** POST /auth/logout-all — revoke every refresh token for the caller ("log out everywhere"). */
+export const logoutAll = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Unauthenticated' });
+      return;
+    }
+    const revoked = await revokeAllForUser(req.user.userId);
+    await User.findByIdAndUpdate(req.user.userId, { expoPushToken: '' });
+    res.status(200).json({ success: true, message: `Logged out of ${revoked} session(s)`, data: { revoked } });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -245,6 +305,12 @@ export const updatePushToken = async (req: Request, res: Response): Promise<void
 
 export const logout = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Revoke the presented refresh token on this device (if the client sent it)...
+    const { refreshToken } = req.body || {};
+    if (refreshToken) {
+      await revokeRefreshToken(refreshToken);
+    }
+    // ...and clear the push token so a logged-out device stops receiving notifications.
     if (req.user) {
       await User.findByIdAndUpdate(req.user.userId, { expoPushToken: '' });
     }
