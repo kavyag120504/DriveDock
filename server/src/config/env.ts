@@ -57,6 +57,12 @@ const envSchema = z.object({
   // and is unaffected either way. Set this in production so only known web origins may call the API from a browser.
   CORS_ALLOWED_ORIGINS: z.string().default(''),
 
+  // Maximum accepted JSON / urlencoded request body, in the byte-string form Express's
+  // body-parser understands (e.g. "100kb", "1mb"). The default equals Express's own
+  // built-in limit, so behaviour is unchanged; an oversized body returns 413. File
+  // uploads are bounded separately by multer (10 MB), not by this value.
+  REQUEST_BODY_LIMIT: z.string().min(1).default('100kb'),
+
   JWT_ACCESS_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.JWT_ACCESS_SECRET),
   JWT_REFRESH_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.JWT_REFRESH_SECRET),
   QR_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.QR_SECRET),

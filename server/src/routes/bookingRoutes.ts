@@ -7,13 +7,15 @@ import {
 } from '../controllers/bookingController';
 import { authenticate } from '../middleware/auth';
 import { upload } from '../services/uploadService';
+import { validate } from '../middleware/validate';
+import { createBookingBody } from '../validators';
 
 const router = Router();
 
 router.use(authenticate);
 
 // Atomic slot booking (Trust Rule 5)
-router.post('/', createBooking);
+router.post('/', validate({ body: createBookingBody }), createBooking);
 router.get('/', getBookings);
 router.get('/:id', getBookingById);
 

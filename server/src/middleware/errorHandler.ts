@@ -9,6 +9,11 @@ const uploadErrorStatus = (err: any): number | undefined => {
   return undefined;
 };
 
+// A JSON/urlencoded body over REQUEST_BODY_LIMIT: body-parser throws an error with
+// type 'entity.too.large' (and status 413). Give it a friendly message.
+const isPayloadTooLarge = (err: any): boolean =>
+  err?.type === 'entity.too.large' || err?.status === 413 || err?.statusCode === 413;
+
 export const errorHandler = (
   err: any,
   req: Request,
@@ -19,8 +24,12 @@ export const errorHandler = (
   const log = (req as any).log || logger;
   log.error({ err, path: req.originalUrl, method: req.method }, 'Request failed');
 
-  const statusCode = err.statusCode || uploadErrorStatus(err) || (res.statusCode === 200 ? 500 : res.statusCode);
-  const message = err.code === 'LIMIT_FILE_SIZE' ? 'File is too large. The limit is 10 MB.' : err.message || 'Internal Server Error';
+  const statusCode = err.statusCode || err.status || uploadErrorStatus(err) || (res.statusCode === 200 ? 500 : res.statusCode);
+  const message = err.code === 'LIMIT_FILE_SIZE'
+    ? 'File is too large. The limit is 10 MB.'
+    : isPayloadTooLarge(err)
+      ? 'Request body is too large.'
+      : err.message || 'Internal Server Error';
 
   res.status(statusCode).json({
     success: false,

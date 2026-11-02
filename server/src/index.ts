@@ -33,8 +33,10 @@ app.use(httpLogger);
 
 // Middleware
 app.use(corsMiddleware);
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Explicit body size limits (a body over the limit returns 413). The default matches
+// Express's built-in 100kb, so behaviour is unchanged unless REQUEST_BODY_LIMIT is set.
+app.use(express.json({ limit: ENV.REQUEST_BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: ENV.REQUEST_BODY_LIMIT }));
 
 // Strip MongoDB-operator / prototype-pollution keys from every parsed request.
 app.use(sanitizeRequest);

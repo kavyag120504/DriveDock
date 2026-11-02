@@ -23,6 +23,8 @@ import {
   downloadForm
 } from '../controllers/transferPaperwork.controller';
 import { rateLimiter } from '../middleware/rateLimiter';
+import { validate } from '../middleware/validate';
+import { createTransferBody, requestTransferBody } from '../validators';
 
 const paperworkLimit = rateLimiter(600, 60 * 1000); // per IP; generous for real use, a brake on scripts
 
@@ -34,13 +36,13 @@ const router = Router();
 router.use(authenticate);
 
 // Owner-only: initiate a transfer
-router.post('/transfers', authorizeRoles('owner'), createTransfer);
+router.post('/transfers', authorizeRoles('owner'), validate({ body: createTransferBody }), createTransfer);
 
 // Any authenticated owner: preview a pending transfer before accepting
 router.get('/transfers/preview', authorizeRoles('owner'), previewTransfer);
 
 // Buyer: apply to take ownership (scanned transfer QR). Nothing changes hands yet.
-router.post('/transfers/request', authorizeRoles('owner'), requestTransfer);
+router.post('/transfers/request', authorizeRoles('owner'), validate({ body: requestTransferBody }), requestTransfer);
 
 // Seller: approve the buyer's request (ownership moves now) or decline it
 router.post('/transfers/:id/approve', authorizeRoles('owner'), approveTransfer);

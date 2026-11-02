@@ -67,6 +67,7 @@ MONGO_URI=mongodb://127.0.0.1:27018/drivedock
 PORT=5001
 DEMO_MODE=true   # optional: enables the station picker on the demo login (never set on a hosted server)
 CORS_ALLOWED_ORIGINS=   # optional: comma-separated browser origins; empty reflects any Origin (set in production)
+REQUEST_BODY_LIMIT=   # optional: max JSON/urlencoded body (e.g. 100kb, 1mb); empty = 100kb default, oversized → 413
 PAPERWORK_ENCRYPTION_KEYS=   # production only: "keyId:base64key" entries, each key 32 bytes (see "Transfer paperwork keys")
 PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID=   # production only: which key id new data is written with
 ```
@@ -182,6 +183,7 @@ These are the product's core promise. Don't weaken them without discussing it wi
 - Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`. `documentTypeExpired` must list known document types (capitals accepted, stored lowercase), a non-blank `location` is required, and a document that is verified, valid and unexpired can't be cited (400).
 - `POST /auth/logout` clears the user's push token.
 - Every response carries helmet security headers; every request is run through a sanitiser that strips `$`-prefixed, dotted and `__proto__` keys from the body, query and params (NoSQL-operator injection + prototype-pollution guard) before controllers read it. Browser CORS is limited to `CORS_ALLOWED_ORIGINS` when that env is set (comma-separated); left empty the server reflects any Origin (dev default). The native app sends no `Origin`, so the allowlist never affects it. See `server/src/middleware/security.ts`.
+- State-changing JSON endpoints (auth, vehicle create, booking create, payments, provider create + slots, admin user/provider-status, violations, twin transfer create/request) validate the request body with a zod schema via `validate()` (`server/src/middleware/validate.ts`, schemas in `server/src/validators/`) before the controller runs; a malformed/wrongly-typed body returns 400 with an `errors` map. Schemas check presence + type only — all business-rule messages stay in the controllers. Validation is deliberately NOT applied to multipart/upload routes or to the fully-optional PATCH-update and transfer-paperwork routes, whose controllers already validate every field. Request bodies over `REQUEST_BODY_LIMIT` (default 100 kb) return 413; file uploads are capped separately by multer (10 MB).
 
 **Vehicle Twin endpoints** (all require auth + `owner` role unless noted):
 

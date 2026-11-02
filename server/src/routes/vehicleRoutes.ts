@@ -10,12 +10,14 @@ import {
 import { uploadDocument, getVehicleDocuments } from '../controllers/documentController';
 import { authenticate } from '../middleware/auth';
 import { upload } from '../services/uploadService';
+import { validate } from '../middleware/validate';
+import { createVehicleBody } from '../validators';
 
 const router = Router();
 
 router.use(authenticate);
 
-router.post('/', createVehicle);
+router.post('/', validate({ body: createVehicleBody }), createVehicle);
 router.get('/', getVehicles);
 router.get('/:id', getVehicleById);
 router.patch('/:id', updateVehicle);
