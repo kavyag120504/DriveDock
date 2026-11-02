@@ -11,7 +11,8 @@ import {
   listActiveSessions,
   RefreshError
 } from '../services/refreshTokenService';
-import { exportUserData } from '../services/accountData.service';
+import { exportUserData, deleteOwnerAccount } from '../services/accountData.service';
+import { recordAudit } from '../services/auditLog';
 
 const PUBLIC_SIGNUP_ROLES: UserRole[] = ['owner', 'provider'];
 
@@ -239,6 +240,49 @@ export const exportMyData = async (req: Request, res: Response): Promise<void> =
     }
     const data = await exportUserData(req.user.userId, req.user.role);
     res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * DELETE /auth/account — DPDP right to erasure (owner accounts only). Refuses while the
+ * owner still holds vehicles (enforcement records on a vehicle must survive — Trust
+ * Rule 8 — so delete/transfer them first). Provider/staff accounts are administratively
+ * managed and are not self-deletable here.
+ */
+export const deleteMyAccount = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Unauthenticated' });
+      return;
+    }
+    if (req.user.role !== 'owner') {
+      res.status(400).json({ success: false, message: 'Account deletion is only available for owner accounts. Staff and provider accounts are managed by an administrator.' });
+      return;
+    }
+
+    const result = await deleteOwnerAccount(req.user.userId);
+    if (!result.deleted) {
+      res.status(409).json({
+        success: false,
+        code: 'ACCOUNT_IN_USE',
+        message: `Delete or transfer your ${result.vehicleCount} vehicle(s) before closing your account.`
+      });
+      return;
+    }
+
+    // Append-only audit of the erasure (id only, never PII).
+    await recordAudit({
+      actorId: req.user.userId,
+      actorRole: 'owner',
+      action: 'account_deleted',
+      entityType: 'user',
+      entityId: req.user.userId,
+      ip: req.ip
+    });
+
+    res.status(200).json({ success: true, message: 'Your account and personal data have been deleted.' });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

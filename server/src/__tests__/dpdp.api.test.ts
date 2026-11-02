@@ -13,12 +13,15 @@ import mainRouter from '../routes/index';
 import { errorHandler } from '../middleware/errorHandler';
 import { Vehicle } from '../models/Vehicle';
 import { DocumentModel } from '../models/Document';
+import { User } from '../models/User';
+import { AuditLog } from '../models/AuditLog';
 import {
   setupTestDB,
   teardownTestDB,
   clearDB,
   makeOwner,
   makeUser,
+  makeProvider,
   makeVehicle,
   authHeader
 } from './helpers';
@@ -54,6 +57,36 @@ describe('GET /auth/export', () => {
   it('requires authentication', async () => {
     const res = await request(app).get('/api/v1/auth/export');
     expect(res.status).toBe(401);
+  });
+});
+
+describe('DELETE /auth/account — right to erasure (owner only)', () => {
+  it('deletes a clean owner account and records an audit row', async () => {
+    const owner = await makeOwner();
+    const res = await request(app).delete('/api/v1/auth/account').set('Authorization', authHeader(owner));
+
+    expect(res.status).toBe(200);
+    expect(await User.findById(owner._id)).toBeNull();
+    const audits = await AuditLog.find({ action: 'account_deleted' });
+    expect(audits).toHaveLength(1);
+    expect(String(audits[0].entityId)).toBe(String(owner._id));
+  });
+
+  it('refuses (409) while the owner still holds vehicles', async () => {
+    const owner = await makeOwner();
+    await makeVehicle(owner._id.toString());
+    const res = await request(app).delete('/api/v1/auth/account').set('Authorization', authHeader(owner));
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('ACCOUNT_IN_USE');
+    expect(await User.findById(owner._id)).not.toBeNull(); // still there
+  });
+
+  it('is not available to non-owner accounts (400)', async () => {
+    const { user: providerUser } = await makeProvider('approved');
+    const res = await request(app).delete('/api/v1/auth/account').set('Authorization', authHeader(providerUser));
+    expect(res.status).toBe(400);
+    expect(await User.findById(providerUser._id)).not.toBeNull();
   });
 });
 
