@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import type { ScheduledTask } from 'node-cron';
 import { runDueRemindersJob } from '../controllers/reminderController';
 import { releaseExpiredPendingSlots } from '../controllers/bookingController';
 import { runPaperworkRetention } from '../services/transferPaperwork.service';
@@ -7,7 +8,7 @@ import { runPaperworkRetention } from '../services/transferPaperwork.service';
  * Starts the scheduled jobs and returns their handles so a graceful shutdown can
  * stop them before the process exits. Phase 4 replaces node-cron with BullMQ.
  */
-export const initCronJobs = (): cron.ScheduledTask[] => {
+export const initCronJobs = (): ScheduledTask[] => {
   // Daily midnight: send due reminders and mark expired documents
   const reminderTask = cron.schedule('0 0 * * *', async () => {
     console.log('[Cron] Running daily midnight reminder and document expiry check...');
