@@ -66,6 +66,7 @@ Create `server/.env` (git-ignored):
 MONGO_URI=mongodb://127.0.0.1:27018/drivedock
 PORT=5001
 DEMO_MODE=true   # optional: enables the station picker on the demo login (never set on a hosted server)
+CORS_ALLOWED_ORIGINS=   # optional: comma-separated browser origins; empty reflects any Origin (set in production)
 PAPERWORK_ENCRYPTION_KEYS=   # production only: "keyId:base64key" entries, each key 32 bytes (see "Transfer paperwork keys")
 PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID=   # production only: which key id new data is written with
 ```
@@ -180,6 +181,7 @@ These are the product's core promise. Don't weaken them without discussing it wi
 - Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/public/verify`, `/public/twin` and `/reminders/trigger-job` (internal secret instead).
 - Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`. `documentTypeExpired` must list known document types (capitals accepted, stored lowercase), a non-blank `location` is required, and a document that is verified, valid and unexpired can't be cited (400).
 - `POST /auth/logout` clears the user's push token.
+- Every response carries helmet security headers; every request is run through a sanitiser that strips `$`-prefixed, dotted and `__proto__` keys from the body, query and params (NoSQL-operator injection + prototype-pollution guard) before controllers read it. Browser CORS is limited to `CORS_ALLOWED_ORIGINS` when that env is set (comma-separated); left empty the server reflects any Origin (dev default). The native app sends no `Origin`, so the allowlist never affects it. See `server/src/middleware/security.ts`.
 
 **Vehicle Twin endpoints** (all require auth + `owner` role unless noted):
 
