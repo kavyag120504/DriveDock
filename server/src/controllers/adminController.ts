@@ -236,7 +236,11 @@ export const getOverviewStats = async (_req: Request, res: Response): Promise<vo
   }
 };
 
-export const getStatsByRegion = async (_req: Request, res: Response): Promise<void> => {
+// Government analytics must not expose small groups that could re-identify an owner.
+// Regions with fewer than this many vehicles are hidden from non-admin (government) viewers.
+const SMALL_GROUP_THRESHOLD = 10;
+
+export const getStatsByRegion = async (req: Request, res: Response): Promise<void> => {
   try {
     const regionStats = await Vehicle.aggregate([
       {
@@ -284,7 +288,14 @@ export const getStatsByRegion = async (_req: Request, res: Response): Promise<vo
       { $sort: { vehicleCount: -1 } }
     ]);
 
-    res.status(200).json({ success: true, data: regionStats });
+    // Small-number suppression: a full administrator sees every region, but the
+    // government dashboard only sees regions large enough not to identify individuals.
+    const data = req.user?.role === 'admin'
+      ? regionStats
+      : regionStats.filter((r: any) => r.vehicleCount >= SMALL_GROUP_THRESHOLD);
+    const suppressed = regionStats.length - data.length;
+
+    res.status(200).json({ success: true, data, ...(suppressed > 0 ? { suppressedRegions: suppressed } : {}) });
   } catch (error: any) {
     console.error('[AdminController.getStatsByRegion] error:', error);
     res.status(500).json({ success: false, message: error.message });

@@ -11,6 +11,7 @@ import {
   listActiveSessions,
   RefreshError
 } from '../services/refreshTokenService';
+import { exportUserData } from '../services/accountData.service';
 
 const PUBLIC_SIGNUP_ROLES: UserRole[] = ['owner', 'provider'];
 
@@ -226,6 +227,20 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error: any) {
     res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+  }
+};
+
+/** GET /auth/export — DPDP: a machine-readable copy of all data the caller owns. */
+export const exportMyData = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Unauthenticated' });
+      return;
+    }
+    const data = await exportUserData(req.user.userId, req.user.role);
+    res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
