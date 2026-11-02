@@ -9,6 +9,7 @@ import {
   SERVICE_FEES_INR
 } from '../services/paymentService';
 import { isOwnerOrAdmin } from '../services/accessService';
+import { recordAudit } from '../services/auditLog';
 
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -147,6 +148,17 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
       payment.razorpayPaymentId = razorpayPaymentId;
       payment.razorpaySignature = razorpaySignature;
       await payment.save();
+
+      // Append-only audit of the first successful verification (ids/amount only, never PII).
+      await recordAudit({
+        actorId: req.user?.userId,
+        actorRole: req.user?.role ?? 'system',
+        action: 'payment_verified',
+        entityType: 'payment',
+        entityId: payment._id,
+        metadata: { bookingId: String(booking._id), amount: payment.amount },
+        ip: req.ip
+      });
     }
 
     // Re-verifying a payment for a booking that is already confirmed or completed changes nothing

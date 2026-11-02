@@ -16,6 +16,7 @@ import { computeTwinScore } from '../services/twinScore.service';
 import { buildTimeline } from '../services/twinTimeline.service';
 import { isDocumentGood } from '../services/complianceService';
 import { ensureAcceptedPaperwork, purgePaperworkFor, taskSummaries } from '../services/transferPaperwork.service';
+import { recordAudit } from '../services/auditLog';
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
@@ -355,6 +356,22 @@ export const approveTransfer = async (req: Request, res: Response): Promise<void
 
     // Set up the paperwork checklist. This never fails the approval.
     await ensureAcceptedPaperwork(id);
+
+    // Append-only audit of the ownership change (ids/hash only, never party PII).
+    await recordAudit({
+      actorId: sellerId,
+      actorRole: 'owner',
+      action: 'ownership_transfer_accepted',
+      entityType: 'transfer',
+      entityId: transfer._id,
+      metadata: {
+        vehicleId: String(transfer.vehicleId),
+        fromOwnerId: String(transfer.fromOwnerId),
+        toOwnerId: buyerId,
+        hash
+      },
+      ip: req.ip
+    });
 
     res.status(200).json({ success: true, message: 'Vehicle transferred successfully', data: { vehicleId: transfer.vehicleId } });
   } catch (err: any) {

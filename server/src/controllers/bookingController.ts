@@ -9,6 +9,7 @@ import { scheduleDocumentReminders } from '../services/reminderService';
 import { processUploadedFile, discardUploadedFile } from '../services/uploadService';
 import { ownerScope, canAccessBooking } from '../services/accessService';
 import { renewalNotDueUntil, RENEWAL_WINDOW_DAYS } from '../services/complianceService';
+import { recordAudit } from '../services/auditLog';
 
 export const UNPAID_BOOKING_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -404,6 +405,23 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
         expiryDate: newExpiry,
         docType: booking.documentType,
         verified: true
+      });
+
+      // Append-only audit of the verification event (ids/field names only, never PII).
+      await recordAudit({
+        actorId: req.user?.userId,
+        actorRole: req.user?.role ?? 'system',
+        action: 'document_verified',
+        entityType: 'document',
+        entityId: doc._id,
+        fields: ['verified', 'issueDate', 'expiryDate', 'fileHash'],
+        metadata: {
+          vehicleId: String(booking.vehicleId),
+          documentType: String(booking.documentType),
+          bookingId: String(booking._id),
+          providerId: String(provider._id)
+        },
+        ip: req.ip
       });
     }
 

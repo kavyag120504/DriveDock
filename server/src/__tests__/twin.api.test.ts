@@ -33,6 +33,7 @@ import { PaperworkAudit } from '../models/PaperworkAudit';
 import { DocumentModel } from '../models/Document';
 import { OwnershipTransfer } from '../models/OwnershipTransfer';
 import { TwinShare } from '../models/TwinShare';
+import { AuditLog } from '../models/AuditLog';
 import { generateAccessToken } from '../services/tokenService';
 
 // ── Test app (no listen) ──────────────────────────────────────────────────────
@@ -68,7 +69,8 @@ afterEach(async () => {
     OwnershipTransfer.deleteMany({}),
     TwinShare.deleteMany({}),
     TransferPaperwork.deleteMany({}),
-    PaperworkAudit.deleteMany({})
+    PaperworkAudit.deleteMany({}),
+    AuditLog.deleteMany({})
   ]);
 });
 
@@ -296,6 +298,20 @@ describe('POST /twin/transfers/:id/approve — side effects after approval', () 
   test('vehicle ownerId is now buyer', async () => {
     const v = await Vehicle.findById(vehicle._id);
     expect(v!.ownerId.toString()).toBe(buyer._id.toString());
+  });
+
+  test('approval writes one append-only ownership_transfer_accepted audit row', async () => {
+    const audits = await AuditLog.find({ action: 'ownership_transfer_accepted' });
+    expect(audits).toHaveLength(1);
+    expect(audits[0].entityType).toBe('transfer');
+    expect(audits[0].metadata).toMatchObject({
+      vehicleId: String(vehicle._id),
+      fromOwnerId: String(seller._id),
+      toOwnerId: String(buyer._id)
+    });
+    // The ledger hash is recorded; no party PII in the row.
+    expect(String(audits[0].metadata!.hash)).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(audits[0])).not.toContain(seller.email);
   });
 
   test('seller gets 404 on the vehicle score (ownerScope blocks)', async () => {

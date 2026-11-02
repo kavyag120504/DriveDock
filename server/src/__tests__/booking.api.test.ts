@@ -14,6 +14,7 @@ import { Booking } from '../models/Booking';
 import { Slot } from '../models/Slot';
 import { DocumentModel } from '../models/Document';
 import { Reminder } from '../models/Reminder';
+import { AuditLog } from '../models/AuditLog';
 import {
   setupTestDB,
   teardownTestDB,
@@ -268,6 +269,14 @@ describe('PATCH /bookings/:id/status — completion (Trust Rule 1)', () => {
     expect(doc!.fileHash).toHaveLength(64); // sha-256 hex
     const reminders = await Reminder.find({ documentId: doc!._id });
     expect(reminders.map((r) => r.thresholdDays).sort((a, b) => a - b)).toEqual([1, 7, 30]);
+
+    // The verification event is audited exactly once (ids/field names only, never PII).
+    const audits = await AuditLog.find({ action: 'document_verified' });
+    expect(audits).toHaveLength(1);
+    expect(audits[0].entityType).toBe('document');
+    expect(String(audits[0].entityId)).toBe(String(doc!._id));
+    expect(audits[0].fields).toContain('verified');
+    expect(audits[0].metadata).toMatchObject({ vehicleId: String(vehicle._id), documentType: 'puc' });
   });
 
   test('cancelling a booking releases its slot', async () => {

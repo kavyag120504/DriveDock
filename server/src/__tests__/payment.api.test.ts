@@ -13,6 +13,7 @@ import paymentRoutes from '../routes/paymentRoutes';
 import { errorHandler } from '../middleware/errorHandler';
 import { Booking } from '../models/Booking';
 import { Payment } from '../models/Payment';
+import { AuditLog } from '../models/AuditLog';
 import { generateTestSignature } from '../services/paymentService';
 import {
   setupTestDB,
@@ -152,6 +153,12 @@ describe('POST /payments/verify', () => {
     expect(confirmed!.status).toBe('confirmed');
     const payment = await Payment.findOne({ razorpayOrderId: orderId });
     expect(payment!.status).toBe('paid');
+
+    // A successful verification writes exactly one append-only audit row (ids/amount only).
+    const audits = await AuditLog.find({ action: 'payment_verified' });
+    expect(audits).toHaveLength(1);
+    expect(String(audits[0].entityId)).toBe(String(payment!._id));
+    expect(audits[0].metadata).toMatchObject({ bookingId: String(booking._id), amount: payment!.amount });
   });
 
   test('a bookingId that does not match the payment’s order returns 400', async () => {
