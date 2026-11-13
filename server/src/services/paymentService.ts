@@ -111,3 +111,35 @@ export const generateTestSignature = (orderId: string, paymentId: string): strin
     .update(`${orderId}|${paymentId}`)
     .digest('hex');
 };
+
+/**
+ * CRITICAL TRUST RULE 6 (webhook variant): verify a Razorpay webhook signature.
+ * Razorpay signs the exact raw request body with the dashboard webhook secret and sends
+ * the hex HMAC in the `X-Razorpay-Signature` header. We MUST hash the raw bytes (not a
+ * re-serialised object) and compare in constant time. A missing/wrong-length/forged
+ * signature is simply invalid.
+ */
+export const verifyRazorpayWebhookSignature = (rawBody: Buffer | string, signature: string): boolean => {
+  if (typeof signature !== 'string' || !signature) {
+    return false;
+  }
+
+  const expectedHex = crypto
+    .createHmac('sha256', ENV.RAZORPAY_WEBHOOK_SECRET)
+    .update(rawBody)
+    .digest('hex');
+
+  const expected = Buffer.from(expectedHex, 'utf-8');
+  const received = Buffer.from(signature, 'utf-8');
+
+  if (expected.length !== received.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expected, received);
+};
+
+/** Helper to compute a valid webhook signature for development/testing (mirrors Razorpay). */
+export const generateWebhookSignature = (rawBody: Buffer | string): string => {
+  return crypto.createHmac('sha256', ENV.RAZORPAY_WEBHOOK_SECRET).update(rawBody).digest('hex');
+};

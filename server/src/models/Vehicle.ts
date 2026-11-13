@@ -41,6 +41,7 @@ const VehicleSchema = new Schema<IVehicle>(
   }
 );
 
-VehicleSchema.index({ ownerId: 1 });
+// ownerId is already indexed via `index: true` on the field above; a second
+// VehicleSchema.index({ ownerId: 1 }) here only produced a duplicate-index warning.
 
 export const Vehicle = mongoose.model<IVehicle>('Vehicle', VehicleSchema);
