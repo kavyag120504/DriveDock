@@ -28,6 +28,11 @@ const INSECURE_SECRET_DEFAULTS = {
 const DEFAULT_MONGO_URI = 'mongodb://127.0.0.1:27017/drivedock';
 const PLACEHOLDER_RAZORPAY_KEY_ID = 'rzp_test_DriveDockDev2026';
 const PLACEHOLDER_RAZORPAY_KEY_SECRET = 'rzp_test_secret_DriveDockDev2026';
+// Dev/test fallback for the Razorpay webhook secret, so the /payments/webhook route is
+// testable without an account. The handler REFUSES to act on this placeholder in production
+// (see razorpayWebhook): since the value is public in source, accepting it live would let
+// anyone forge a "payment.captured" event. Set a real webhook secret in production.
+const PLACEHOLDER_RAZORPAY_WEBHOOK_SECRET = 'rzp_webhook_secret_DriveDockDev2026';
 
 // Numeric env var → number, tolerating empty/invalid values (falls back, never throws).
 const numericFromEnv = (fallback: number) =>
@@ -77,6 +82,9 @@ const envSchema = z.object({
 
   RAZORPAY_KEY_ID: z.string().default(PLACEHOLDER_RAZORPAY_KEY_ID),
   RAZORPAY_KEY_SECRET: z.string().default(PLACEHOLDER_RAZORPAY_KEY_SECRET),
+  // Secret from the Razorpay dashboard used to verify webhook signatures (payment.captured).
+  // Dev/test uses the placeholder above; production must set a real value for the webhook to act.
+  RAZORPAY_WEBHOOK_SECRET: z.string().default(PLACEHOLDER_RAZORPAY_WEBHOOK_SECRET),
 
   EXPO_ACCESS_TOKEN: z.string().default(''),
   GOOGLE_MAPS_API_KEY: z.string().default(''),
@@ -148,6 +156,14 @@ export function validateProductionSecrets(): void {
     );
   }
 }
+
+/**
+ * True when a real (non-placeholder, non-empty) Razorpay webhook secret is configured.
+ * The webhook handler requires this in production before it will act on an event, so a
+ * forged event signed with the public placeholder secret can never confirm a booking.
+ */
+export const hasRealRazorpayWebhookSecret = (): boolean =>
+  !!ENV.RAZORPAY_WEBHOOK_SECRET && ENV.RAZORPAY_WEBHOOK_SECRET !== PLACEHOLDER_RAZORPAY_WEBHOOK_SECRET;
 
 /** True when Razorpay is configured with real (non-placeholder) credentials. */
 export const hasRealRazorpayKeys = (): boolean =>

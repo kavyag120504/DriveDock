@@ -10,6 +10,7 @@ import { logger, httpLogger } from './config/logger';
 import { assertProductionReady } from './providers';
 import { securityHeaders, corsMiddleware, sanitizeRequest } from './middleware/security';
 import apiRoutes from './routes';
+import { razorpayWebhook } from './controllers/paymentController';
 import { errorHandler } from './middleware/errorHandler';
 import { initCronJobs } from './cron/reminderCron';
 import { assertPaperworkKeyring } from './services/fieldCrypto';
@@ -33,6 +34,16 @@ app.use(httpLogger);
 
 // Middleware
 app.use(corsMiddleware);
+
+// Razorpay webhook: mounted BEFORE the JSON body parser so the handler receives the
+// RAW bytes it must hash to verify the signature. Server-to-server, so no auth and no
+// JSON/sanitiser middleware runs for it (those are added after this route).
+app.post(
+  '/api/v1/payments/webhook',
+  express.raw({ type: '*/*', limit: ENV.REQUEST_BODY_LIMIT }),
+  razorpayWebhook
+);
+
 // Explicit body size limits (a body over the limit returns 413). The default matches
 // Express's built-in 100kb, so behaviour is unchanged unless REQUEST_BODY_LIMIT is set.
 app.use(express.json({ limit: ENV.REQUEST_BODY_LIMIT }));

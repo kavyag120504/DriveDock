@@ -179,7 +179,7 @@ These are the product's core promise. Don't weaken them without discussing it wi
 
 ## API notes
 
-- Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/public/verify`, `/public/twin` and `/reminders/trigger-job` (internal secret instead).
+- Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/public/verify`, `/public/twin`, `/reminders/trigger-job` (internal secret instead) and `/payments/webhook` (Razorpay HMAC over the raw body instead).
 - Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`. `documentTypeExpired` must list known document types (capitals accepted, stored lowercase), a non-blank `location` is required, and a document that is verified, valid and unexpired can't be cited (400).
 - `POST /auth/logout` clears the user's push token.
 - Every response carries helmet security headers; every request is run through a sanitiser that strips `$`-prefixed, dotted and `__proto__` keys from the body, query and params (NoSQL-operator injection + prototype-pollution guard) before controllers read it. Browser CORS is limited to `CORS_ALLOWED_ORIGINS` when that env is set (comma-separated); left empty the server reflects any Origin (dev default). The native app sends no `Origin`, so the allowlist never affects it. See `server/src/middleware/security.ts`.
@@ -295,7 +295,7 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 
 - [ ] Server: create real Razorpay orders with real keys; remove `testSignatureHelper`.
 - [ ] App: open Razorpay checkout (`react-native-razorpay` in the development build) and send the real `razorpay_payment_id` and signature to `/payments/verify`.
-- [ ] Server: add a Razorpay webhook (`payment.captured`), verified with the webhook secret, so a booking confirms even if the app closes mid-payment.
+- [x] Server: add a Razorpay webhook (`payment.captured`), verified with the webhook secret, so a booking confirms even if the app closes mid-payment. `POST /api/v1/payments/webhook` is unauthenticated and mounted before the JSON parser so it hashes the raw body (`RAZORPAY_WEBHOOK_SECRET`); it is idempotent, acknowledges unrecognised events with 200, and refuses to act on the dev-default secret in production. Shares the booking-confirmation path with `/payments/verify`. Real Razorpay order creation + removing `testSignatureHelper` still needs live keys.
 - [x] Release a slot when its booking is cancelled or stays unpaid for N minutes.
 - [ ] Challans: pay through the same Razorpay flow; remove the "mark paid" shortcut.
 - [x] Penalty amounts come from the server's fee table, not typed by the officer.
