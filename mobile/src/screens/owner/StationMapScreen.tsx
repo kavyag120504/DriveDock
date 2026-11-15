@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, ScrollView, TextInput, Alert, Platform, Modal
 } from 'react-native';
-import MapView, { Marker, Circle, PROVIDER_GOOGLE } from '../../components/Map';
+import MapView, { Marker, Circle, UrlTile, PROVIDER_GOOGLE, USE_FREE_TILES, FREE_TILE_URL, FREE_TILE_ATTRIBUTION } from '../../components/Map';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadow, BorderRadius } from '../../theme/colors';
@@ -173,7 +173,12 @@ export const StationMapScreen = ({ navigation }: any) => {
             initialRegion={initialRegion}
             showsUserLocation
             showsMyLocationButton={false}
+            mapType={USE_FREE_TILES && Platform.OS !== 'web' ? 'none' : 'standard'}
           >
+            {/* Free basemap when no Google Maps key is configured */}
+            {USE_FREE_TILES && Platform.OS !== 'web' ? (
+              <UrlTile urlTemplate={FREE_TILE_URL} maximumZ={19} shouldReplaceMapContent />
+            ) : null}
             {/* Radius circle */}
             {location && (
               <Circle
@@ -206,6 +211,10 @@ export const StationMapScreen = ({ navigation }: any) => {
             <Text style={styles.mapLoadingText}>Getting your location...</Text>
           </View>
         )}
+
+        {initialRegion && USE_FREE_TILES && Platform.OS !== 'web' ? (
+          <Text style={styles.mapAttribution}>{FREE_TILE_ATTRIBUTION}</Text>
+        ) : null}
 
         {/* Locate me button */}
         {location && (
@@ -346,6 +355,10 @@ export const StationMapScreen = ({ navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
+  mapAttribution: {
+    position: 'absolute', left: 6, bottom: 4, fontSize: 9, color: '#334155',
+    backgroundColor: 'rgba(255,255,255,0.75)', paddingHorizontal: 4, borderRadius: 3
+  },
   container: { flex: 1, backgroundColor: Colors.background },
 
   // Filter bar

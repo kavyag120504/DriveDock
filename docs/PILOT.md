@@ -19,10 +19,12 @@ A **student pilot / test build** using **synthetic data** and **test payments on
 | API | https://drivedock-pilot-api.onrender.com (Render free, Singapore, service `drivedock-pilot-api`, blueprint `drivedock-pilot` from `render.yaml`, branch `pilot/20261116`, auto-deploy off: use Manual Deploy) |
 | Database | MongoDB Atlas project "DriveDock Pilot", free cluster `Cluster0` (Mumbai), database `drivedock_pilot_20261116`; network access 0.0.0.0/0 because Render free has no static IP |
 | Secrets | Render generates the token secrets; `MONGO_URI` and `PAPERWORK_ENCRYPTION_KEYS` were pasted from the git-ignored `server/.env.render` |
-| APK | EAS build `594480ee-f2e4-46dc-b74d-01ed44384437`, profile `pilot`, refreshed UI from master `2e638f1`, calls the Render API (verified in the bundle) |
+| APK | EAS build `10c8b5f2`, profile `pilot`, from merge `76e5061`: refreshed UI from master plus free OpenStreetMap/CARTO map tiles; calls the Render API (all verified in the bundle) |
+| Keep-awake | UptimeRobot (free) checks `/healthz` every 5 minutes, so the free Render instance does not sleep |
+| Uploads | `UPLOAD_STORAGE=gridfs`: certificates are stored in Atlas (GridFS), so they survive restarts and sleep |
 
-- Render free sleeps after 15 min idle; the first request then takes up to a minute. Open https://drivedock-pilot-api.onrender.com/readyz on your phone 2 minutes before a demo and wait for `{"status":"ready","db":1}`.
-- Uploaded certificates live on Render's temporary disk and disappear when it sleeps or redeploys; database records stay in Atlas.
+- Render free would sleep after 15 min idle; the UptimeRobot monitor prevents that. Still open https://drivedock-pilot-api.onrender.com/readyz before a demo to confirm `{"status":"ready","db":1}`.
+- Not live yet: push notifications (Google account hit its Cloud project limit), real Razorpay checkout, forgot-password email.
 - Reset the hosted demo data: `cd server && npm run pilot:seed && scripts/pilot-to-atlas.sh --confirm=drivedock_pilot_20261116` (needs the local pilot MongoDB on 27019).
 - Verified 16 Nov 2026 02:15 IST: `/readyz` ready, 29/29 end-to-end checks pass against Render, certificate links are https.
 
@@ -30,16 +32,14 @@ A **student pilot / test build** using **synthetic data** and **test payments on
 
 | Item | Value |
 |---|---|
-| EAS build | `594480ee-f2e4-46dc-b74d-01ed44384437`, status FINISHED, profile `pilot`, refreshed UI from master `2e638f1` |
-| Install URL (direct APK) | https://expo.dev/artifacts/eas/Qae8BhD8dxHJwpBfKjoD-yr_yWg7wRFj12KIzlR1dZk.apk (downloaded without login: HTTP 200, 113,233,639 bytes) |
-| SHA-256 | `0ce0e3fc90dde7c2a23fae6fe252c9a0f671755111726ef108b256e92ad2ed03` |
-| API in the APK | Hermes bundle contains `https://drivedock-pilot-api.onrender.com/api/v1` and the pilot label; the old ngrok API and `localhost:5001` are absent |
-| UI in the APK | Updated login, inspection desk and verification result labels are present in the compiled bundle |
-| Install QR | `docs/pilot/install-qr.png`, `docs/pilot/install-qr.svg`; decoded to the exact APK URL |
-| Landing page + card | Updated `docs/pilot/install-page.html` and `docs/pilot/install-card.pdf`. The previously shared Claude artifact is an older external copy and was not updated here |
-| Physical device validation | Not yet performed for this new UI APK. An older APK had launched successfully on a Motorola Edge 50 Neo; that result is not a device test of this build |
+| EAS build | `b03a34ce-0858-4fe6-8faa-ddd700accbc1`, status FINISHED (replaces 6a213334, which crashed at launch: R8 stripped WorkManager's Room database; fixed by `mobile/plugins/withWorkManagerKeepRules.js`). Installed over USB on a Motorola Edge 50 Neo (Android 16): launches to the login screen, no crash, profile `pilot` |
+| Install URL (direct APK) | https://expo.dev/artifacts/eas/ovWWPzz_Fu-xKO19osKETXQpqpruMZKGIYgj4U83aJU.apk (downloaded without login: HTTP 200, 113,232,375 bytes) |
+| SHA-256 | `c7d3312cfb1bc97811d126ff04d9b43be9ddca65104ad9a3c69fa799e8abfae0` |
+| API in the APK | Hermes bundle contains `https://drivedock-pilot-api.onrender.com/api/v1`, the CARTO tile URL, the new sign-in text and the pilot label; no ngrok address, no `localhost:5001`, no "PITCH DEMO" |
+| Install QR | `docs/pilot/install-qr.png`, `docs/pilot/install-qr.svg` (decoded with macOS Core Image: exact APK URL) |
+| Landing page + card | `docs/pilot/install-page.html`, published privately at https://claude.ai/artifact/NhrhGTVV34VvY5CTGv4P3u (share it from the page's Share menu). Printable: `docs/pilot/install-card.pdf` |
 
-The release retains the WorkManager Room keep-rules fix. The login pitch-demo label has been replaced by the new sign-in UI; development-only role buttons remain hidden in release builds. Dependencies and signing credentials were not changed.
+The release retains the WorkManager Room keep-rules fix. The login pitch-demo label has been replaced by the new sign-in UI (see `docs/ui/ui-polish-20261116.md`); development-only role buttons remain hidden in release builds. The unused `password123` demo credentials are still compiled in and cannot log in to the pilot.
 
 ## Start everything (after a reboot)
 

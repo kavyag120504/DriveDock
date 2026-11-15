@@ -75,6 +75,8 @@ const envSchema = z.object({
   TRANSFER_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.TRANSFER_SECRET),
   TWIN_SHARE_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.TWIN_SHARE_SECRET),
 
+  // 'gridfs' stores uploads in MongoDB instead of the local disk (for hosts whose disk is temporary)
+  UPLOAD_STORAGE: z.enum(['disk', 'gridfs']).default('disk'),
   AWS_ACCESS_KEY_ID: z.string().default(''),
   AWS_SECRET_ACCESS_KEY: z.string().default(''),
   AWS_S3_BUCKET: z.string().default('drivedock-documents'),

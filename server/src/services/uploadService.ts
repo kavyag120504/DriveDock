@@ -3,7 +3,14 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import mongoose from 'mongoose';
+import type { Request, Response, NextFunction } from 'express';
 import { ENV } from '../config/env';
+
+// UPLOAD_STORAGE=gridfs keeps uploaded files in MongoDB (GridFS bucket "uploads") so they survive
+// hosts with a temporary disk (e.g. Render free). They are still served from /uploads/<name>.
+const GRIDFS_BUCKET = 'uploads';
+const gridBucket = () => new mongoose.mongo.GridFSBucket(mongoose.connection.db!, { bucketName: GRIDFS_BUCKET });
 
 const uploadDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -103,9 +110,39 @@ export const processUploadedFile = async (
     }
   }
 
+  if (ENV.UPLOAD_STORAGE === 'gridfs') {
+    await new Promise<void>((resolve, reject) => {
+      gridBucket()
+        .openUploadStream(file.filename, { metadata: { contentType: file.mimetype, sha256: fileHash } })
+        .on('finish', () => resolve())
+        .on('error', reject)
+        .end(fileBuffer);
+    });
+    fs.unlinkSync(file.path);
+  }
+
   // Local storage URL
   // reqHost may carry the scheme ("https://api.example"); behind a TLS proxy that keeps links https
   const base = /^https?:\/\//.test(reqHost) ? reqHost : `http://${reqHost}`;
   const fileUrl = `${base}/uploads/${file.filename}`;
   return { fileUrl, fileHash };
+};
+
+/**
+ * Serves /uploads/<name> from GridFS when the file is not on local disk (mounted after express.static).
+ * Only names this service generates are accepted, and the stored content type is sent with nosniff.
+ */
+export const serveStoredUpload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const name = req.params.name;
+  if (ENV.UPLOAD_STORAGE !== 'gridfs' || !/^[A-Za-z0-9_-]+\.(jpg|png|webp|pdf)$/.test(name)) return next();
+  try {
+    const [stored] = await gridBucket().find({ filename: name }).sort({ uploadDate: -1 }).limit(1).toArray();
+    if (!stored) return next();
+    res.setHeader('Content-Type', (stored.metadata as any)?.contentType || 'application/octet-stream');
+    res.setHeader('Content-Length', String(stored.length));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    gridBucket().openDownloadStream(stored._id).on('error', next).pipe(res);
+  } catch (err) {
+    next(err);
+  }
 };

@@ -14,6 +14,7 @@ import { razorpayWebhook } from './controllers/paymentController';
 import { errorHandler } from './middleware/errorHandler';
 import { initCronJobs } from './cron/reminderCron';
 import { assertPaperworkKeyring } from './services/fieldCrypto';
+import { serveStoredUpload } from './services/uploadService';
 
 const app = express();
 
@@ -56,6 +57,8 @@ app.use(sanitizeRequest);
 app.use('/uploads', express.static(uploadsDir, {
   setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff')
 }));
+// Files kept in GridFS (UPLOAD_STORAGE=gridfs) when they are not on this host's disk
+app.get('/uploads/:name', serveStoredUpload);
 
 // Liveness: the process is up. Must never touch the database.
 app.get('/healthz', (_req: Request, res: Response) => {

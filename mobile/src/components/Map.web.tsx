@@ -7,6 +7,10 @@ import { Colors } from '../theme/colors';
 export const PROVIDER_GOOGLE = undefined;
 export const Marker = (_props: any) => null;
 export const Circle = (_props: any) => null;
+export const UrlTile = (_props: any) => null;
+export const USE_FREE_TILES = false;
+export const FREE_TILE_URL = '';
+export const FREE_TILE_ATTRIBUTION = '';
 
 const MapView = forwardRef<any, any>(({ style }, ref) => {
   useImperativeHandle(ref, () => ({ animateToRegion: () => {} }));
