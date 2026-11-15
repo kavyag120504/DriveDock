@@ -23,6 +23,9 @@ services:
         value: "false"
       - key: TRUST_PROXY
         value: "1"
+      # Render free has a temporary disk; keep uploaded certificates in Atlas (GridFS) instead
+      - key: UPLOAD_STORAGE
+        value: gridfs
       - key: MONGO_URI
         sync: false # Atlas connection string ending in /drivedock_pilot_20261116
       - key: JWT_ACCESS_SECRET
