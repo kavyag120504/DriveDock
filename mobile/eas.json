@@ -23,7 +23,7 @@
       "extends": "preview",
       "env": {
         "EXPO_PUBLIC_BUILD_LABEL": "DriveDock student pilot · test build · synthetic data · test payments only",
-        "EXPO_PUBLIC_API_URL": "https://credibly-arrange-subprime.ngrok-free.dev/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://drivedock-pilot-api.onrender.com/api/v1"
       }
     }
   },
