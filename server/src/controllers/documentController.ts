@@ -42,7 +42,7 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
     }
 
     // Process file upload (S3 or local disk fallback) and get sha256 hash
-    const host = req.get('host') || 'localhost:5000';
+    const host = `${req.protocol}://${req.get('host') || 'localhost:5000'}`; // https when TRUST_PROXY sees a TLS proxy
     const { fileUrl, fileHash } = await processUploadedFile(req.file, host);
 
     const parsedExpiry = new Date(expiryDate);
