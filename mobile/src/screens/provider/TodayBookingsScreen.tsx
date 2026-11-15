@@ -1,29 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl
-} from 'react-native';
-import { Colors } from '../../theme/colors';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BookingsAPI } from '../../api/endpoints';
 import { RoleHeader } from '../../components/RoleHeader';
 import { StatusPill } from '../../components/StatusPill';
-import { BookingsAPI } from '../../api/endpoints';
+import { Button, Notice, ScreenState } from '../../components/UI';
 import { useAuthStore } from '../../store/authStore';
+import { Colors, Layout } from '../../theme/colors';
 
 export const TodayBookingsScreen = ({ navigation }: any) => {
+  const [loadError, setLoadError] = useState(false);
   const [bookings, setBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchBookings = async () => {
+    setLoadError(false);
     try {
       const res = await BookingsAPI.list();
       setBookings(res.data.data || []);
     } catch (err) {
+      setLoadError(true);
       console.error('Fetch bookings error:', err);
     } finally {
       setIsLoading(false);
@@ -31,9 +28,11 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
     }
   };
 
-  useEffect(() => {
-    fetchBookings();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchBookings();
+    }, [])
+  );
 
   const onRefresh = () => {
     setIsRefreshing(true);
@@ -44,7 +43,9 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
 
   // Upcoming paid appointments first (soonest slot first), then unpaid ones, then history
   const slotKey = (b: any) => `${b.slotId?.date || ''} ${b.slotId?.startTime || ''}`;
-  const upcoming = bookings.filter((b) => b.status === 'confirmed').sort((a, b) => slotKey(a).localeCompare(slotKey(b)));
+  const upcoming = bookings
+    .filter((b) => b.status === 'confirmed')
+    .sort((a, b) => slotKey(a).localeCompare(slotKey(b)));
   const awaitingPayment = bookings.filter((b) => b.status === 'pending');
   const history = bookings.filter((b) => b.status === 'completed' || b.status === 'cancelled').slice(0, 15);
   const isNew = (b: any) => Date.now() - new Date(b.createdAt).getTime() < 24 * 60 * 60 * 1000;
@@ -73,10 +74,17 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
 
         <View style={styles.bDetails}>
           <Text style={styles.bDetailItem}>
-            Service: <Text style={{ color: Colors.textPrimary, fontWeight: '700' }}>{b.documentType?.toUpperCase()}</Text>
+            Service:{' '}
+            <Text style={{ color: Colors.textPrimary, fontWeight: '700' }}>
+              {b.documentType?.toUpperCase()}
+            </Text>
           </Text>
           <Text style={styles.bDetailItem}>
-            Slot: <Text style={{ color: Colors.textPrimary, fontWeight: '700' }}>{b.slotId?.startTime} - {b.slotId?.endTime}</Text> ({b.slotId?.date})
+            Slot:{' '}
+            <Text style={{ color: Colors.textPrimary, fontWeight: '700' }}>
+              {b.slotId?.startTime} - {b.slotId?.endTime}
+            </Text>{' '}
+            ({b.slotId?.date})
           </Text>
         </View>
 
@@ -84,14 +92,16 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
           {isCompleted ? (
             <Text style={styles.completedText}>Certificate Issued & Verified</Text>
           ) : isConfirmed ? (
-            <TouchableOpacity
-              style={styles.actionBtn}
+            <Button
+              label="Start inspection"
+              icon="arrow-forward"
+              color={Colors.provider}
               onPress={() => navigation.navigate('CompleteBooking', { booking: b })}
-            >
-              <Text style={styles.actionBtnText}>Certify & Complete Inspection →</Text>
-            </TouchableOpacity>
+            />
           ) : b.status === 'pending' ? (
-            <Text style={styles.mutedText}>Waiting for the customer's payment. The slot is released if unpaid for 30 minutes.</Text>
+            <Text style={styles.mutedText}>
+              Waiting for the customer's payment. The slot is released if unpaid for 30 minutes.
+            </Text>
           ) : (
             <Text style={styles.mutedText}>
               {b.cancellationReason === 'payment_timeout' ? 'Cancelled: not paid in time' : 'Cancelled'}
@@ -105,33 +115,64 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       <RoleHeader
-        title="Inspection Orders"
-        subtitle={stationName ? `${stationName} · customer bookings` : 'Renewal appointments awaiting testing & certification'}
+        title="Inspection desk"
+        subtitle={
+          stationName
+            ? `${stationName} · customer bookings`
+            : 'Renewal appointments awaiting testing & certification'
+        }
         onRefresh={onRefresh}
       />
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={Colors.provider} />}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={Colors.provider} />
+        }
       >
         {/* Trust Notice */}
-        <View style={styles.trustBanner}>
-          <Text style={styles.trustText}>
-            <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>Trust Rule 1 Enforcer:</Text> Completing an appointment issues a tamper-proof certificate and marks the vehicle's passport as <Text style={{ color: Colors.compliant, fontWeight: '800' }}>VERIFIED GENUINE</Text>.
-          </Text>
-        </View>
+        <Notice title="From inspection to verified document">
+          Complete the service and attach its certificate to verify the document in the owner's passport.
+        </Notice>
+        {loadError && (
+          <Notice title="Couldn't refresh appointments" tone="error">
+            Check your connection and try again. Any appointments shown are from your last successful refresh.
+          </Notice>
+        )}
+        {!isLoading && !loadError && (
+          <View style={styles.summary}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{upcoming.length}</Text>
+              <Text style={styles.summaryLabel}>Ready to inspect</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{awaitingPayment.length}</Text>
+              <Text style={styles.summaryLabel}>Awaiting payment</Text>
+            </View>
+          </View>
+        )}
 
         {isLoading ? (
-          <ActivityIndicator size="large" color={Colors.provider} style={{ marginTop: 30 }} />
+          <ScreenState title="Loading appointments" loading color={Colors.provider} />
+        ) : loadError && bookings.length === 0 ? (
+          <ScreenState
+            title="Appointments unavailable"
+            message="We couldn't load your inspection queue."
+            action="Try again"
+            onAction={onRefresh}
+            color={Colors.provider}
+          />
         ) : bookings.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No Appointments Yet</Text>
-            <Text style={styles.emptyDesc}>When vehicle owners book renewal slots at your station, they will appear here.</Text>
-          </View>
+          <ScreenState
+            title="You're ready for bookings"
+            message="Appointments will appear here when owners book a service at your centre. Open Bays & Slots to add availability."
+            icon="calendar-outline"
+            color={Colors.provider}
+          />
         ) : (
           <>
-            <Text style={styles.sectionHeader}>UPCOMING APPOINTMENTS ({upcoming.length})</Text>
+            <Text style={styles.sectionHeader}>Ready for inspection ({upcoming.length})</Text>
             {upcoming.length === 0 ? (
               <Text style={styles.sectionEmpty}>No paid appointments waiting for inspection.</Text>
             ) : (
@@ -140,14 +181,14 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
 
             {awaitingPayment.length > 0 && (
               <>
-                <Text style={styles.sectionHeader}>AWAITING CUSTOMER PAYMENT ({awaitingPayment.length})</Text>
+                <Text style={styles.sectionHeader}>Awaiting customer payment ({awaitingPayment.length})</Text>
                 {awaitingPayment.map(renderBooking)}
               </>
             )}
 
             {history.length > 0 && (
               <>
-                <Text style={styles.sectionHeader}>RECENT HISTORY</Text>
+                <Text style={styles.sectionHeader}>Recent history</Text>
                 {history.map(renderBooking)}
               </>
             )}
@@ -161,62 +202,21 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background
+    backgroundColor: Colors.background,
   },
   scroll: {
-    flex: 1
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 40
-  },
-  trustBanner: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.25)',
-    padding: 12,
-    gap: 8,
-    marginBottom: 20
-  },
-  trustIcon: {
-    fontSize: 16
-  },
-  trustText: {
     flex: 1,
-    fontSize: 12,
-    color: Colors.textSecondary,
-    lineHeight: 16
   },
+  content: Layout.content,
+  summary: { flexDirection: 'row', gap: 12, marginBottom: 24, flexWrap: 'wrap' },
+  summaryItem: { flex: 1, minWidth: 120, ...Layout.card },
+  summaryValue: { color: Colors.provider, fontSize: 32, fontWeight: '700' },
+  summaryLabel: { color: Colors.textSecondary, fontSize: 13, marginTop: 6 },
   sectionHeader: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: Colors.textMuted,
-    letterSpacing: 1,
-    marginBottom: 10
-  },
-  emptyCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    marginTop: 20
-  },
-  emptyIcon: {
-    fontSize: 36,
-    marginBottom: 8
-  },
-  emptyTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
     color: Colors.textPrimary,
-    marginBottom: 4
-  },
-  emptyDesc: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    textAlign: 'center'
+    marginBottom: 10,
   },
   bookingCard: {
     backgroundColor: Colors.surface,
@@ -224,43 +224,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 16,
-    marginBottom: 14
+    marginBottom: 14,
   },
   bTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 12,
   },
   bReg: {
     fontSize: 18,
     fontWeight: '900',
-    color: Colors.textPrimary
+    color: Colors.textPrimary,
   },
   bModel: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 2
+    marginTop: 2,
   },
   bDetails: {
     backgroundColor: Colors.surfaceLight,
     padding: 10,
     borderRadius: 8,
     gap: 4,
-    marginBottom: 12
+    marginBottom: 12,
   },
   bDetailItem: {
     fontSize: 12,
-    color: Colors.textSecondary
+    color: Colors.textSecondary,
   },
   bFooter: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    paddingTop: 10
+    paddingTop: 10,
   },
   newCard: {
     borderColor: Colors.provider,
-    borderWidth: 1.5
+    borderWidth: 1.5,
   },
   newBadge: {
     fontSize: 9,
@@ -271,31 +273,20 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
     overflow: 'hidden',
-    letterSpacing: 0.8
+    letterSpacing: 0.8,
   },
   mutedText: {
     fontSize: 12,
-    color: Colors.textSecondary
+    color: Colors.textSecondary,
   },
   sectionEmpty: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginBottom: 16
+    marginBottom: 16,
   },
   completedText: {
     color: Colors.compliant,
     fontWeight: '800',
-    fontSize: 13
+    fontSize: 13,
   },
-  actionBtn: {
-    backgroundColor: Colors.provider,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center'
-  },
-  actionBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 13
-  }
 });

@@ -1,29 +1,29 @@
-import React, { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import * as Location from 'expo-location';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
   Alert,
-  TextInput,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import * as Location from 'expo-location';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Colors } from '../../theme/colors';
-import { RoleHeader } from '../../components/RoleHeader';
 import { ProvidersAPI } from '../../api/endpoints';
+import { RoleHeader } from '../../components/RoleHeader';
 import { useAuthStore } from '../../store/authStore';
+import { Colors, Layout } from '../../theme/colors';
 
 export const providerProfileKey = (userId?: string) => ['providerProfile', userId];
 
 const SERVICES = [
   { key: 'puc', label: 'PUC' },
   { key: 'fitness', label: 'Fitness' },
-  { key: 'insurance', label: 'Insurance' }
+  { key: 'insurance', label: 'Insurance' },
 ];
 
 const MAX_BAYS = 50;
@@ -31,9 +31,13 @@ const MAX_BAYS = 50;
 export const CentreProfileScreen = () => {
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);
-  const { data: profile, isLoading, refetch } = useQuery({
+  const {
+    data: profile,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: providerProfileKey(userId),
-    queryFn: async () => (await ProvidersAPI.getProfile()).data.data
+    queryFn: async () => (await ProvidersAPI.getProfile()).data.data,
   });
 
   const [businessName, setBusinessName] = useState('');
@@ -74,7 +78,10 @@ export const CentreProfileScreen = () => {
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       setCoords([pos.coords.longitude, pos.coords.latitude]);
     } catch {
-      Alert.alert('Location unavailable', 'Could not read your location. Try again outdoors or check your device settings.');
+      Alert.alert(
+        'Location unavailable',
+        'Could not read your location. Try again outdoors or check your device settings.'
+      );
     } finally {
       setLocating(false);
     }
@@ -82,7 +89,8 @@ export const CentreProfileScreen = () => {
 
   const handleSave = async () => {
     if (businessName.trim().length < 2) return Alert.alert('Centre name', 'Enter your centre name.');
-    if (address.trim().length < 5) return Alert.alert('Address', 'Enter the full street address of your centre.');
+    if (address.trim().length < 5)
+      return Alert.alert('Address', 'Enter the full street address of your centre.');
     if (!coords) return Alert.alert('Location', 'Tap "Use my current location" while you are at the centre.');
     if (serviceTypes.length === 0) return Alert.alert('Services', 'Select at least one service you offer.');
     if (!workingHours.trim()) return Alert.alert('Working hours', 'Enter your working hours.');
@@ -95,12 +103,16 @@ export const CentreProfileScreen = () => {
         coordinates: coords,
         serviceTypes,
         workingHours: workingHours.trim(),
-        capacity
+        capacity,
       });
       await queryClient.invalidateQueries({ queryKey: providerProfileKey(userId) });
-      if (!isOnboarding) Alert.alert('Saved', 'Your centre profile is updated. New slots will use this bay count.');
+      if (!isOnboarding)
+        Alert.alert('Saved', 'Your centre profile is updated. New slots will use this bay count.');
     } catch (err: any) {
-      Alert.alert('Could not save', err.response?.data?.message || 'Please check your details and try again.');
+      Alert.alert(
+        'Could not save',
+        err.response?.data?.message || 'Please check your details and try again.'
+      );
     } finally {
       setSaving(false);
     }
@@ -118,7 +130,7 @@ export const CentreProfileScreen = () => {
     return (
       <View style={[styles.container, styles.center]}>
         <Text style={styles.hint}>Could not load your centre profile.</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
+        <TouchableOpacity accessibilityRole="button" style={styles.retryBtn} onPress={() => refetch()}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -129,14 +141,21 @@ export const CentreProfileScreen = () => {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <RoleHeader
         title={isOnboarding ? 'Set up your centre' : 'Centre profile'}
-        subtitle={isOnboarding ? 'Owners will see these details when booking' : 'Details owners see when booking'}
+        subtitle={
+          isOnboarding ? 'Owners will see these details when booking' : 'Details owners see when booking'
+        }
       />
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         {isOnboarding && (
           <View style={styles.notice}>
             <Text style={styles.noticeText}>
-              Complete these details so an admin can review your centre. Until it is approved, owners cannot find or book it.
+              Complete these details so an admin can review your centre. Until it is approved, owners cannot
+              find or book it.
             </Text>
           </View>
         )}
@@ -169,11 +188,18 @@ export const CentreProfileScreen = () => {
         />
 
         <Text style={styles.label}>Map location</Text>
-        <TouchableOpacity style={styles.locBtn} onPress={useCurrentLocation} disabled={locating}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={styles.locBtn}
+          onPress={useCurrentLocation}
+          disabled={locating}
+        >
           {locating ? (
             <ActivityIndicator color={Colors.provider} size="small" />
           ) : (
-            <Text style={styles.locBtnText}>{coords ? 'Update from my current location' : 'Use my current location'}</Text>
+            <Text style={styles.locBtnText}>
+              {coords ? 'Update from my current location' : 'Use my current location'}
+            </Text>
           )}
         </TouchableOpacity>
         <Text style={styles.hint}>
@@ -188,6 +214,7 @@ export const CentreProfileScreen = () => {
             const active = serviceTypes.includes(s.key);
             return (
               <TouchableOpacity
+                accessibilityRole="button"
                 key={s.key}
                 style={[styles.chip, active && styles.chipActive]}
                 onPress={() => toggleService(s.key)}
@@ -210,6 +237,7 @@ export const CentreProfileScreen = () => {
         <Text style={styles.label}>Service bays</Text>
         <View style={styles.stepperCard}>
           <TouchableOpacity
+            accessibilityRole="button"
             style={[styles.stepBtn, capacity <= 1 && styles.stepBtnOff]}
             onPress={() => setCapacity((c) => Math.max(1, c - 1))}
             disabled={capacity <= 1}
@@ -221,6 +249,7 @@ export const CentreProfileScreen = () => {
             <Text style={styles.stepUnit}>{capacity === 1 ? 'vehicle at a time' : 'vehicles at a time'}</Text>
           </View>
           <TouchableOpacity
+            accessibilityRole="button"
             style={[styles.stepBtn, capacity >= MAX_BAYS && styles.stepBtnOff]}
             onPress={() => setCapacity((c) => Math.min(MAX_BAYS, c + 1))}
             disabled={capacity >= MAX_BAYS}
@@ -229,11 +258,12 @@ export const CentreProfileScreen = () => {
           </TouchableOpacity>
         </View>
         <Text style={styles.hint}>
-          How many vehicles your centre can service at the same time. Each time slot you open allows this many bookings.
-          Slots you already created keep their own limit.
+          How many vehicles your centre can service at the same time. Each time slot you open allows this many
+          bookings. Slots you already created keep their own limit.
         </Text>
 
         <TouchableOpacity
+          accessibilityRole="button"
           style={[styles.saveBtn, saving && { opacity: 0.6 }]}
           onPress={handleSave}
           disabled={saving}
@@ -241,7 +271,9 @@ export const CentreProfileScreen = () => {
           {saving ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.saveBtnText}>{isOnboarding ? 'Submit centre for review' : 'Save changes'}</Text>
+            <Text style={styles.saveBtnText}>
+              {isOnboarding ? 'Submit centre for review' : 'Save changes'}
+            </Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -253,23 +285,23 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 48 },
+  content: Layout.content,
   notice: {
     backgroundColor: Colors.warningBg,
     borderColor: Colors.warningBorder,
     borderWidth: 1,
     borderRadius: 10,
     padding: 12,
-    marginBottom: 16
+    marginBottom: 16,
   },
   noticeText: { fontSize: 12, color: Colors.warning, lineHeight: 17 },
   label: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
     color: Colors.textSecondary,
-    textTransform: 'uppercase',
+    lineHeight: 20,
     marginBottom: 6,
-    marginTop: 14
+    marginTop: 14,
   },
   input: {
     backgroundColor: Colors.surface,
@@ -279,28 +311,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: Colors.textPrimary,
-    fontSize: 14
+    fontSize: 16,
   },
   multiline: { minHeight: 70, textAlignVertical: 'top' },
-  hint: { fontSize: 11, color: Colors.textSecondary, marginTop: 6, lineHeight: 16 },
+  hint: { fontSize: 13, color: Colors.textSecondary, marginTop: 6, lineHeight: 16 },
   locBtn: {
     borderWidth: 1.5,
     borderColor: Colors.provider,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
-    backgroundColor: Colors.surface
+    backgroundColor: Colors.surface,
   },
   locBtnText: { color: Colors.provider, fontWeight: '800', fontSize: 13 },
   chipRow: { flexDirection: 'row', gap: 8 },
   chip: {
     flex: 1,
-    paddingVertical: 10,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   chipActive: { backgroundColor: Colors.provider, borderColor: Colors.provider },
   chipText: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary },
@@ -313,7 +347,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 12,
-    padding: 10
+    padding: 10,
   },
   stepBtn: {
     width: 44,
@@ -321,28 +355,30 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: Colors.provider,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
   },
   stepBtnOff: { opacity: 0.35 },
   stepBtnText: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', lineHeight: 28 },
   stepValueBox: { alignItems: 'center' },
   stepValue: { fontSize: 28, fontWeight: '900', color: Colors.textPrimary },
-  stepUnit: { fontSize: 11, color: Colors.textSecondary },
+  stepUnit: { fontSize: 13, color: Colors.textSecondary },
   saveBtn: {
     backgroundColor: Colors.provider,
     borderRadius: 12,
     paddingVertical: 15,
     alignItems: 'center',
-    marginTop: 24
+    marginTop: 24,
   },
   saveBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
   retryBtn: {
     marginTop: 12,
     paddingHorizontal: 18,
-    paddingVertical: 10,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.provider
+    borderColor: Colors.provider,
   },
-  retryText: { color: Colors.provider, fontWeight: '700' }
+  retryText: { color: Colors.provider, fontWeight: '700' },
 });

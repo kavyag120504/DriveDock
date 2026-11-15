@@ -1,17 +1,11 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator
-} from 'react-native';
-import { Colors } from '../../theme/colors';
+import { useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Button, Field, FormScreen, PageHeading } from '../../components/UI';
 import { useAuthStore, UserRole } from '../../store/authStore';
+import { Colors } from '../../theme/colors';
 
 export const SignupScreen = ({ navigation }: any) => {
+  const [submitted, setSubmitted] = useState(false);
   const [role, setRole] = useState<UserRole>('owner');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -23,6 +17,7 @@ export const SignupScreen = ({ navigation }: any) => {
   const { signup, isLoading, error } = useAuthStore();
 
   const handleSignup = async () => {
+    setSubmitted(true);
     if (!name || !email || !phone || !password) return;
     try {
       await signup({
@@ -32,40 +27,47 @@ export const SignupScreen = ({ navigation }: any) => {
         password,
         role,
         businessName: role === 'provider' ? businessName : undefined,
-        address: { city, state: 'Maharashtra', pincode: '400001' }
+        address: { city, state: 'Maharashtra', pincode: '400001' },
       });
     } catch (err) {}
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-        <Text style={styles.backText}>← Back to Login</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Create Account</Text>
-      <Text style={styles.subtitle}>Join DriveDock's tamper-proof compliance network</Text>
+    <FormScreen>
+      <PageHeading
+        title="Create your account"
+        subtitle="A simpler way to manage your vehicle documents and services."
+        onBack={() => navigation.goBack()}
+        backLabel="Sign in"
+      />
 
       {/* Role Picker */}
       <View style={styles.rolePicker}>
         <TouchableOpacity
+          accessibilityRole="button"
           style={[styles.roleOption, role === 'owner' && styles.roleActive]}
+          accessibilityState={{ selected: role === 'owner' }}
           onPress={() => setRole('owner')}
         >
           <Text style={[styles.roleText, role === 'owner' && styles.roleTextActive]}>Vehicle Owner</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          accessibilityRole="button"
           style={[styles.roleOption, role === 'provider' && styles.roleActive]}
+          accessibilityState={{ selected: role === 'provider' }}
           onPress={() => setRole('provider')}
         >
-          <Text style={[styles.roleText, role === 'provider' && styles.roleTextActive]}>Service Provider</Text>
+          <Text style={[styles.roleText, role === 'provider' && styles.roleTextActive]}>
+            Service Provider
+          </Text>
         </TouchableOpacity>
       </View>
 
       {role === 'provider' && (
         <View style={styles.providerNotice}>
           <Text style={styles.noticeText}>
-            Trust Rule 3: Provider accounts require System Admin approval before appearing in search or certifying renewals.
+            Your centre needs administrator approval before owners can find it or book a service. You can set
+            up your centre after creating an account.
           </Text>
         </View>
       )}
@@ -78,9 +80,9 @@ export const SignupScreen = ({ navigation }: any) => {
 
       <View style={styles.form}>
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput
-            style={styles.input}
+          <Field
+            label="Full Name"
+            error={submitted && !name ? 'Enter your full name.' : undefined}
             placeholder="e.g. Rahul Sharma"
             placeholderTextColor={Colors.textMuted}
             value={name}
@@ -90,9 +92,8 @@ export const SignupScreen = ({ navigation }: any) => {
 
         {role === 'provider' && (
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business / Center Name</Text>
-            <TextInput
-              style={styles.input}
+            <Field
+              label="Business / Center Name"
               placeholder="e.g. Metro PUC & Fitness Testing"
               placeholderTextColor={Colors.textMuted}
               value={businessName}
@@ -102,9 +103,9 @@ export const SignupScreen = ({ navigation }: any) => {
         )}
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Email Address</Text>
-          <TextInput
-            style={styles.input}
+          <Field
+            label="Email Address"
+            error={submitted && !email ? 'Enter your email address.' : undefined}
             placeholder="e.g. rahul@example.com"
             placeholderTextColor={Colors.textMuted}
             value={email}
@@ -115,9 +116,9 @@ export const SignupScreen = ({ navigation }: any) => {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput
-            style={styles.input}
+          <Field
+            label="Phone Number"
+            error={submitted && !phone ? 'Enter your phone number.' : undefined}
             placeholder="+91 98765 43210"
             placeholderTextColor={Colors.textMuted}
             value={phone}
@@ -127,9 +128,8 @@ export const SignupScreen = ({ navigation }: any) => {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>City / Region</Text>
-          <TextInput
-            style={styles.input}
+          <Field
+            label="City / Region"
             placeholder="e.g. Mumbai"
             placeholderTextColor={Colors.textMuted}
             value={city}
@@ -138,9 +138,9 @@ export const SignupScreen = ({ navigation }: any) => {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
+          <Field
+            label="Password"
+            error={submitted && !password ? 'Enter a password.' : undefined}
             placeholder="••••••••"
             placeholderTextColor={Colors.textMuted}
             value={password}
@@ -149,47 +149,13 @@ export const SignupScreen = ({ navigation }: any) => {
           />
         </View>
 
-        <TouchableOpacity
-          style={[styles.submitBtn, isLoading && styles.btnDisabled]}
-          onPress={handleSignup}
-          disabled={isLoading}
-        >
-          {isLoading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.submitBtnText}>Create Account</Text>}
-        </TouchableOpacity>
+        <Button label="Create account" onPress={handleSignup} loading={isLoading} icon="arrow-forward" />
       </View>
-    </ScrollView>
+    </FormScreen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background
-  },
-  content: {
-    padding: 20,
-    paddingTop: 20,
-    paddingBottom: 60
-  },
-  backBtn: {
-    marginBottom: 16
-  },
-  backText: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '700'
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: Colors.textPrimary
-  },
-  subtitle: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginBottom: 20,
-    marginTop: 4
-  },
   rolePicker: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
@@ -197,24 +163,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 4,
-    marginBottom: 16
+    marginBottom: 16,
   },
   roleOption: {
     flex: 1,
-    paddingVertical: 10,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingVertical: 12,
     alignItems: 'center',
-    borderRadius: 8
+    borderRadius: 8,
   },
   roleActive: {
-    backgroundColor: Colors.primary
+    backgroundColor: Colors.primary,
   },
   roleText: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textSecondary
+    color: Colors.textSecondary,
   },
   roleTextActive: {
-    color: '#FFFFFF'
+    color: '#FFFFFF',
   },
   providerNotice: {
     flexDirection: 'row',
@@ -224,16 +192,13 @@ const styles = StyleSheet.create({
     borderColor: Colors.warning,
     padding: 10,
     gap: 8,
-    marginBottom: 16
-  },
-  noticeIcon: {
-    fontSize: 16
+    marginBottom: 16,
   },
   noticeText: {
     flex: 1,
     fontSize: 12,
     color: Colors.warning,
-    lineHeight: 16
+    lineHeight: 16,
   },
   errorBox: {
     backgroundColor: Colors.nonCompliantBg,
@@ -241,49 +206,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.nonCompliant,
     padding: 10,
-    marginBottom: 16
+    marginBottom: 16,
   },
   errorText: {
     color: Colors.nonCompliant,
     fontSize: 12,
-    fontWeight: '600'
+    fontWeight: '600',
   },
   form: {
-    gap: 12
+    gap: 12,
   },
   inputGroup: {
-    marginBottom: 4
+    marginBottom: 4,
   },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: 6,
-    textTransform: 'uppercase'
-  },
-  input: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: Colors.textPrimary,
-    fontSize: 14
-  },
-  submitBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 12
-  },
-  btnDisabled: {
-    opacity: 0.6
-  },
-  submitBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 15
-  }
 });

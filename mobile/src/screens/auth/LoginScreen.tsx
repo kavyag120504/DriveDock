@@ -1,29 +1,68 @@
-import React, { useState } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, ActivityIndicator
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Shadow, BorderRadius } from '../../theme/colors';
-import { useAuthStore, UserRole } from '../../store/authStore';
+import React, { useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { DemoAPI } from '../../api/endpoints';
+import { Button, Field, FormScreen, Notice } from '../../components/UI';
+import { useAuthStore, UserRole } from '../../store/authStore';
+import { BorderRadius, Colors, Shadow } from '../../theme/colors';
 
-const DEMO_ROLES: { role: UserRole; label: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-  { role: 'owner',      label: 'Vehicle Owner',           desc: 'Vehicles, verified docs, rotating QR, renewals',      icon: 'car-outline',           color: Colors.owner },
-  { role: 'provider',   label: 'Approved Provider',       desc: 'PUC / Fitness center - issue verified certificates',   icon: 'construct-outline',     color: Colors.provider },
-  { role: 'officer',    label: 'Traffic Police Officer',  desc: 'Scan rotating QR - tamper-proof green / red result',  icon: 'shield-checkmark-outline', color: Colors.officer },
-  { role: 'government', label: 'Government / RTO',        desc: 'Regional compliance analytics, charts and trends',    icon: 'bar-chart-outline',     color: Colors.government },
-  { role: 'admin',      label: 'System Administrator',    desc: 'Approve pending providers - gatekeeping checks',      icon: 'settings-outline',      color: Colors.admin },
+const DEMO_ROLES: {
+  role: UserRole;
+  label: string;
+  desc: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+}[] = [
+  {
+    role: 'owner',
+    label: 'Vehicle Owner',
+    desc: 'Vehicles, verified docs, rotating QR, renewals',
+    icon: 'car-outline',
+    color: Colors.owner,
+  },
+  {
+    role: 'provider',
+    label: 'Approved Provider',
+    desc: 'PUC / Fitness center - issue verified certificates',
+    icon: 'construct-outline',
+    color: Colors.provider,
+  },
+  {
+    role: 'officer',
+    label: 'Traffic Police Officer',
+    desc: 'Scan rotating QR - tamper-proof green / red result',
+    icon: 'shield-checkmark-outline',
+    color: Colors.officer,
+  },
+  {
+    role: 'government',
+    label: 'Government / RTO',
+    desc: 'Regional compliance analytics, charts and trends',
+    icon: 'bar-chart-outline',
+    color: Colors.government,
+  },
+  {
+    role: 'admin',
+    label: 'System Administrator',
+    desc: 'Approve pending providers - gatekeeping checks',
+    icon: 'settings-outline',
+    color: Colors.admin,
+  },
 ];
 
 export const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const { login, quickDemoLogin, isLoading, error, clearError } = useAuthStore();
 
   const handleLogin = async () => {
-    if (!email || !password) return;
-    try { await login(email, password); } catch (err) {}
+    setSubmitted(true);
+    if (isLoading || !email || !password) return;
+    try {
+      await login(email, password);
+    } catch (err) {}
   };
 
   // Demo only: the provider button lets you pick which station to log in as, so a booking
@@ -52,81 +91,105 @@ export const LoginScreen = ({ navigation }: any) => {
         setIsLoadingStations(false);
       }
     }
-    await quickDemoLogin(role);
+    try {
+      await quickDemoLogin(role);
+    } catch {
+      /* The auth store displays the error. */
+    }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Brand Header */}
+    <FormScreen>
       <View style={styles.brandHeader}>
-        <Text style={styles.kicker}>FINAL YEAR PROJECT - PITCH DEMO</Text>
         <View style={styles.logoRow}>
-          <Text style={styles.logoDrive}>DRIVE</Text>
-          <Text style={styles.logoDock}>DOCK</Text>
+          <View style={styles.brandIcon}>
+            <Ionicons name="layers-outline" size={28} color="#FFFFFF" />
+          </View>
+          <Text style={styles.logoDrive}>
+            Drive<Text style={styles.logoDock}>Dock</Text>
+          </Text>
         </View>
-        <Text style={styles.tagline}>
-          Other apps store your vehicle papers.{'\n'}
-          <Text style={styles.taglineBlue}>DriveDock proves they are genuine.</Text>
-        </Text>
+        <Text style={styles.kicker}>YOUR VEHICLE. ONE PASSPORT.</Text>
+        <Text style={styles.tagline}>Keep every journey{'\n'}one step ahead.</Text>
         <Text style={styles.explainer}>
-          One Vehicle Passport for RC, PUC, Insurance & Fitness. Providers certify genuine documents. Police scan a rotating QR that cannot be copied.
+          Your vehicle documents, renewals and verification, together in one place.
         </Text>
       </View>
 
-      {/* Login Card */}
       <View style={[styles.card, Shadow.card]}>
-        <Text style={styles.cardTitle}>Sign In</Text>
-
+        <Text accessibilityRole="header" style={styles.cardTitle}>
+          Welcome back
+        </Text>
+        <Text style={styles.cardSubtitle}>Sign in to your DriveDock workspace.</Text>
         {error && (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle-outline" size={14} color={Colors.nonCompliant} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
+          <Notice title="Couldn't sign in" tone="error">
+            {error}
+          </Notice>
         )}
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Email Address</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. owner@drivedock.com"
-            placeholderTextColor={Colors.textMuted}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="--------"
-            placeholderTextColor={Colors.textMuted}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-        </View>
-
+        <Field
+          label="Email address"
+          placeholder="you@example.com"
+          value={email}
+          onChangeText={(value) => {
+            setEmail(value);
+            clearError();
+          }}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          autoComplete="email"
+          textContentType="username"
+          returnKeyType="next"
+          error={submitted && !email ? 'Enter your email address.' : undefined}
+        />
+        <Field
+          label="Password"
+          placeholder="Enter your password"
+          value={password}
+          onChangeText={(value) => {
+            setPassword(value);
+            clearError();
+          }}
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="current-password"
+          textContentType="password"
+          returnKeyType="go"
+          onSubmitEditing={handleLogin}
+          error={submitted && !password ? 'Enter your password.' : undefined}
+        />
         <TouchableOpacity
-          style={[styles.primaryBtn, isLoading && styles.btnDisabled]}
-          onPress={handleLogin}
-          disabled={isLoading}
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+          onPress={() => setShowPassword(!showPassword)}
+          style={styles.passwordToggle}
         >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.primaryBtnText}>Authenticate</Text>
-          )}
+          <Ionicons
+            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+            size={18}
+            color={Colors.primary}
+          />
+          <Text style={styles.passwordToggleText}>{showPassword ? 'Hide password' : 'Show password'}</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => navigation.navigate('Signup')} style={styles.signupLink}>
+        <Button label="Sign in" icon="arrow-forward" onPress={handleLogin} loading={isLoading} />
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => {
+            clearError();
+            navigation.navigate('Signup');
+          }}
+          style={styles.signupLink}
+        >
           <Text style={styles.signupText}>
-            Don't have an account?{' '}
-            <Text style={{ color: Colors.primary, fontWeight: '700' }}>Register here</Text>
+            New to DriveDock?{' '}
+            <Text style={{ color: Colors.primary, fontWeight: '700' }}>Create an account</Text>
           </Text>
         </TouchableOpacity>
+      </View>
+      <View style={styles.securityNote}>
+        <Ionicons name="shield-checkmark-outline" size={18} color={Colors.primary} />
+        <Text style={styles.securityText}>Owner, service provider and officer access</Text>
       </View>
 
       {/* 1-Tap Demo Section - only visible in development builds */}
@@ -138,13 +201,16 @@ export const LoginScreen = ({ navigation }: any) => {
               <Text style={styles.demoBadgeText}>1-TAP DEMO</Text>
             </View>
             <Text style={styles.demoTitle}>ROLE SWITCHER FOR EVALUATION</Text>
-            <Text style={styles.demoSubtitle}>Tap any role to instantly log in with a real backend JWT session:</Text>
+            <Text style={styles.demoSubtitle}>
+              Tap any role to instantly log in with a real backend JWT session:
+            </Text>
           </View>
 
           <View style={styles.demoGrid}>
             {DEMO_ROLES.map(({ role, label, desc, icon, color }) => (
               <React.Fragment key={role}>
                 <TouchableOpacity
+                  accessibilityRole="button"
                   style={[styles.demoCard, { borderLeftColor: color }]}
                   onPress={() => handleDemo(role)}
                 >
@@ -171,13 +237,18 @@ export const LoginScreen = ({ navigation }: any) => {
                     <Text style={styles.stationListTitle}>LOG IN AS STATION</Text>
                     {stations.map((st) => (
                       <TouchableOpacity
+                        accessibilityRole="button"
                         key={st.providerId}
                         style={styles.stationRow}
-                        onPress={() => st.email && quickDemoLogin('provider', st.email)}
+                        onPress={() => {
+                          if (st.email) quickDemoLogin('provider', st.email).catch(() => {});
+                        }}
                       >
                         <View style={{ flex: 1 }}>
                           <Text style={styles.stationName}>{st.businessName}</Text>
-                          <Text style={styles.stationAddr} numberOfLines={1}>{st.address}</Text>
+                          <Text style={styles.stationAddr} numberOfLines={1}>
+                            {st.address}
+                          </Text>
                         </View>
                         {st.status !== 'approved' && (
                           <Text style={styles.stationPending}>{String(st.status).toUpperCase()}</Text>
@@ -191,23 +262,54 @@ export const LoginScreen = ({ navigation }: any) => {
           </View>
         </View>
       )}
-    </ScrollView>
+    </FormScreen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 20, paddingTop: 20, paddingBottom: 60 },
-
   // Brand
-  brandHeader: { marginBottom: 28 },
-  kicker: { fontSize: 10, fontWeight: '800', letterSpacing: 2, color: Colors.textMuted, marginBottom: 8 },
-  logoRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 12 },
-  logoDrive: { fontSize: 40, fontWeight: '900', letterSpacing: 1, color: Colors.textPrimary },
-  logoDock: { fontSize: 40, fontWeight: '900', letterSpacing: 1, color: Colors.primary },
-  tagline: { fontSize: 17, fontWeight: '700', color: Colors.textPrimary, lineHeight: 24, marginBottom: 8 },
-  taglineBlue: { color: Colors.primary, fontWeight: '800' },
-  explainer: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
+  brandHeader: { marginBottom: 28, paddingTop: 12 },
+  brandIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  cardSubtitle: { fontSize: 14, color: Colors.textSecondary, lineHeight: 21, marginBottom: 24 },
+  passwordToggle: {
+    minHeight: 44,
+    flexDirection: 'row',
+    gap: 7,
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    marginTop: -10,
+    marginBottom: 10,
+  },
+  passwordToggleText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+  securityNote: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  securityText: { fontSize: 12, color: Colors.textSecondary, flexShrink: 1 },
+  kicker: { fontSize: 11, fontWeight: '800', letterSpacing: 2, color: Colors.textMuted, marginBottom: 8 },
+  logoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
+  logoDrive: { fontSize: 32, fontWeight: '800', letterSpacing: -1, color: Colors.textPrimary },
+  logoDock: { fontSize: 32, fontWeight: '800', letterSpacing: -1, color: Colors.primary },
+  tagline: {
+    fontSize: 33,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    color: Colors.textPrimary,
+    lineHeight: 40,
+    marginBottom: 12,
+  },
+  explainer: { fontSize: 15, color: Colors.textSecondary, lineHeight: 23 },
 
   // Login card
   card: {
@@ -218,67 +320,57 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 24,
   },
-  cardTitle: { fontSize: 20, fontWeight: '800', color: Colors.textPrimary, marginBottom: 16 },
-  errorBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.nonCompliantBg,
-    borderRadius: 8, borderWidth: 1, borderColor: Colors.nonCompliantBorder,
-    padding: 10, marginBottom: 14,
-  },
-  errorText: { color: Colors.nonCompliant, fontSize: 12, fontWeight: '600', flex: 1 },
-  inputGroup: { marginBottom: 14 },
-  label: {
-    fontSize: 11, fontWeight: '700', color: Colors.textSecondary,
-    marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: Colors.surfaceAlt,
-    borderWidth: 1, borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: 14, paddingVertical: 12,
-    color: Colors.textPrimary, fontSize: 14,
-  },
-  primaryBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    paddingVertical: 14,
-    alignItems: 'center', marginTop: 6,
-  },
-  btnDisabled: { opacity: 0.6 },
-  primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
-  signupLink: { alignItems: 'center', marginTop: 14 },
+  cardTitle: { fontSize: 23, fontWeight: '700', color: Colors.textPrimary, marginBottom: 6 },
+  signupLink: { alignItems: 'center', justifyContent: 'center', minHeight: 48, marginTop: 10 },
   signupText: { color: Colors.textSecondary, fontSize: 13 },
 
   // Demo section
   demoSection: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1,
+    borderColor: Colors.border,
     padding: 16,
   },
   demoHeader: { marginBottom: 16 },
   demoBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: Colors.primaryLight,
     alignSelf: 'flex-start',
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 4, marginBottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    marginBottom: 8,
   },
   demoBadgeText: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 0.5 },
-  demoTitle: { fontSize: 13, fontWeight: '900', color: Colors.textPrimary, letterSpacing: 0.3, marginBottom: 4 },
+  demoTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: Colors.textPrimary,
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
   demoSubtitle: { fontSize: 12, color: Colors.textSecondary },
   demoGrid: { gap: 8 },
   demoCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: Colors.surfaceAlt,
     borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1,
+    borderColor: Colors.border,
     borderLeftWidth: 3,
     padding: 12,
   },
   demoIconWrap: {
-    width: 40, height: 40, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   demoCardTitle: { fontSize: 13, fontWeight: '800', color: Colors.textPrimary, marginBottom: 2 },
   stationList: {
@@ -288,7 +380,13 @@ const styles = StyleSheet.create({
     borderLeftColor: Colors.provider + '40',
     gap: 6,
   },
-  stationListTitle: { fontSize: 10, fontWeight: '800', color: Colors.provider, letterSpacing: 0.8, marginBottom: 2 },
+  stationListTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.provider,
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
   stationRow: {
     flexDirection: 'row',
     alignItems: 'center',

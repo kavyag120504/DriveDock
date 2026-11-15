@@ -1,15 +1,16 @@
-import React from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Colors } from '../theme/colors';
+import { useQuery } from '@tanstack/react-query';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProvidersAPI } from '../api/endpoints';
+import { Colors } from '../theme/colors';
 
-import { TodayBookingsScreen } from '../screens/provider/TodayBookingsScreen';
+import { CentreProfileScreen, providerProfileKey } from '../screens/provider/CentreProfileScreen';
 import { CompleteBookingScreen } from '../screens/provider/CompleteBookingScreen';
 import { ManageSlotsScreen } from '../screens/provider/ManageSlotsScreen';
-import { CentreProfileScreen, providerProfileKey } from '../screens/provider/CentreProfileScreen';
+import { TodayBookingsScreen } from '../screens/provider/TodayBookingsScreen';
 import { useAuthStore } from '../store/authStore';
 
 const Stack = createNativeStackNavigator();
@@ -23,10 +24,16 @@ const BookingsStack = () => (
 );
 
 export const ProviderNavigator = () => {
+  const insets = useSafeAreaInsets();
   const userId = useAuthStore((s) => s.user?.id);
-  const { data: profile, isLoading, isError, refetch } = useQuery({
+  const {
+    data: profile,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: providerProfileKey(userId),
-    queryFn: async () => (await ProvidersAPI.getProfile()).data.data
+    queryFn: async () => (await ProvidersAPI.getProfile()).data.data,
   });
 
   if (isLoading) {
@@ -41,7 +48,7 @@ export const ProviderNavigator = () => {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>Could not load your centre.</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
+        <TouchableOpacity accessibilityRole="button" style={styles.retryBtn} onPress={() => refetch()}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -59,26 +66,40 @@ export const ProviderNavigator = () => {
         headerShown: false,
         tabBarStyle: {
           backgroundColor: Colors.surface,
-          borderTopColor: Colors.border
+          height: 64 + insets.bottom,
+          paddingTop: 6,
+          paddingBottom: Math.max(insets.bottom, 8),
+          borderTopColor: Colors.border,
         },
         tabBarActiveTintColor: Colors.provider,
-        tabBarInactiveTintColor: Colors.textMuted
+        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        tabBarItemStyle: { paddingVertical: 0 },
       }}
     >
       <Tab.Screen
         name="OrdersTab"
         component={BookingsStack}
-        options={{ tabBarLabel: 'Inspections' }}
+        options={{
+          tabBarLabel: 'Inspections',
+          tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" color={color} size={size} />,
+        }}
       />
       <Tab.Screen
         name="SlotsTab"
         component={ManageSlotsScreen}
-        options={{ tabBarLabel: 'Bays & Slots' }}
+        options={{
+          tabBarLabel: 'Bays & Slots',
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" color={color} size={size} />,
+        }}
       />
       <Tab.Screen
         name="CentreTab"
         component={CentreProfileScreen}
-        options={{ tabBarLabel: 'Centre' }}
+        options={{
+          tabBarLabel: 'Centre',
+          tabBarIcon: ({ color, size }) => <Ionicons name="business-outline" color={color} size={size} />,
+        }}
       />
     </Tab.Navigator>
   );
@@ -93,7 +114,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.provider
+    borderColor: Colors.provider,
   },
-  retryText: { color: Colors.provider, fontWeight: '700' }
+  retryText: { color: Colors.provider, fontWeight: '700' },
 });

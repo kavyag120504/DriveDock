@@ -1,34 +1,34 @@
-import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../theme/colors';
 
-import { OwnerDashboardScreen }    from '../screens/owner/OwnerDashboardScreen';
-import { VehicleDetailScreen }     from '../screens/owner/VehicleDetailScreen';
-import { AddVehicleScreen }        from '../screens/owner/AddVehicleScreen';
-import { BookSlotScreen }          from '../screens/owner/BookSlotScreen';
-import { OwnerChallansScreen }     from '../screens/owner/OwnerChallansScreen';
-import { StationMapScreen }        from '../screens/owner/StationMapScreen';
-import { VehicleTwinScreen }       from '../features/twin/VehicleTwinScreen';
-import { TransferOwnershipScreen } from '../features/twin/TransferOwnershipScreen';
+import { BuyCarScreen } from '../features/twin/BuyCarScreen';
+import { ShareTwinScreen } from '../features/twin/ShareTwinScreen';
 import { TransferChecklistScreen } from '../features/twin/TransferChecklistScreen';
-import { ShareTwinScreen }         from '../features/twin/ShareTwinScreen';
-import { BuyCarScreen }           from '../features/twin/BuyCarScreen';
+import { TransferOwnershipScreen } from '../features/twin/TransferOwnershipScreen';
+import { VehicleTwinScreen } from '../features/twin/VehicleTwinScreen';
+import { AddVehicleScreen } from '../screens/owner/AddVehicleScreen';
+import { BookSlotScreen } from '../screens/owner/BookSlotScreen';
+import { OwnerChallansScreen } from '../screens/owner/OwnerChallansScreen';
+import { OwnerDashboardScreen } from '../screens/owner/OwnerDashboardScreen';
+import { StationMapScreen } from '../screens/owner/StationMapScreen';
+import { VehicleDetailScreen } from '../screens/owner/VehicleDetailScreen';
 
 const Stack = createNativeStackNavigator();
-const Tab   = createBottomTabNavigator();
+const Tab = createBottomTabNavigator();
 
 const DashboardStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="DashboardMain"      component={OwnerDashboardScreen} />
-    <Stack.Screen name="VehicleDetail"      component={VehicleDetailScreen} />
-    <Stack.Screen name="AddVehicle"         component={AddVehicleScreen} />
-    <Stack.Screen name="BookSlot"           component={BookSlotScreen} />
-    <Stack.Screen name="VehicleTwin"        component={VehicleTwinScreen} />
-    <Stack.Screen name="TransferOwnership"  component={TransferOwnershipScreen} />
-    <Stack.Screen name="TransferChecklist"  component={TransferChecklistScreen} />
-    <Stack.Screen name="ShareTwin"          component={ShareTwinScreen} />
+    <Stack.Screen name="DashboardMain" component={OwnerDashboardScreen} />
+    <Stack.Screen name="VehicleDetail" component={VehicleDetailScreen} />
+    <Stack.Screen name="AddVehicle" component={AddVehicleScreen} />
+    <Stack.Screen name="BookSlot" component={BookSlotScreen} />
+    <Stack.Screen name="VehicleTwin" component={VehicleTwinScreen} />
+    <Stack.Screen name="TransferOwnership" component={TransferOwnershipScreen} />
+    <Stack.Screen name="TransferChecklist" component={TransferChecklistScreen} />
+    <Stack.Screen name="ShareTwin" component={ShareTwinScreen} />
   </Stack.Navigator>
 );
 
@@ -37,69 +37,78 @@ const DashboardStack = () => (
 const AddVehicleStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="AddVehicleMain" component={AddVehicleScreen} />
-    <Stack.Screen name="BuyCar"         component={BuyCarScreen} />
+    <Stack.Screen name="BuyCar" component={BuyCarScreen} />
   </Stack.Navigator>
 );
 
 const StationsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="StationMap"  component={StationMapScreen} />
-    <Stack.Screen name="BookSlot"    component={BookSlotScreen} />
+    <Stack.Screen name="StationMap" component={StationMapScreen} />
+    <Stack.Screen name="BookSlot" component={BookSlotScreen} />
   </Stack.Navigator>
 );
 
-export const OwnerNavigator = () => (
-  <Tab.Navigator
-    screenOptions={({route}) => ({
-      headerShown: false,
-      tabBarStyle: {
-        backgroundColor: Colors.surface,
-        borderTopColor: Colors.border
-      },
-      tabBarActiveTintColor: Colors.primary,
-      tabBarInactiveTintColor: Colors.textMuted,
-      tabBarLabelStyle: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
-    })}
-  >
-    <Tab.Screen
-      name="Dashboard"
-      component={DashboardStack}
-      options={{
-        tabBarLabel: 'Passport',
-        tabBarIcon: ({ color, size }) => <Ionicons name="car-outline" size={size} color={color} />,
-      }}
-    />
-    <Tab.Screen
-      name="StationsTab"
-      component={StationsStack}
-      options={{
-        tabBarLabel: 'Stations',
-        tabBarIcon: ({ color, size }) => <Ionicons name="location-outline" size={size} color={color} />,
-      }}
-    />
-    <Tab.Screen
-      name="AddVehicleTab"
-      component={AddVehicleStack}
-      options={{
-        tabBarLabel: 'Add Vehicle',
-        tabBarIcon: ({ color, size }) => <Ionicons name="add-circle-outline" size={size} color={color} />,
-      }}
-    />
-    <Tab.Screen
-      name="BookSlotTab"
-      component={BookSlotScreen}
-      options={{
-        tabBarLabel: 'Renewals',
-        tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
-      }}
-    />
-    <Tab.Screen
-      name="Challans"
-      component={OwnerChallansScreen}
-      options={{
-        tabBarLabel: 'e-Challans',
-        tabBarIcon: ({ color, size }) => <Ionicons name="document-text-outline" size={size} color={color} />,
-      }}
-    />
-  </Tab.Navigator>
-);
+export const OwnerNavigator = () => {
+  const insets = useSafeAreaInsets();
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: Colors.surface,
+          height: 64 + insets.bottom,
+          paddingTop: 6,
+          paddingBottom: Math.max(insets.bottom, 8),
+          borderTopColor: Colors.border,
+        },
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarItemStyle: { paddingVertical: 0 },
+      })}
+    >
+      <Tab.Screen
+        name="Dashboard"
+        component={DashboardStack}
+        options={{
+          tabBarLabel: 'Passport',
+          tabBarIcon: ({ color, size }) => <Ionicons name="car-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="StationsTab"
+        component={StationsStack}
+        options={{
+          tabBarLabel: 'Stations',
+          tabBarIcon: ({ color, size }) => <Ionicons name="location-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="AddVehicleTab"
+        component={AddVehicleStack}
+        options={{
+          tabBarLabel: 'Add Vehicle',
+          tabBarIcon: ({ color, size }) => <Ionicons name="add-circle-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="BookSlotTab"
+        component={BookSlotScreen}
+        options={{
+          tabBarLabel: 'Renewals',
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Challans"
+        component={OwnerChallansScreen}
+        options={{
+          tabBarLabel: 'e-Challans',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="document-text-outline" size={size} color={color} />
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+};

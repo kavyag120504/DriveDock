@@ -1,42 +1,53 @@
-import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
   Alert,
-  TextInput
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Colors } from '../../theme/colors';
-import { RoleHeader } from '../../components/RoleHeader';
 import { ProvidersAPI } from '../../api/endpoints';
+import { RoleHeader } from '../../components/RoleHeader';
+import { Notice, ScreenState } from '../../components/UI';
+import { Colors, Layout } from '../../theme/colors';
 
 const TIME_TEMPLATES = [
-  { label: 'Morning (9-12)', slots: [
-    { startTime: '09:00 AM', endTime: '10:00 AM' },
-    { startTime: '10:30 AM', endTime: '11:30 AM' },
-  ]},
-  { label: 'Afternoon (12-5)', slots: [
-    { startTime: '01:00 PM', endTime: '02:00 PM' },
-    { startTime: '02:30 PM', endTime: '03:30 PM' },
-    { startTime: '04:00 PM', endTime: '05:00 PM' },
-  ]},
-  { label: 'Full Day', slots: [
-    { startTime: '09:00 AM', endTime: '10:00 AM' },
-    { startTime: '10:30 AM', endTime: '11:30 AM' },
-    { startTime: '01:00 PM', endTime: '02:00 PM' },
-    { startTime: '02:30 PM', endTime: '03:30 PM' },
-    { startTime: '04:00 PM', endTime: '05:00 PM' },
-  ]},
+  {
+    label: 'Morning (9-12)',
+    slots: [
+      { startTime: '09:00 AM', endTime: '10:00 AM' },
+      { startTime: '10:30 AM', endTime: '11:30 AM' },
+    ],
+  },
+  {
+    label: 'Afternoon (12-5)',
+    slots: [
+      { startTime: '01:00 PM', endTime: '02:00 PM' },
+      { startTime: '02:30 PM', endTime: '03:30 PM' },
+      { startTime: '04:00 PM', endTime: '05:00 PM' },
+    ],
+  },
+  {
+    label: 'Full Day',
+    slots: [
+      { startTime: '09:00 AM', endTime: '10:00 AM' },
+      { startTime: '10:30 AM', endTime: '11:30 AM' },
+      { startTime: '01:00 PM', endTime: '02:00 PM' },
+      { startTime: '02:30 PM', endTime: '03:30 PM' },
+      { startTime: '04:00 PM', endTime: '05:00 PM' },
+    ],
+  },
 ];
 
 // Local calendar date (toISOString is UTC, which is still "yesterday" in India until 5:30 am)
 const todayDate = () => new Date().toLocaleDateString('en-CA');
 
 export const ManageSlotsScreen = () => {
+  const [loadError, setLoadError] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,6 +57,7 @@ export const ManageSlotsScreen = () => {
   const [selectedTemplate, setSelectedTemplate] = useState(2); // Full Day default
 
   const fetchProfileAndSlots = async () => {
+    setLoadError(false);
     try {
       const pRes = await ProvidersAPI.getProfile();
       const pData = pRes.data.data;
@@ -56,6 +68,7 @@ export const ManageSlotsScreen = () => {
         setSlots(sRes.data.data || []);
       }
     } catch (err) {
+      setLoadError(true);
       console.error('Fetch slots error:', err);
     } finally {
       setIsLoading(false);
@@ -82,7 +95,7 @@ export const ManageSlotsScreen = () => {
 
     setIsCreating(true);
     const template = TIME_TEMPLATES[selectedTemplate];
-    const newSlots = template.slots.map(s => ({ date: slotDate, ...s }));
+    const newSlots = template.slots.map((s) => ({ date: slotDate, ...s }));
 
     try {
       const res = await ProvidersAPI.createSlots(profile._id, newSlots);
@@ -105,17 +118,27 @@ export const ManageSlotsScreen = () => {
       />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        {loadError && (
+          <Notice title="Couldn't refresh availability" tone="error">
+            Check your connection and try again. Previously loaded slots may be out of date.
+          </Notice>
+        )}
         {/* Slot creation form */}
         {!showForm ? (
-          <TouchableOpacity style={styles.addBtn} onPress={() => setShowForm(true)}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.addBtn}
+            onPress={() => setShowForm(true)}
+          >
             <Text style={styles.addBtnText}>+ Add Inspection Slots</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>New Slots</Text>
             <Text style={styles.bayNote}>
-              Each slot takes up to {profile?.capacity ?? 1} booking{(profile?.capacity ?? 1) === 1 ? '' : 's'} at the same
-              time (your centre's service bays). Change this in the Centre tab.
+              Each slot takes up to {profile?.capacity ?? 1} booking
+              {(profile?.capacity ?? 1) === 1 ? '' : 's'} at the same time (your centre's service bays).
+              Change this in the Centre tab.
             </Text>
 
             <Text style={styles.formLabel}>Date (YYYY-MM-DD)</Text>
@@ -132,14 +155,19 @@ export const ManageSlotsScreen = () => {
             <View style={styles.templateRow}>
               {TIME_TEMPLATES.map((t, i) => (
                 <TouchableOpacity
+                  accessibilityRole="button"
                   key={i}
                   style={[styles.templateBtn, selectedTemplate === i && styles.templateBtnActive]}
                   onPress={() => setSelectedTemplate(i)}
                 >
-                  <Text style={[styles.templateBtnText, selectedTemplate === i && styles.templateBtnTextActive]}>
+                  <Text
+                    style={[styles.templateBtnText, selectedTemplate === i && styles.templateBtnTextActive]}
+                  >
                     {t.label}
                   </Text>
-                  <Text style={[styles.templateCount, selectedTemplate === i && styles.templateBtnTextActive]}>
+                  <Text
+                    style={[styles.templateCount, selectedTemplate === i && styles.templateBtnTextActive]}
+                  >
                     {t.slots.length} slots
                   </Text>
                 </TouchableOpacity>
@@ -147,10 +175,15 @@ export const ManageSlotsScreen = () => {
             </View>
 
             <View style={styles.formActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowForm(false)}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={styles.cancelBtn}
+                onPress={() => setShowForm(false)}
+              >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={[styles.genBtn, isCreating && { opacity: 0.6 }]}
                 onPress={handleCreateSlots}
                 disabled={isCreating}
@@ -158,7 +191,9 @@ export const ManageSlotsScreen = () => {
                 {isCreating ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.genBtnText}>Create {TIME_TEMPLATES[selectedTemplate].slots.length} Slots</Text>
+                  <Text style={styles.genBtnText}>
+                    Create {TIME_TEMPLATES[selectedTemplate].slots.length} Slots
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -168,7 +203,14 @@ export const ManageSlotsScreen = () => {
         <Text style={styles.sectionHeader}>ALL SLOTS ({slots.length})</Text>
 
         {isLoading ? (
-          <ActivityIndicator size="large" color={Colors.provider} style={{ marginTop: 30 }} />
+          <ScreenState title="Loading availability" loading color={Colors.provider} />
+        ) : loadError && slots.length === 0 ? (
+          <ScreenState
+            title="Availability unavailable"
+            action="Try again"
+            onAction={fetchProfileAndSlots}
+            color={Colors.provider}
+          />
         ) : slots.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No Slots Configured</Text>
@@ -181,22 +223,26 @@ export const ManageSlotsScreen = () => {
             return (
               <View key={s._id} style={styles.slotRow}>
                 <View>
-                  <Text style={styles.slotTime}>{s.startTime} - {s.endTime}</Text>
+                  <Text style={styles.slotTime}>
+                    {s.startTime} - {s.endTime}
+                  </Text>
                   <Text style={styles.slotDate}>{s.date}</Text>
                 </View>
 
                 <View style={styles.slotRight}>
-                  <Text style={styles.slotCount}>{booked}/{capacity} bays booked</Text>
+                  <Text style={styles.slotCount}>
+                    {booked}/{capacity} bays booked
+                  </Text>
                   <View
                     style={[
                       styles.slotBadge,
-                      { backgroundColor: s.isBooked ? Colors.nonCompliantBg : Colors.compliantBg }
+                      { backgroundColor: s.isBooked ? Colors.nonCompliantBg : Colors.compliantBg },
                     ]}
                   >
                     <Text
                       style={[
                         styles.slotBadgeText,
-                        { color: s.isBooked ? Colors.nonCompliant : Colors.compliant }
+                        { color: s.isBooked ? Colors.nonCompliant : Colors.compliant },
                       ]}
                     >
                       {s.isBooked ? 'FULL' : 'AVAILABLE'}
@@ -215,15 +261,12 @@ export const ManageSlotsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background
+    backgroundColor: Colors.background,
   },
   scroll: {
-    flex: 1
+    flex: 1,
   },
-  content: {
-    padding: 16,
-    paddingBottom: 40
-  },
+  content: Layout.content,
   addBtn: {
     backgroundColor: Colors.provider,
     borderRadius: 12,
@@ -251,10 +294,10 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   formLabel: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
     color: Colors.textSecondary,
-    textTransform: 'uppercase',
+    lineHeight: 20,
     marginBottom: 6,
   },
   formInput: {
@@ -263,7 +306,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingVertical: 12,
     color: Colors.textPrimary,
     fontSize: 14,
     marginBottom: 14,
@@ -306,7 +351,9 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     flex: 1,
-    paddingVertical: 10,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingVertical: 12,
     alignItems: 'center',
     borderRadius: 8,
     borderWidth: 1,
@@ -321,7 +368,9 @@ const styles = StyleSheet.create({
     flex: 2,
     backgroundColor: Colors.provider,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
@@ -335,7 +384,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.textMuted,
     letterSpacing: 1,
-    marginBottom: 10
+    marginBottom: 10,
   },
   slotRow: {
     flexDirection: 'row',
@@ -346,57 +395,57 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 14,
-    marginBottom: 10
+    marginBottom: 10,
   },
   slotTime: {
     fontSize: 15,
     fontWeight: '800',
-    color: Colors.textPrimary
+    color: Colors.textPrimary,
   },
   slotDate: {
-    fontSize: 11,
+    fontSize: 13,
     color: Colors.textSecondary,
-    marginTop: 2
+    marginTop: 2,
   },
   bayNote: {
     fontSize: 12,
     color: Colors.textSecondary,
     lineHeight: 17,
-    marginBottom: 14
+    marginBottom: 14,
   },
   slotRight: {
     alignItems: 'flex-end',
-    gap: 6
+    gap: 6,
   },
   slotCount: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary
+    color: Colors.textSecondary,
   },
   slotBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6
+    borderRadius: 6,
   },
   slotBadgeText: {
-    fontSize: 11,
-    fontWeight: '800'
+    fontSize: 13,
+    fontWeight: '800',
   },
   emptyCard: {
     backgroundColor: Colors.surface,
     borderRadius: 14,
     padding: 32,
     alignItems: 'center',
-    marginTop: 20
+    marginTop: 20,
   },
   emptyTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: Colors.textPrimary
+    color: Colors.textPrimary,
   },
   emptyDesc: {
     fontSize: 12,
     color: Colors.textSecondary,
-    marginTop: 4
-  }
+    marginTop: 4,
+  },
 });

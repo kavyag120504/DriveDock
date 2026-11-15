@@ -39,7 +39,7 @@ A **student pilot / test build** using **synthetic data** and **test payments on
 | Install QR | `docs/pilot/install-qr.png`, `docs/pilot/install-qr.svg` (decoded with macOS Core Image: exact APK URL) |
 | Landing page + card | `docs/pilot/install-page.html`, published privately at https://claude.ai/artifact/NhrhGTVV34VvY5CTGv4P3u (share it from the page's Share menu). Printable: `docs/pilot/install-card.pdf` |
 
-Release-build notes found while checking the bundle (left unchanged): the login screen always shows "FINAL YEAR PROJECT - PITCH DEMO" (that text is not behind `__DEV__`), and the unused `password123` demo credentials are compiled in. Neither can log in to the pilot.
+The release retains the WorkManager Room keep-rules fix. The login pitch-demo label has been replaced by the new sign-in UI (see `docs/ui/ui-polish-20261116.md`); development-only role buttons remain hidden in release builds. The unused `password123` demo credentials are still compiled in and cannot log in to the pilot.
 
 ## Start everything (after a reboot)
 
