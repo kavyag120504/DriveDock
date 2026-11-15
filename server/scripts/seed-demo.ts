@@ -151,7 +151,8 @@ const run = async () => {
   console.log('[SeedDemo] Clearing collections...');
   await Promise.all([User, Vehicle, DocumentModel, Provider, Slot, Booking, Payment, Reminder, Violation, Challan, OwnershipTransfer, TwinShare].map((m: any) => m.deleteMany({})));
 
-  const passwordHash = await bcrypt.hash('password123', 10);
+  // The pilot wrapper (seed-pilot.ts) passes a private password so a reachable pilot API has no guessable logins
+  const passwordHash = await bcrypt.hash(process.env.SEED_PASSWORD || 'password123', 10);
   const user = (name: string, email: string, role: string, city: string, state: string, createdAt: Date) => ({
     _id: new Types.ObjectId(), name, email, phone: `+91${int(70000, 99999)}${int(10000, 99999)}`, passwordHash, role,
     address: { city, state, pincode: String(int(110001, 110099)) }, expoPushToken: '', createdAt, updatedAt: createdAt
@@ -396,7 +397,7 @@ const run = async () => {
   console.log(`Owners: ${owners.length}  Vehicles: ${vehicles.length}  Fully compliant: ${compliant} (${Math.round((compliant / vehicles.length) * 100)}%)`);
   console.log(`Stations: ${approved.length} approved + 1 pending  Documents: ${documents.length}  Slots: ${slots.length}`);
   console.log(`Bookings: ${bookings.length}  Payments: ${payments.length}  Violations: ${violations.length}  Challans: ${challans.length}  Reminders: ${reminders.length}`);
-  console.log('Logins (password123): owner@ / provider@ / officer@ / gov@ / admin@drivedock.com, pending.provider@drivedock.com,');
+  console.log(`Logins (${process.env.SEED_PASSWORD ? 'pilot password from server/.env.pilot' : 'password123'}): owner@ / provider@ / officer@ / gov@ / admin@drivedock.com, pending.provider@drivedock.com,`);
   console.log('                      buyer@drivedock.com (second owner), station2..9@drivedock.demo (other stations)');
   console.log('------------------------------------------------------------------------');
   console.log('DEMO SCENARIOS (owner@drivedock.com unless noted)');
