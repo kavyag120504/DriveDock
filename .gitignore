@@ -62,3 +62,6 @@ server/scripts/seed/out/
 .env.pilot
 server/.env.pilot
 mobile/.env.pilot
+
+# Values to paste into Render (never commit)
+server/.env.render
