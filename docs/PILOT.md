@@ -12,13 +12,27 @@ A **student pilot / test build** using **synthetic data** and **test payments on
 | Public HTTPS | `https://credibly-arrange-subprime.ngrok-free.dev` → port 5002 only | ngrok static domain; the laptop must stay on with ngrok running |
 | Android APK | EAS project `@angelina10/drivedock`, profile `pilot` | Internal distribution APK, API URL baked in at build time |
 
+## Hosted pilot (no laptop needed)
+
+| Piece | Where |
+|---|---|
+| API | https://drivedock-pilot-api.onrender.com (Render free, Singapore, service `drivedock-pilot-api`, blueprint `drivedock-pilot` from `render.yaml`, branch `pilot/20261116`, auto-deploy off: use Manual Deploy) |
+| Database | MongoDB Atlas project "DriveDock Pilot", free cluster `Cluster0` (Mumbai), database `drivedock_pilot_20261116`; network access 0.0.0.0/0 because Render free has no static IP |
+| Secrets | Render generates the token secrets; `MONGO_URI` and `PAPERWORK_ENCRYPTION_KEYS` were pasted from the git-ignored `server/.env.render` |
+| APK | EAS build `8edd628f`, profile `pilot`, calls the Render API (verified in the bundle) |
+
+- Render free sleeps after 15 min idle; the first request then takes up to a minute. Open https://drivedock-pilot-api.onrender.com/readyz on your phone 2 minutes before a demo and wait for `{"status":"ready","db":1}`.
+- Uploaded certificates live on Render's temporary disk and disappear when it sleeps or redeploys; database records stay in Atlas.
+- Reset the hosted demo data: `cd server && npm run pilot:seed && scripts/pilot-to-atlas.sh --confirm=drivedock_pilot_20261116` (needs the local pilot MongoDB on 27019).
+- Verified 16 Nov 2026 02:15 IST: `/readyz` ready, 29/29 end-to-end checks pass against Render, certificate links are https.
+
 ## Release: pilot APK (verified 16 Nov 2026)
 
 | Item | Value |
 |---|---|
 | EAS build | `b03a34ce-0858-4fe6-8faa-ddd700accbc1`, status FINISHED (replaces 6a213334, which crashed at launch: R8 stripped WorkManager's Room database; fixed by `mobile/plugins/withWorkManagerKeepRules.js`). Installed over USB on a Motorola Edge 50 Neo (Android 16): launches to the login screen, no crash, profile `pilot` |
-| Install URL (direct APK) | https://expo.dev/artifacts/eas/ksjXNTsEDmql5d98ygHTtlwXW0R82MxGACWoBVilUSA.apk (downloaded without login: HTTP 200, 113,226,195 bytes) |
-| SHA-256 | `956c26699288e9b74d5614f2ac0fdc488146d1ce3a3ab7928f734a1e39f6e4ea` |
+| Install URL (direct APK) | https://expo.dev/artifacts/eas/qqrl1qiHodK6JoIgbfiVeHmmat-DAYerVT1uVauuuE8.apk (downloaded without login: HTTP 200, 113,226,195 bytes) |
+| SHA-256 | `b04b63609384e0ce5093750eabed2dca128c3e86573a926ac0a6e6bfe0257469` |
 | API in the APK | Hermes bundle contains `https://credibly-arrange-subprime.ngrok-free.dev/api/v1` once and no `localhost:5001`; the pilot label string is present |
 | Install QR | `docs/pilot/install-qr.png`, `docs/pilot/install-qr.svg` (decoded with macOS Core Image: exact APK URL) |
 | Landing page + card | `docs/pilot/install-page.html`, published privately at https://claude.ai/artifact/NhrhGTVV34VvY5CTGv4P3u (share it from the page's Share menu). Printable: `docs/pilot/install-card.pdf` |

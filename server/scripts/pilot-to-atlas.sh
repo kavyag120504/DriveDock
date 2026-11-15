@@ -12,6 +12,8 @@ DST_DB=$(python3 -c 'import sys,urllib.parse as u;print(u.urlparse(sys.argv[1]).
 [ "${1:-}" = "--confirm=$DST_DB" ] || { echo "Pass --confirm=$DST_DB to overwrite the hosted pilot data"; exit 1; }
 DUMP=$(mktemp -d)
 mongodump --quiet --uri "mongodb://127.0.0.1:27019/$SRC_DB" --out "$DUMP"
-mongorestore --quiet --uri "$MONGO_URI" --drop --nsInclude "$SRC_DB.*" --nsFrom "$SRC_DB.*" --nsTo "$DST_DB.*" "$DUMP"
+# mongorestore ignores namespaces when the URI names a database, so restore against the bare host
+BASE_URI=$(python3 -c 'import sys,urllib.parse as u;p=u.urlparse(sys.argv[1]);print(u.urlunparse(p._replace(path="/")))' "$MONGO_URI")
+mongorestore --quiet --uri "$BASE_URI" --drop --nsInclude "$SRC_DB.*" --nsFrom "$SRC_DB.*" --nsTo "$DST_DB.*" "$DUMP"
 rm -rf "$DUMP"
 echo "Copied $SRC_DB (local) -> $DST_DB (hosted)."
