@@ -19,7 +19,7 @@ A **student pilot / test build** using **synthetic data** and **test payments on
 | API | https://drivedock-pilot-api.onrender.com (Render free, Singapore, service `drivedock-pilot-api`, blueprint `drivedock-pilot` from `render.yaml`, branch `pilot/20261116`, auto-deploy off: use Manual Deploy) |
 | Database | MongoDB Atlas project "DriveDock Pilot", free cluster `Cluster0` (Mumbai), database `drivedock_pilot_20261116`; network access 0.0.0.0/0 because Render free has no static IP |
 | Secrets | Render generates the token secrets; `MONGO_URI` and `PAPERWORK_ENCRYPTION_KEYS` were pasted from the git-ignored `server/.env.render` |
-| APK | EAS build `ffe7b4f0`, profile `pilot`, calls the Render API and draws free OpenStreetMap/CARTO map tiles (verified in the bundle) |
+| APK | EAS build `10c8b5f2`, profile `pilot`, from merge `76e5061`: refreshed UI from master plus free OpenStreetMap/CARTO map tiles; calls the Render API (all verified in the bundle) |
 | Keep-awake | UptimeRobot (free) checks `/healthz` every 5 minutes, so the free Render instance does not sleep |
 | Uploads | `UPLOAD_STORAGE=gridfs`: certificates are stored in Atlas (GridFS), so they survive restarts and sleep |
 
@@ -33,9 +33,9 @@ A **student pilot / test build** using **synthetic data** and **test payments on
 | Item | Value |
 |---|---|
 | EAS build | `b03a34ce-0858-4fe6-8faa-ddd700accbc1`, status FINISHED (replaces 6a213334, which crashed at launch: R8 stripped WorkManager's Room database; fixed by `mobile/plugins/withWorkManagerKeepRules.js`). Installed over USB on a Motorola Edge 50 Neo (Android 16): launches to the login screen, no crash, profile `pilot` |
-| Install URL (direct APK) | https://expo.dev/artifacts/eas/rhYwYS6Ld42GSdF7oZBSaFwx0LII68pziSNa7ljYhNc.apk (downloaded without login: HTTP 200, 113,226,195 bytes) |
-| SHA-256 | `167f539a5d4855a5ca52cff219fa6b03bcee333e7dc7eacfb50b3c3bfa64b86e` |
-| API in the APK | Hermes bundle contains `https://credibly-arrange-subprime.ngrok-free.dev/api/v1` once and no `localhost:5001`; the pilot label string is present |
+| Install URL (direct APK) | https://expo.dev/artifacts/eas/ovWWPzz_Fu-xKO19osKETXQpqpruMZKGIYgj4U83aJU.apk (downloaded without login: HTTP 200, 113,232,375 bytes) |
+| SHA-256 | `c7d3312cfb1bc97811d126ff04d9b43be9ddca65104ad9a3c69fa799e8abfae0` |
+| API in the APK | Hermes bundle contains `https://drivedock-pilot-api.onrender.com/api/v1`, the CARTO tile URL, the new sign-in text and the pilot label; no ngrok address, no `localhost:5001`, no "PITCH DEMO" |
 | Install QR | `docs/pilot/install-qr.png`, `docs/pilot/install-qr.svg` (decoded with macOS Core Image: exact APK URL) |
 | Landing page + card | `docs/pilot/install-page.html`, published privately at https://claude.ai/artifact/NhrhGTVV34VvY5CTGv4P3u (share it from the page's Share menu). Printable: `docs/pilot/install-card.pdf` |
 
