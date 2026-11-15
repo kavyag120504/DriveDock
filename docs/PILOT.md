@@ -12,6 +12,19 @@ A **student pilot / test build** using **synthetic data** and **test payments on
 | Public HTTPS | `https://credibly-arrange-subprime.ngrok-free.dev` → port 5002 only | ngrok static domain; the laptop must stay on with ngrok running |
 | Android APK | EAS project `@angelina10/drivedock`, profile `pilot` | Internal distribution APK, API URL baked in at build time |
 
+## Release: pilot APK (verified 16 Nov 2026)
+
+| Item | Value |
+|---|---|
+| EAS build | `6a213334-438a-4ac8-a2b6-1fe9238da06b`, status FINISHED, profile `pilot` |
+| Install URL (direct APK) | https://expo.dev/artifacts/eas/FtdVRpU7zxiSYRv1vmG59H_oE-j7ighAfDmsGbsVT-Y.apk (downloaded without login: HTTP 200, 113,193,407 bytes) |
+| SHA-256 | `82ff997f2c14b2150c5f1507f563bca404ffde387dba25665027ef0d9341119b` |
+| API in the APK | Hermes bundle contains `https://credibly-arrange-subprime.ngrok-free.dev/api/v1` once and no `localhost:5001`; the pilot label string is present |
+| Install QR | `docs/pilot/install-qr.png`, `docs/pilot/install-qr.svg` (decoded with macOS Core Image: exact APK URL) |
+| Landing page + card | `docs/pilot/install-page.html`, published privately at https://claude.ai/artifact/NhrhGTVV34VvY5CTGv4P3u (share it from the page's Share menu). Printable: `docs/pilot/install-card.pdf` |
+
+Release-build notes found while checking the bundle (left unchanged): the login screen always shows "FINAL YEAR PROJECT - PITCH DEMO" (that text is not behind `__DEV__`), and the unused `password123` demo credentials are compiled in. Neither can log in to the pilot.
+
 ## Start everything (after a reboot)
 
 ```bash
@@ -81,6 +94,86 @@ Real names from OpenStreetMap appear only in the separate `npm run seed:demo` to
 - `npx expo-doctor`: 1 check failed (17 packages behind SDK 58's expected versions). Not fixed, to avoid changing dependencies on demo day.
 - **Not run:** install and tap-through on a physical Android phone, push notifications, maps in the APK, iOS.
 
+## Real-device test checklist (Android APK)
+
+Use two phones if possible (A = owner/provider, B = officer/buyer). Tick each one; anything that fails goes to the fallback below.
+
+| # | Area | Steps | Expected |
+|---|---|---|---|
+| 1 | Install | Open the install link → download APK → allow "install unknown apps" → open | App opens with the yellow "student pilot · test build" banner, no crash |
+| 2 | Login | Owner login with the pilot password; kill and reopen the app | Dashboard loads; still signed in after reopening. No demo buttons visible (release build) |
+| 3 | Wrong password | Log in with a wrong password | "Invalid credentials", no crash |
+| 4 | Passport | Open each of the 5 walkthrough vehicles | Documents and statuses load; DL3CAB1234 compliant, DL8CAF5678 not |
+| 5 | Upload | DL4CXY7788 → Manage Papers → pick dates → camera photo, then a PDF | Camera and file picker permission prompts appear; upload completes; stays UNVERIFIED |
+| 6 | Owner QR | DL3CAB1234 → Show QR | QR renders, countdown runs, refreshes after expiry |
+| 7 | Officer scan | Phone B: officer → Scan → allow camera → scan phone A's QR | GREEN for DL3CAB1234, RED with reasons for DL8CAF5678 |
+| 8 | Violation | Officer → log violation on DL8CAF5678 | Fee shown read-only; e-challan appears for the owner |
+| 9 | Stations | Owner → Stations → allow location (then retry denying it) | List of stations loads. Map tiles grey (expected). Denying asks for a city name |
+| 10 | Booking | Renewals → HR26DK9012 → PUC → station → date → slot → Book & Pay | Price from server; test payment confirms; booking again is refused |
+| 11 | Provider | Log out → provider@drivedock.com → Inspection Orders | New booking listed (and UP16KB4321) |
+| 12 | Certificate | Certify & Complete → dates → camera or PDF certificate | Completes; the owner's PUC turns verified; the certificate opens (https link) |
+| 13 | Admin | admin → Providers → approve Raj Nagar Quick PUC | Status approved; station appears in owner search |
+| 14 | Government | gov → dashboard | Charts and numbers load (sample data) |
+| 15 | Vehicle Twin | DL3CAB1234 → Twin | Score, timeline, ledger intact |
+| 16 | Transfer | Owner: Twin → Transfer QR. Phone B buyer: Add Vehicle → Buy a used car → Scan → Apply. Owner approves | Car moves to the buyer; checklist opens |
+| 17 | Network loss | Turn on airplane mode mid-screen, then off | Error message, not an endless spinner; works again afterwards |
+| 18 | Session | Leave the app idle >15 min, then use it | Silent refresh; still signed in |
+
+## Runtime risks automated API tests cannot catch
+
+- **Native permissions:** camera (officer scan, uploads), location and media prompts only appear on a device; a denied permission must be re-enabled in Android Settings.
+- **Release-only behaviour:** `__DEV__` is false, so the demo login buttons and the manual QR-token paste box are hidden. Typing the password is required.
+- **Maps:** grey tiles (placeholder key). The app shouldn't crash, but this hasn't been seen on a device yet.
+- **Push:** no Firebase/FCM credentials are configured, so token registration fails quietly (wrapped in try/catch) and no reminder pushes arrive.
+- **ngrok and network:** campus Wi-Fi may block ngrok domains, so keep mobile data as a backup. The laptop must not sleep (`caffeinate -dims` keeps it awake).
+- **Clock skew:** QR tokens last 120 s, so a phone with a wrong clock may show expired tokens. Turn on automatic time.
+- **File handling:** large camera photos on slow data may hit the 2-minute upload timeout. PDFs open through the system viewer, which needs a PDF app.
+- **Old Android versions / small screens:** layout, keyboard covering inputs, back-button behaviour.
+- **Dependency drift:** expo-doctor flags 17 packages behind SDK 58. A native mismatch would show as a crash on a specific screen, so tap every screen once.
+
+## Restart and health checks (no secrets printed)
+
+```bash
+# 1. MongoDB (pilot only)
+/opt/homebrew/bin/mongod --dbpath ~/drivedock-pilot/mongo-20261116 --port 27019 --bind_ip 127.0.0.1 --logpath ~/drivedock-pilot/mongod.log --fork
+mongosh --quiet --port 27019 --eval 'db.runCommand({ping:1}).ok'                 # 1
+
+# 2. API (new terminal; reads server/.env.pilot)
+cd ~/DriveDock/server && npm run pilot:api
+curl -s localhost:5002/healthz                                                   # {"status":"ok"}
+curl -s localhost:5002/readyz                                                    # {"status":"ready","db":1}
+
+# 3. ngrok (new terminal)
+ngrok http 5002 --url https://credibly-arrange-subprime.ngrok-free.dev
+curl -s https://credibly-arrange-subprime.ngrok-free.dev/readyz                  # same as above
+curl -s localhost:4040/api/tunnels | python3 -c 'import sys,json;print([t["public_url"] for t in json.load(sys.stdin)["tunnels"]])'
+
+# 4. Expo web fallback (only if needed; needs mobile/.env.local, see below)
+cd ~/DriveDock/mobile && npx expo start --web --port 8081
+curl -s -o /dev/null -w '%{http_code}\n' localhost:8081                          # 200
+
+# Optional: clean data right before the demo (signs everyone out)
+cd ~/DriveDock/server && npm run pilot:seed
+# Keep the laptop awake during the demo
+caffeinate -dims &
+```
+
+Is it all up? `lsof -nP -iTCP -sTCP:LISTEN | grep -E ':(27019|5002|4040|8081) '`
+
+## Browser fallback (APK or camera fails)
+
+1. `mobile/.env.local` (git-ignored) points the browser app at the pilot API and sets a "browser fallback" banner. Expo's dev server reads `EXPO_PUBLIC_*` only from `.env` files, not the shell. **Delete it after the demo** to return normal development to its usual API.
+   ```
+   EXPO_PUBLIC_API_URL=http://localhost:5002/api/v1
+   EXPO_PUBLIC_BUILD_LABEL=DriveDock student pilot · browser fallback · synthetic data · test payments only
+   ```
+2. Start: `cd mobile && npx expo start --web --port 8081`, then open http://localhost:8081 in two browser windows (one normal, one incognito, so two people can be signed in).
+3. **Type** email and pilot password. The one-tap demo buttons still use the old `password123` and will fail against the pilot.
+4. Officer scan without a camera: in the officer window use the dev-only **Paste JWT token** box. Get a fresh token (valid 2 min) with
+   `cd server && scripts/pilot-qr-token.sh DL3CAB1234` (or `DL8CAF5678` for RED), then paste and verify.
+5. Uploads: the browser file picker works for images and PDFs; the camera may not. Maps show a placeholder on web.
+6. Everything else (booking, test payment, provider completion, admin approval, government dashboard, Twin) works the same as in the APK.
+
 ## Known limitations
 
 - **Payments are test-only.** The server hands the app a test signature, and no money moves. Challan "Pay" marks a challan paid without payment.
@@ -93,4 +186,4 @@ Real names from OpenStreetMap appear only in the separate `npm run seed:demo` to
 
 ## Handover summary (paste into another chat)
 
-> DriveDock is a student vehicle-compliance app (Expo SDK 58 mobile + Express/TypeScript/MongoDB API, five roles: owner, provider, officer, government, admin). A document is "verified" only when an admin-approved centre completes a paid (test-mode) booking and uploads a certificate. The owner shows a 2-minute rotating QR that officers scan for GREEN/RED. For the 16 Nov 2026 evaluation a pilot runs on branch `pilot/20261116`: an isolated MongoDB 7 on port 27019 (`drivedock_pilot_20261116`, synthetic NCR data via the guarded `npm run pilot:seed`), the API on port 5002 using git-ignored `server/.env.pilot` (random secrets, DEMO_MODE off, test payments), exposed over HTTPS by ngrok at `credibly-arrange-subprime.ngrok-free.dev`, and an Android APK from the EAS `pilot` profile (project `@angelina10/drivedock`) with a "student pilot · test build" banner. Known gaps: test-only payments, placeholder Maps key, local-disk uploads, laptop-hosted, no iOS build, no VAHAN or government approval.
+> DriveDock is a student vehicle-compliance app (Expo SDK 58 mobile + Express/TypeScript/MongoDB API, five roles: owner, provider, officer, government, admin). A document is "verified" only when an admin-approved centre completes a paid (test-mode) booking and uploads a certificate. The owner shows a 2-minute rotating QR that officers scan for GREEN/RED. For the 16 Nov 2026 evaluation a pilot runs on branch `pilot/20261116`: an isolated MongoDB 7 on port 27019 (`drivedock_pilot_20261116`, synthetic NCR data via the guarded `npm run pilot:seed`), the API on port 5002 using git-ignored `server/.env.pilot` (random secrets, DEMO_MODE off, test payments), exposed over HTTPS by ngrok at `credibly-arrange-subprime.ngrok-free.dev`, and an Android APK from the EAS `pilot` profile (project `@angelina10/drivedock`, build 6a213334, verified to call the ngrok HTTPS API) with a "student pilot · test build" banner; install page and QR in `docs/pilot/`. Browser fallback: `mobile/.env.local` + `npx expo start --web`, with `server/scripts/pilot-qr-token.sh` for officer scans without a camera. Known gaps: test-only payments, placeholder Maps key, local-disk uploads, laptop-hosted, no iOS build, no VAHAN or government approval.

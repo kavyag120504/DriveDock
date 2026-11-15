@@ -1,0 +1,136 @@
+<title>DriveDock Pilot Install</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one narrow column; the install card is drawn like a vehicle document, with the QR as its "chip" */
+:root {
+  --bg: #F3F5F8; --surface: #FFFFFF; --fg: #0F172A; --muted: #526079; --line: #D8DEE8;
+  --accent: #1D4ED8; --accent-ink: #FFFFFF; --warn-bg: #FEF3C7; --warn-fg: #92400E;
+  --ok: #15803D; --stop: #B91C1C;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0B1120; --surface: #121A2C; --fg: #E6EBF4; --muted: #98A4BB; --line: #26324A;
+  --accent: #7AA2FF; --accent-ink: #0B1120; --warn-bg: #3A2A08; --warn-fg: #FCD38A; --ok: #4ADE80; --stop: #F87171; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0B1120; --surface: #121A2C; --fg: #E6EBF4; --muted: #98A4BB; --line: #26324A;
+  --accent: #7AA2FF; --accent-ink: #0B1120; --warn-bg: #3A2A08; --warn-fg: #FCD38A; --ok: #4ADE80; --stop: #F87171; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px }
+main { max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px }
+main > * { min-width: 0 }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15 }
+h1 { font-size: 2rem } h2 { font-size: 1.15rem }
+p { margin: 0 } .muted { color: var(--muted) }
+.eyebrow { font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; color: var(--muted) }
+.notice { background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 12px 14px; font-weight: 600; font-size: .9rem }
+.flags { display: flex; flex-wrap: wrap; gap: 8px }
+.flag { border: 1.5px solid currentColor; border-radius: 999px; padding: 3px 11px; font-size: .78rem; font-weight: 600; letter-spacing: .02em }
+.flag.stop { color: var(--stop) } .flag.warn { color: var(--warn-fg) } .flag.info { color: var(--accent) }
+/* The card */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; max-width: 100% }
+.card-head { background: var(--accent); color: var(--accent-ink); padding: 14px 18px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap }
+.card-head b { font-family: var(--display); font-size: 1.2rem }
+.card-head span { font-family: var(--mono); font-size: .75rem; opacity: .9 }
+.card-body { display: grid; grid-template-columns: 200px 1fr; gap: 20px; padding: 18px }
+.qr { background: #FFFFFF; border-radius: 10px; padding: 8px; width: 200px; max-width: 100% }
+.qr svg { display: block; width: 100%; height: auto }
+.fields { display: grid; gap: 10px; min-width: 0 }
+.field { display: grid; gap: 1px } .field dt { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted) }
+.field dd { margin: 0; font-weight: 600; overflow-wrap: anywhere }
+.mono { font-family: var(--mono); font-size: .78rem; font-weight: 500 }
+.card-foot { border-top: 1px dashed var(--line); padding: 10px 18px; font-size: .78rem; color: var(--muted) }
+.btn { display: inline-block; background: var(--accent); color: var(--accent-ink); text-decoration: none; font-weight: 600; padding: 11px 18px; border-radius: 10px }
+.btn:focus-visible, button:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px }
+section { display: grid; gap: 10px }
+ol, ul { margin: 0; padding-left: 1.2rem; display: grid; gap: 6px; max-width: 65ch }
+.copy { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; min-width: 0 }
+.copy code { font-family: var(--mono); font-size: .75rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; overflow-wrap: anywhere; min-width: 0; flex: 1 1 280px }
+button { font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 8px; padding: 8px 12px; cursor: pointer }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px }
+.grid2 > div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 8px; min-width: 0 }
+@media (max-width: 560px) { .card-body, .grid2 { grid-template-columns: 1fr } .qr { width: 220px; justify-self: center } h1 { font-size: 1.6rem } }
+@media print { body { background: #fff; padding: 0 } .noprint { display: none } .card { break-inside: avoid; border-color: #999 } }
+</style>
+
+<main>
+  <header class="noprint" style="display:grid;gap:12px">
+    <p class="eyebrow">Final-year student project · Android test build · 16 Nov 2026</p>
+    <h1>DriveDock student pilot</h1>
+    <p class="muted" style="max-width:65ch">DriveDock keeps a vehicle's papers (RC, insurance, PUC, licence, fitness) in one passport, and an officer scans a rotating QR to see GREEN or RED. This build is for evaluating the project. Nothing in it is a live service.</p>
+    <div class="flags" aria-label="Status of this build">
+      <span class="flag warn">Student pilot</span>
+      <span class="flag info">Synthetic data</span>
+      <span class="flag info">Test payments only</span>
+      <span class="flag stop">Not government-authorized</span>
+    </div>
+    <p class="notice">Not affiliated with or approved by any transport department, RTO or VAHAN. No money moves, and no real certificate is issued. Do not enter real personal details or upload real documents.</p>
+  </header>
+
+  <article class="card" aria-label="Install card">
+    <div class="card-head"><b>DriveDock · Pilot APK</b><span>TEST BUILD · NOT FOR LIVE USE</span></div>
+    <div class="card-body">
+      <div class="qr" role="img" aria-label="QR code that downloads the DriveDock pilot APK"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 41 41" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h41v41H0z"/><path stroke="#000000" d="M2 2.5h7m1 0h1m2 0h3m1 0h2m2 0h3m4 0h1m3 0h7M2 3.5h1m5 0h1m1 0h1m2 0h2m2 0h4m3 0h4m4 0h1m5 0h1M2 4.5h1m1 0h3m1 0h1m2 0h1m3 0h4m2 0h1m2 0h2m1 0h1m1 0h2m1 0h1m1 0h3m1 0h1M2 5.5h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h4m5 0h1m2 0h1m2 0h1m1 0h1m1 0h3m1 0h1M2 6.5h1m1 0h3m1 0h1m3 0h4m1 0h1m1 0h3m2 0h1m1 0h1m1 0h3m1 0h1m1 0h3m1 0h1M2 7.5h1m5 0h1m4 0h3m1 0h1m3 0h1m1 0h1m2 0h1m1 0h1m3 0h1m5 0h1M2 8.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M10 9.5h1m1 0h1m1 0h1m2 0h1m1 0h1m4 0h1m5 0h1M2 10.5h1m1 0h2m1 0h3m1 0h1m1 0h2m1 0h2m1 0h3m1 0h1m2 0h1m1 0h1m1 0h1m1 0h1m2 0h1m1 0h2M9 11.5h4m2 0h3m2 0h4m1 0h1m1 0h1m2 0h2m3 0h1m1 0h1M4 12.5h2m1 0h4m1 0h5m1 0h1m1 0h1m1 0h2m1 0h3m2 0h1m2 0h2m1 0h1M2 13.5h4m5 0h2m1 0h1m1 0h1m1 0h1m3 0h1m3 0h3m2 0h1m3 0h2M4 14.5h2m1 0h5m1 0h1m1 0h1m1 0h1m3 0h2m2 0h4m2 0h2m1 0h1m1 0h3M2 15.5h1m2 0h1m3 0h2m1 0h1m4 0h2m1 0h2m4 0h5m1 0h4M3 16.5h1m2 0h3m1 0h2m1 0h1m4 0h2m1 0h1m1 0h2m1 0h2m2 0h1m1 0h1m1 0h1m1 0h2M2 17.5h1m9 0h1m3 0h2m3 0h3m2 0h1m1 0h7m2 0h2M5 18.5h2m1 0h2m2 0h1m1 0h1m2 0h1m1 0h1m2 0h4m1 0h1m5 0h1m1 0h4M2 19.5h1m3 0h1m2 0h5m1 0h1m7 0h1m1 0h3m1 0h2m2 0h1m1 0h4M2 20.5h1m1 0h5m1 0h2m3 0h1m3 0h2m1 0h1m1 0h1m1 0h1m2 0h2m2 0h6M2 21.5h1m3 0h1m7 0h1m1 0h4m2 0h1m1 0h3m3 0h2m1 0h2m2 0h1M2 22.5h2m1 0h1m2 0h3m1 0h6m1 0h2m2 0h1m4 0h1m1 0h2m1 0h3m2 0h1M2 23.5h1m6 0h2m1 0h1m1 0h2m2 0h2m2 0h2m1 0h1m2 0h1m1 0h2m3 0h1m1 0h2M3 24.5h1m2 0h1m1 0h1m1 0h2m1 0h1m1 0h1m4 0h1m2 0h1m1 0h1m1 0h1m3 0h3M2 25.5h1m1 0h1m2 0h1m3 0h1m2 0h2m1 0h3m2 0h1m2 0h5m4 0h5M2 26.5h1m1 0h1m2 0h2m4 0h1m1 0h2m1 0h1m2 0h4m1 0h3m2 0h2m3 0h1m1 0h1M3 27.5h1m3 0h1m1 0h1m1 0h1m2 0h1m1 0h1m2 0h1m4 0h3m1 0h1m1 0h1m2 0h2m2 0h2M3 28.5h6m1 0h4m2 0h1m4 0h2m12 0h3M2 29.5h1m1 0h3m9 0h2m2 0h1m1 0h4m4 0h1m1 0h3M7 30.5h2m1 0h3m1 0h2m2 0h8m1 0h1m1 0h8m1 0h1M10 31.5h1m2 0h5m2 0h1m3 0h3m1 0h1m1 0h1m3 0h1m1 0h2M2 32.5h7m1 0h3m1 0h1m1 0h3m1 0h1m1 0h1m1 0h1m5 0h1m1 0h1m1 0h1m1 0h3M2 33.5h1m5 0h1m1 0h4m3 0h6m2 0h1m2 0h1m1 0h1m3 0h1M2 34.5h1m1 0h3m1 0h1m2 0h2m1 0h3m1 0h1m2 0h1m3 0h1m1 0h2m1 0h6m2 0h1M2 35.5h1m1 0h3m1 0h1m1 0h4m2 0h3m2 0h1m1 0h3m4 0h3m1 0h1m3 0h1M2 36.5h1m1 0h3m1 0h1m1 0h4m1 0h1m1 0h1m1 0h2m1 0h1m2 0h2m2 0h4m1 0h1m1 0h1M2 37.5h1m5 0h1m3 0h1m1 0h4m2 0h3m4 0h1m3 0h6M2 38.5h7m1 0h1m4 0h2m1 0h3m1 0h1m1 0h1m1 0h3m2 0h1m2 0h5"/></svg>
+</div>
+      <dl class="fields" style="margin:0">
+        <div class="field"><dt>Scan with</dt><dd>Android phone camera</dd></div>
+        <div class="field"><dt>File</dt><dd>DriveDock pilot APK · 113 MB</dd></div>
+        <div class="field"><dt>Built</dt><dd>16 Nov 2026 · Expo SDK 58 · internal distribution</dd></div>
+        <div class="field"><dt>SHA-256</dt><dd class="mono">82ff997f2c14b2150c5f1507f563bca404ffde387dba25665027ef0d9341119b</dd></div>
+        <div class="field"><dt>Login</dt><dd>Ask the presenter for a pilot account</dd></div>
+      </dl>
+    </div>
+    <div class="card-foot">Student pilot · synthetic data · test payments only · not government-authorized. Android only; there is no iPhone build.</div>
+  </article>
+
+  <div class="noprint" style="display:grid;gap:10px">
+    <div><a class="btn" href="https://expo.dev/artifacts/eas/FtdVRpU7zxiSYRv1vmG59H_oE-j7ighAfDmsGbsVT-Y.apk" target="_blank" rel="noopener">Download the APK (113 MB)</a></div>
+    <div class="copy"><code id="apk-url">https://expo.dev/artifacts/eas/FtdVRpU7zxiSYRv1vmG59H_oE-j7ighAfDmsGbsVT-Y.apk</code><button id="copy-btn" type="button">Copy link</button></div>
+  </div>
+
+  <section class="noprint">
+    <h2>Install on Android</h2>
+    <ol>
+      <li>Scan the QR, or open the link, on the Android phone. Use mobile data if the Wi-Fi blocks large downloads.</li>
+      <li>Open the downloaded file. If Android asks, allow your browser or Files app to <em>install unknown apps</em>.</li>
+      <li>Ignore the Play Protect warning by tapping <em>Install anyway</em>. The app is not on the Play Store because it is a test build.</li>
+      <li>Open DriveDock. A yellow "student pilot · test build" strip at the top confirms you have the right app.</li>
+      <li>Sign in with the account the presenter gives you. Allow camera access to scan QR codes and location access to find stations.</li>
+    </ol>
+  </section>
+
+  <div class="grid2 noprint">
+    <div>
+      <h2>What you can try</h2>
+      <ul>
+        <li>A vehicle passport with five documents</li>
+        <li>An officer scan that returns GREEN or RED</li>
+        <li>Booking a PUC renewal with a test payment</li>
+        <li>A station certifying the booking</li>
+        <li>Vehicle Twin history and ownership transfer</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Known limits</h2>
+      <ul>
+        <li>Map tiles appear grey. Station lists still work.</li>
+        <li>No push reminders in this build.</li>
+        <li>The server runs on the presenter's laptop, so the app works only while the demo is running.</li>
+        <li>Stations, owners and plates are generated sample data.</li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<script>
+document.getElementById('copy-btn').addEventListener('click', async (e) => {
+  const btn = e.currentTarget, text = document.getElementById('apk-url').textContent;
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch { const r = document.createRange(); r.selectNodeContents(document.getElementById('apk-url')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = 'Selected, press copy'; }
+  setTimeout(() => { btn.textContent = 'Copy link'; }, 2500);
+});
+</script>
