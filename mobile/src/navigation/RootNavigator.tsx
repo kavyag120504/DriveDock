@@ -1,24 +1,25 @@
-import React, { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { Colors } from '../theme/colors';
 
+import { AdminNavigator } from './AdminNavigator';
 import { AuthNavigator } from './AuthNavigator';
+import { GovernmentNavigator } from './GovernmentNavigator';
+import { OfficerNavigator } from './OfficerNavigator';
 import { OwnerNavigator } from './OwnerNavigator';
 import { ProviderNavigator } from './ProviderNavigator';
-import { OfficerNavigator } from './OfficerNavigator';
-import { GovernmentNavigator } from './GovernmentNavigator';
-import { AdminNavigator } from './AdminNavigator';
 
 export const RootNavigator = () => {
-  const { isAuthenticated, role, isLoading, checkAuth } = useAuthStore();
+  const { isAuthenticated, role, checkAuth } = useAuthStore();
 
+  const [checkingSession, setCheckingSession] = useState(true);
   useEffect(() => {
-    checkAuth();
+    checkAuth().finally(() => setCheckingSession(false));
   }, []);
 
-  if (isLoading) {
+  if (checkingSession) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -27,7 +28,19 @@ export const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      theme={{
+        ...DefaultTheme,
+        colors: {
+          ...DefaultTheme.colors,
+          primary: Colors.primary,
+          background: Colors.background,
+          card: Colors.surface,
+          text: Colors.textPrimary,
+          border: Colors.border,
+        },
+      }}
+    >
       {!isAuthenticated || !role ? (
         <AuthNavigator />
       ) : role === 'owner' ? (
@@ -52,6 +65,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
     justifyContent: 'center',
-    alignItems: 'center'
-  }
+    alignItems: 'center',
+  },
 });

@@ -1,29 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
   ActivityIndicator,
   Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
-  Modal
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import { Colors } from '../../theme/colors';
-import { withCancelButton, DISMISSIBLE_ALERT } from '../../utils/alerts';
-import { StatusPill } from '../../components/StatusPill';
+import { DocumentsAPI, VehiclesAPI } from '../../api/endpoints';
 import { RotatingQRModal } from '../../components/RotatingQRModal';
-import { VehiclesAPI, DocumentsAPI } from '../../api/endpoints';
+import { StatusPill } from '../../components/StatusPill';
+import { PageHeading, ScreenState } from '../../components/UI';
+import { Colors, Layout } from '../../theme/colors';
+import { DISMISSIBLE_ALERT, withCancelButton } from '../../utils/alerts';
 
 const ALL_DOC_TYPES = [
   { key: 'rc', label: 'Registration Certificate (RC)' },
   { key: 'insurance', label: 'Motor Insurance Policy' },
   { key: 'puc', label: 'Pollution Under Control (PUC)' },
   { key: 'license', label: 'Driving License' },
-  { key: 'fitness', label: 'Vehicle Fitness Certificate' }
+  { key: 'fitness', label: 'Vehicle Fitness Certificate' },
 ];
 
 const todayISO = () => new Date().toISOString().split('T')[0];
@@ -50,7 +51,9 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
   // whether a scan was attempted at all (false for PDFs, which skip scanning), and
   // whether each date field was actually filled in by that scan (vs. left blank).
   const [isScanning, setIsScanning] = useState(false);
-  const [pendingFile, setPendingFile] = useState<{ uri: string; filename: string; mimeType: string } | null>(null);
+  const [pendingFile, setPendingFile] = useState<{ uri: string; filename: string; mimeType: string } | null>(
+    null
+  );
   const [scanAttempted, setScanAttempted] = useState(false);
   const [issueAutoFilled, setIssueAutoFilled] = useState(false);
   const [expiryAutoFilled, setExpiryAutoFilled] = useState(false);
@@ -72,11 +75,16 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
   }, [vehicleId]);
 
   const handleUpload = (docType: string) => {
-    Alert.alert('Attach Document', 'Choose source', withCancelButton([
-      { text: 'Gallery (Photo)', onPress: () => pickFromGallery(docType) },
-      { text: 'Camera (Take Photo)', onPress: () => pickFromCamera(docType) },
-      { text: 'PDF Document', onPress: () => pickPDF(docType) }
-    ]), DISMISSIBLE_ALERT);
+    Alert.alert(
+      'Attach Document',
+      'Choose source',
+      withCancelButton([
+        { text: 'Gallery (Photo)', onPress: () => pickFromGallery(docType) },
+        { text: 'Camera (Take Photo)', onPress: () => pickFromCamera(docType) },
+        { text: 'PDF Document', onPress: () => pickPDF(docType) },
+      ]),
+      DISMISSIBLE_ALERT
+    );
   };
 
   // Scans the already-picked image (never a PDF) to try to pre-fill the date modal.
@@ -156,7 +164,7 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      quality: 0.8
+      quality: 0.8,
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
@@ -180,7 +188,10 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
   };
 
   const pickPDF = async (docType: string) => {
-    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/pdf',
+      copyToCacheDirectory: true,
+    });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
     const filename = asset.name || `${docType}.pdf`;
@@ -194,10 +205,29 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
     setDateModal({ visible: true, docType });
   };
 
-  if (isLoading || !vehicle) {
+  if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (!vehicle) {
+    return (
+      <View style={styles.container}>
+        <View style={Layout.content}>
+          <PageHeading title="Vehicle documents" onBack={() => navigation.goBack()} />
+          <ScreenState
+            title="Couldn't load this vehicle"
+            message="Check your connection and try again."
+            action="Try again"
+            onAction={() => {
+              setIsLoading(true);
+              fetchVehicleData();
+            }}
+          />
+        </View>
       </View>
     );
   }
@@ -209,11 +239,16 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
     <View style={styles.container}>
       {/* Top Bar */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{vehicle.regNumber}</Text>
         <TouchableOpacity
+          accessibilityRole="button"
           onPress={() => setQrModalVisible(true)}
           style={styles.qrHeaderBtn}
         >
@@ -226,24 +261,30 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
         <View style={styles.specCard}>
           <View style={styles.specHeader}>
             <View>
-              <Text style={styles.specMakeModel}>{vehicle.make} {vehicle.model}</Text>
-              <Text style={styles.specMeta}>Model Year {vehicle.year} · {vehicle.fuelType.toUpperCase()}</Text>
+              <Text style={styles.specMakeModel}>
+                {vehicle.make} {vehicle.model}
+              </Text>
+              <Text style={styles.specMeta}>
+                Model Year {vehicle.year} · {vehicle.fuelType.toUpperCase()}
+              </Text>
             </View>
             <View style={styles.regionBadge}>
-              <Text style={styles.regionText}>{vehicle.region?.district || 'Mumbai'}</Text>
+              <Text style={styles.regionText}>{vehicle.region?.district || 'Not set'}</Text>
             </View>
           </View>
 
           {/* Trust Banner Explainer */}
           <View style={styles.trustExplainer}>
             <Text style={styles.trustText}>
-              <Text style={{ fontWeight: '800', color: Colors.textPrimary }}>Trust Rule 1:</Text> Personal photo uploads remain strictly <Text style={{ color: Colors.nonCompliant, fontWeight: '800' }}>UNVERIFIED</Text>. Only an approved provider completing an official renewal marks papers <Text style={{ color: Colors.compliant, fontWeight: '800' }}>VERIFIED GENUINE</Text>.
+              Upload documents for personal tracking. They remain unverified until an approved provider
+              completes a service and issues a certificate.
             </Text>
           </View>
         </View>
 
         {/* Vehicle Twin CTA */}
         <TouchableOpacity
+          accessibilityRole="button"
           style={styles.twinBtn}
           onPress={() => navigation.navigate('VehicleTwin', { vehicleId: vehicle._id })}
         >
@@ -252,7 +293,7 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
 
         {/* Documents Checklist */}
         <View style={styles.docsSection}>
-          <Text style={styles.sectionHeading}>REQUIRED DOCUMENTS CHECKLIST (5)</Text>
+          <Text style={styles.sectionHeading}>Your documents · 5 required</Text>
 
           {ALL_DOC_TYPES.map((item) => {
             const doc = docMap.get(item.key);
@@ -275,7 +316,7 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
 
                   {doc ? (
                     <StatusPill
-                      label={isExpired ? 'EXPIRED' : isVerified ? 'VERIFIED GENUINE' : 'UNVERIFIED UPLOAD'}
+                      label={isExpired ? 'EXPIRED' : isVerified ? 'Verified' : 'Unverified'}
                       type={isExpired ? 'nonCompliant' : isVerified ? 'compliant' : 'nonCompliant'}
                     />
                   ) : (
@@ -297,25 +338,25 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
                 {/* Actions */}
                 <View style={styles.docActions}>
                   <TouchableOpacity
+                    accessibilityRole="button"
                     style={styles.uploadBtn}
                     onPress={() => handleUpload(item.key)}
                     disabled={isUploading}
                   >
-                    <Text style={styles.uploadBtnText}>
-                      {doc ? 'Re-upload' : 'Upload'}
-                    </Text>
+                    <Text style={styles.uploadBtnText}>{doc ? 'Re-upload' : 'Upload'}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
+                    accessibilityRole="button"
                     style={styles.renewBtn}
                     onPress={() =>
                       navigation.navigate('BookSlot', {
                         vehicleId: vehicle._id,
-                        documentType: item.key
+                        documentType: item.key,
                       })
                     }
                   >
-                    <Text style={styles.renewBtnText}>Book Genuine Renewal →</Text>
+                    <Text style={styles.renewBtnText}>Book renewal →</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -367,7 +408,9 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
             />
             {scanAttempted && (
               <Text style={styles.scanNote}>
-                {issueAutoFilled ? 'Auto-filled from scan — please verify' : "Couldn't read this automatically — please enter it"}
+                {issueAutoFilled
+                  ? 'Auto-filled from scan — please verify'
+                  : "Couldn't read this automatically — please enter it"}
               </Text>
             )}
 
@@ -382,18 +425,22 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
             />
             {scanAttempted && (
               <Text style={styles.scanNote}>
-                {expiryAutoFilled ? 'Auto-filled from scan — please verify' : "Couldn't read this automatically — please enter it"}
+                {expiryAutoFilled
+                  ? 'Auto-filled from scan — please verify'
+                  : "Couldn't read this automatically — please enter it"}
               </Text>
             )}
 
             <View style={styles.modalActions}>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.modalCancelBtn}
                 onPress={() => setDateModal(null)}
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.modalConfirmBtn}
                 onPress={() => dateModal && confirmUpload(dateModal.docType)}
               >
@@ -410,13 +457,13 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
     backgroundColor: Colors.background,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -427,73 +474,70 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border
+    borderBottomColor: Colors.border,
   },
   backBtn: {
-    padding: 6
+    padding: 6,
   },
   backText: {
     color: Colors.primary,
     fontSize: 14,
-    fontWeight: '700'
+    fontWeight: '700',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: Colors.textPrimary
+    color: Colors.textPrimary,
   },
   qrHeaderBtn: {
     backgroundColor: Colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8
+    borderRadius: 8,
   },
   qrHeaderBtnText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 12
+    fontSize: 12,
   },
   scroll: {
-    flex: 1
+    flex: 1,
   },
-  content: {
-    padding: 16,
-    paddingBottom: 40
-  },
+  content: Layout.content,
   specCard: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 16,
-    marginBottom: 20
+    marginBottom: 20,
   },
   specHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12
+    marginBottom: 12,
   },
   specMakeModel: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.textPrimary
+    color: Colors.textPrimary,
   },
   specMeta: {
     fontSize: 13,
     color: Colors.textSecondary,
-    marginTop: 2
+    marginTop: 2,
   },
   regionBadge: {
     backgroundColor: Colors.surfaceLight,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6
+    borderRadius: 6,
   },
   regionText: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.textSecondary
+    color: Colors.textSecondary,
   },
   trustExplainer: {
     flexDirection: 'row',
@@ -502,16 +546,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(29, 100, 242, 0.2)',
     padding: 10,
-    gap: 8
-  },
-  trustIcon: {
-    fontSize: 14
+    gap: 8,
   },
   trustText: {
     flex: 1,
     fontSize: 11,
     color: Colors.textSecondary,
-    lineHeight: 16
+    lineHeight: 16,
   },
   twinBtn: {
     backgroundColor: Colors.primaryLight,
@@ -520,94 +561,100 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 20
+    marginBottom: 20,
   },
   twinBtnText: {
     color: Colors.primary,
     fontWeight: '800',
-    fontSize: 13
+    fontSize: 13,
   },
   docsSection: {
-    gap: 12
+    gap: 12,
   },
   sectionHeading: {
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 1,
     color: Colors.textMuted,
-    marginBottom: 4
+    marginBottom: 4,
   },
   docItemCard: {
     backgroundColor: Colors.surface,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 14
+    padding: 14,
   },
   docTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8
+    marginBottom: 8,
+    flexWrap: 'wrap',
+    gap: 10,
   },
   docLabel: {
     fontSize: 14,
     fontWeight: '800',
-    color: Colors.textPrimary
+    color: Colors.textPrimary,
   },
   docDates: {
     fontSize: 11,
     color: Colors.textSecondary,
-    marginTop: 2
+    marginTop: 2,
   },
   docMissing: {
     fontSize: 11,
     color: Colors.nonCompliant,
     fontWeight: '600',
-    marginTop: 2
+    marginTop: 2,
   },
   issuerRow: {
     backgroundColor: Colors.surfaceLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    marginBottom: 10
+    marginBottom: 10,
   },
   issuerText: {
     fontSize: 10,
-    color: Colors.textMuted
+    color: Colors.textMuted,
   },
   docActions: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 4
+    marginTop: 4,
   },
   uploadBtn: {
     backgroundColor: Colors.surfaceLight,
     borderWidth: 1,
     borderColor: Colors.border,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
   },
   uploadBtnText: {
     color: Colors.textSecondary,
     fontSize: 11,
-    fontWeight: '700'
+    fontWeight: '700',
   },
   renewBtn: {
     flex: 1,
     backgroundColor: Colors.primaryLight,
     borderWidth: 1,
     borderColor: Colors.primary,
-    paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingVertical: 10,
     borderRadius: 8,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   renewBtnText: {
     color: Colors.primary,
     fontSize: 11,
-    fontWeight: '800'
+    fontWeight: '800',
   },
 
   // Date picker modal

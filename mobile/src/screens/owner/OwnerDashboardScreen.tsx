@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Shadow, BorderRadius, Spacing } from '../../theme/colors';
+import { useEffect, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RemindersAPI, VehiclesAPI } from '../../api/endpoints';
 import { RoleHeader } from '../../components/RoleHeader';
-import { StatusPill } from '../../components/StatusPill';
 import { RotatingQRModal } from '../../components/RotatingQRModal';
-import { VehiclesAPI, RemindersAPI } from '../../api/endpoints';
+import { StatusPill } from '../../components/StatusPill';
+import { Notice, ScreenState } from '../../components/UI';
 import { TwinAPI } from '../../features/twin/api';
+import { BorderRadius, Colors, Layout, Shadow } from '../../theme/colors';
 
 export const OwnerDashboardScreen = ({ navigation }: any) => {
+  const [loadError, setLoadError] = useState(false);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [reminders, setReminders] = useState<any[]>([]);
   // Ownership transfers waiting for a decision (two-party approval)
@@ -23,14 +22,20 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
   const [activeVehicle, setActiveVehicle] = useState<{ id: string; regNumber: string } | null>(null);
 
   const fetchData = async () => {
+    setLoadError(false);
     try {
-      const [vRes, rRes, tRes] = await Promise.all([VehiclesAPI.list(), RemindersAPI.list(), TwinAPI.listTransfers()]);
+      const [vRes, rRes, tRes] = await Promise.all([
+        VehiclesAPI.list(),
+        RemindersAPI.list(),
+        TwinAPI.listTransfers(),
+      ]);
       setVehicles(vRes.data.data || []);
       setReminders(rRes.data.data || []);
       setTransfers((tRes.data.data || []).filter((t: any) => t.status === 'requested'));
       // Approved transfers that still have paperwork steps open for me
       setPaperwork((tRes.data.data || []).filter((t: any) => t.status === 'accepted' && t.openTasks > 0));
     } catch (err) {
+      setLoadError(true);
       console.error('Fetch error:', err);
     } finally {
       setIsLoading(false);
@@ -38,10 +43,15 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
   // Reload when returning to this screen (e.g. after a transfer moved a vehicle in or out)
   useEffect(() => navigation.addListener('focus', fetchData), [navigation]);
-  const onRefresh = () => { setIsRefreshing(true); fetchData(); };
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    fetchData();
+  };
   const handleOpenQR = (id: string, regNumber: string) => {
     setActiveVehicle({ id, regNumber });
     setQrModalVisible(true);
@@ -52,8 +62,12 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
   const now = Date.now();
   const attention: any[] = Object.values(
     reminders
-      .filter((r) => r.documentId?.expiryDate && new Date(r.scheduledFor).getTime() <= now &&
-        new Date(r.documentId.expiryDate).getTime() - now <= 30 * 24 * 60 * 60 * 1000)
+      .filter(
+        (r) =>
+          r.documentId?.expiryDate &&
+          new Date(r.scheduledFor).getTime() <= now &&
+          new Date(r.documentId.expiryDate).getTime() - now <= 30 * 24 * 60 * 60 * 1000
+      )
       .reduce((byDoc: Record<string, any>, r) => {
         const key = String(r.documentId._id);
         if (!byDoc[key] || r.thresholdDays < byDoc[key].thresholdDays) byDoc[key] = r;
@@ -65,15 +79,37 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
     <View style={styles.container}>
       <RoleHeader
         title="Vehicle Passport"
-        subtitle="Live document verification & renewal desk"
+        subtitle="Your vehicles, documents and next steps."
         onRefresh={onRefresh}
       />
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+        }
       >
+        {loadError && (
+          <Notice title="Couldn't refresh your passport" tone="error">
+            Check your connection and try again. Any vehicles shown below are from your last successful
+            refresh.
+          </Notice>
+        )}
+        {!isLoading && !loadError && (
+          <View style={styles.overview}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.overviewLabel}>YOUR GARAGE</Text>
+              <Text style={styles.overviewValue}>
+                {vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'}
+              </Text>
+              <Text style={styles.overviewCaption}>Everything in one place.</Text>
+            </View>
+            <View style={styles.overviewIcon}>
+              <Ionicons name="car-sport-outline" size={38} color="#FFFFFF" />
+            </View>
+          </View>
+        )}
         {/* Ownership requests: waiting for my approval (seller) or for the seller's (buyer) */}
         {transfers.map((t) => (
           <View key={t._id} style={styles.transferBanner}>
@@ -89,7 +125,11 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
               </Text>
             </View>
             {t.role === 'seller' && (
-              <TouchableOpacity style={styles.transferBtn} onPress={() => navigation.navigate('VehicleTwin', { vehicleId: t.vehicleId })}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={styles.transferBtn}
+                onPress={() => navigation.navigate('VehicleTwin', { vehicleId: t.vehicleId })}
+              >
                 <Text style={styles.transferBtnText}>Review</Text>
               </TouchableOpacity>
             )}
@@ -103,11 +143,19 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
             <View style={{ flex: 1 }}>
               <Text style={styles.transferTitle}>TRANSFER PAPERWORK</Text>
               <Text style={styles.transferText}>
-                {t.openTasks} task{t.openTasks === 1 ? '' : 's'} left for {t.vehicle?.regNumber || 'your vehicle'}
-                {t.nextDue ? ', next due ' + new Date(t.nextDue).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''}
+                {t.openTasks} task{t.openTasks === 1 ? '' : 's'} left for{' '}
+                {t.vehicle?.regNumber || 'your vehicle'}
+                {t.nextDue
+                  ? ', next due ' +
+                    new Date(t.nextDue).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                  : ''}
               </Text>
             </View>
-            <TouchableOpacity style={styles.transferBtn} onPress={() => navigation.navigate('TransferChecklist', { transferId: t._id })}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.transferBtn}
+              onPress={() => navigation.navigate('TransferChecklist', { transferId: t._id })}
+            >
               <Text style={styles.transferBtnText}>Open</Text>
             </TouchableOpacity>
           </View>
@@ -120,11 +168,17 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
               <Ionicons name="alert-circle" size={18} color={Colors.warning} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.alertTitle}>EXPIRY COMPLIANCE ALERTS</Text>
-              <Text style={styles.alertCount}>{attention.length} document{attention.length > 1 ? 's' : ''} require attention</Text>
+              <Text style={styles.alertTitle}>Documents need attention</Text>
+              <Text style={styles.alertCount}>
+                {attention.length} document{attention.length > 1 ? 's' : ''} require attention
+              </Text>
             </View>
-            <TouchableOpacity onPress={() => navigation.navigate('OwnerChallans')}>
-              <Text style={styles.alertAction}>View All</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={{ minHeight: 44, justifyContent: 'center' }}
+              onPress={() => navigation.navigate('BookSlot')}
+            >
+              <Text style={styles.alertAction}>Renewals</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -134,10 +188,13 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
           <View key={idx} style={styles.reminderRow}>
             <View style={styles.reminderDot} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.reminderReg}>{rem.vehicleId?.regNumber || 'Vehicle'} · {rem.vehicleId?.model}</Text>
+              <Text style={styles.reminderReg}>
+                {rem.vehicleId?.regNumber || 'Vehicle'} Â· {rem.vehicleId?.model}
+              </Text>
               <Text style={styles.reminderMsg}>{rem.message}</Text>
             </View>
             <TouchableOpacity
+              accessibilityRole="button"
               style={styles.renewBtn}
               onPress={() => navigation.navigate('BookSlot', { vehicleId: rem.vehicleId?._id })}
             >
@@ -149,17 +206,32 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
         {/* Section header */}
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionLabel}>MY VEHICLES</Text>
+            <Text style={styles.sectionLabel}>Your vehicles</Text>
             <Text style={styles.sectionCount}>{vehicles.length} registered</Text>
           </View>
-          <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('AddVehicle')}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.addBtn}
+            onPress={() => navigation.navigate('AddVehicle')}
+          >
             <Ionicons name="add" size={16} color={Colors.primary} />
             <Text style={styles.addBtnText}>Add Vehicle</Text>
           </TouchableOpacity>
         </View>
 
         {isLoading ? (
-          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 48 }} />
+          <ScreenState
+            title="Loading your passport"
+            message="Getting your vehicles and renewal reminders."
+            loading
+          />
+        ) : loadError && vehicles.length === 0 ? (
+          <ScreenState
+            title="Your passport is unavailable"
+            message="We couldn't load your vehicles. Please try again."
+            action="Try again"
+            onAction={onRefresh}
+          />
         ) : vehicles.length === 0 ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconWrap}>
@@ -169,7 +241,11 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
             <Text style={styles.emptyDesc}>
               Add your vehicle to track certified documents and generate tamper-proof QR codes.
             </Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => navigation.navigate('AddVehicle')}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.emptyBtn}
+              onPress={() => navigation.navigate('AddVehicle')}
+            >
               <Ionicons name="add-circle-outline" size={16} color="#fff" />
               <Text style={styles.emptyBtnText}>Register First Vehicle</Text>
             </TouchableOpacity>
@@ -180,7 +256,12 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
             return (
               <View key={v._id} style={[styles.vehicleCard, Shadow.card]}>
                 {/* Card top stripe */}
-                <View style={[styles.cardStripe, { backgroundColor: isCompliant ? Colors.compliant : Colors.nonCompliant }]} />
+                <View
+                  style={[
+                    styles.cardStripe,
+                    { backgroundColor: isCompliant ? Colors.compliant : Colors.nonCompliant },
+                  ]}
+                />
 
                 <View style={styles.cardBody}>
                   {/* Header row */}
@@ -192,10 +273,12 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
                           <Text style={styles.fuelText}>{v.fuelType?.toUpperCase()}</Text>
                         </View>
                       </View>
-                      <Text style={styles.modelText}>{v.make} {v.model} · {v.year}</Text>
+                      <Text style={styles.modelText}>
+                        {v.make} {v.model} Â· {v.year}
+                      </Text>
                     </View>
                     <StatusPill
-                      label={isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT'}
+                      label={isCompliant ? 'Compliant' : 'Needs attention'}
                       type={isCompliant ? 'compliant' : 'nonCompliant'}
                     />
                   </View>
@@ -203,19 +286,26 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
                   {/* Stats row */}
                   <View style={styles.statsRow}>
                     <View style={styles.stat}>
-                      <Text style={styles.statVal}>{v.verifiedCount} / {v.documentCount || 5}</Text>
+                      <Text style={styles.statVal}>
+                        {v.verifiedCount} / {v.documentCount || 5}
+                      </Text>
                       <Text style={styles.statLbl}>VERIFIED DOCS</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.stat}>
-                      <Text style={[styles.statVal, { color: v.pendingChallans > 0 ? Colors.nonCompliant : Colors.compliant }]}>
+                      <Text
+                        style={[
+                          styles.statVal,
+                          { color: v.pendingChallans > 0 ? Colors.nonCompliant : Colors.compliant },
+                        ]}
+                      >
                         {v.pendingChallans || 0}
                       </Text>
                       <Text style={styles.statLbl}>CHALLANS</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.stat}>
-                      <Text style={styles.statVal}>{v.region?.district || 'Mumbai'}</Text>
+                      <Text style={styles.statVal}>{v.region?.district || 'Not set'}</Text>
                       <Text style={styles.statLbl}>RTO REGION</Text>
                     </View>
                   </View>
@@ -223,6 +313,7 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
                   {/* Action buttons */}
                   <View style={styles.actionsRow}>
                     <TouchableOpacity
+                      accessibilityRole="button"
                       style={styles.qrBtn}
                       onPress={() => handleOpenQR(v._id, v.regNumber)}
                     >
@@ -230,6 +321,7 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
                       <Text style={styles.qrBtnText}>Show QR Code</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
+                      accessibilityRole="button"
                       style={styles.detailBtn}
                       onPress={() => navigation.navigate('VehicleDetail', { vehicleId: v._id })}
                     >
@@ -266,15 +358,42 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     borderRadius: 14,
     padding: 14,
-    marginBottom: 12
+    marginBottom: 12,
   },
   transferTitle: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 0.8 },
   transferText: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, marginTop: 2 },
-  transferBtn: { backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  transferBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   transferBtnText: { color: '#fff', fontWeight: '800', fontSize: 12 },
   container: { flex: 1, backgroundColor: Colors.background },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 48 },
+  content: Layout.content,
+  overview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: Colors.textPrimary,
+    borderRadius: BorderRadius.lg,
+    padding: 24,
+    marginBottom: 8,
+  },
+  overviewLabel: { color: '#BCCDE3', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  overviewValue: { color: '#FFFFFF', fontSize: 30, fontWeight: '700', marginTop: 8 },
+  overviewCaption: { color: '#D5E2F1', fontSize: 13, marginTop: 6 },
+  overviewIcon: {
+    width: 72,
+    height: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#29425F',
+    borderRadius: 24,
+  },
 
   // Alert banner
   alertBanner: {
@@ -289,9 +408,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   alertIconWrap: {
-    width: 36, height: 36, borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     backgroundColor: '#FEF3C7',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   alertTitle: { fontSize: 11, fontWeight: '800', color: Colors.warning, letterSpacing: 0.8 },
   alertCount: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
@@ -310,13 +432,18 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   reminderDot: {
-    width: 8, height: 8, borderRadius: 4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: Colors.warning,
   },
   reminderReg: { fontSize: 13, fontWeight: '700', color: Colors.textPrimary },
   reminderMsg: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
   renewBtn: {
-    paddingHorizontal: 12, paddingVertical: 6,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 6,
     backgroundColor: Colors.primaryLight,
     borderWidth: 1,
@@ -326,17 +453,26 @@ const styles = StyleSheet.create({
 
   // Section header
   sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginTop: 20, marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 12,
   },
-  sectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1, color: Colors.textMuted },
+  sectionLabel: { fontSize: 21, fontWeight: '700', color: Colors.textPrimary },
   sectionCount: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginTop: 1 },
   addBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     backgroundColor: Colors.primaryLight,
     borderRadius: BorderRadius.sm,
-    borderWidth: 1, borderColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: Colors.primary,
   },
   addBtnText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
 
@@ -346,24 +482,35 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 32, alignItems: 'center', marginTop: 8,
+    padding: 32,
+    alignItems: 'center',
+    marginTop: 8,
     ...Shadow.card,
   },
   emptyIconWrap: {
-    width: 72, height: 72, borderRadius: 36,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: Colors.primaryLight,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
   emptyTitle: { fontSize: 16, fontWeight: '800', color: Colors.textPrimary, marginBottom: 8 },
   emptyDesc: {
-    fontSize: 13, color: Colors.textSecondary,
-    textAlign: 'center', lineHeight: 20, marginBottom: 20,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
   },
   emptyBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: Colors.primary,
-    paddingHorizontal: 20, paddingVertical: 11,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
     borderRadius: BorderRadius.md,
   },
   emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
@@ -378,19 +525,26 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardStripe: { height: 4, width: '100%' },
-  cardBody: { padding: 16 },
+  cardBody: { padding: 20 },
   cardTop: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'flex-start', marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
   },
-  regRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },
+  regRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 3 },
   regText: { fontSize: 22, fontWeight: '900', color: Colors.textPrimary, letterSpacing: 0.5 },
   fuelBadge: {
     backgroundColor: Colors.surfaceAlt,
-    paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: 4, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  fuelText: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5 },
+  fuelText: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5 },
   modelText: { fontSize: 13, color: Colors.textSecondary },
 
   // Stats
@@ -398,27 +552,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: Colors.surfaceAlt,
     borderRadius: BorderRadius.md,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: 12, marginBottom: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 12,
+    marginBottom: 14,
   },
   stat: { flex: 1, alignItems: 'center' },
   statVal: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
-  statLbl: { fontSize: 9, fontWeight: '700', color: Colors.textMuted, marginTop: 2, letterSpacing: 0.5 },
+  statLbl: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginTop: 2, letterSpacing: 0.5 },
   statDivider: { width: 1, backgroundColor: Colors.border },
 
   // Actions
-  actionsRow: { flexDirection: 'row', gap: 10 },
+  actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   qrBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, backgroundColor: Colors.primary,
-    paddingVertical: 11, borderRadius: BorderRadius.md,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary,
+    minHeight: 48,
+    paddingVertical: 13,
+    borderRadius: BorderRadius.md,
   },
   qrBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   detailBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, backgroundColor: Colors.primaryLight,
-    borderWidth: 1.5, borderColor: Colors.primary,
-    paddingVertical: 11, borderRadius: BorderRadius.md,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    minHeight: 48,
+    paddingVertical: 13,
+    borderRadius: BorderRadius.md,
   },
   detailBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 13 },
 });

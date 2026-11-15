@@ -1,15 +1,14 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Shadow } from '../theme/colors';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuthStore, UserRole } from '../store/authStore';
+import { Colors } from '../theme/colors';
 
 interface RoleHeaderProps {
   title: string;
   subtitle?: string;
   onRefresh?: () => void;
 }
-
 const ROLE_COLORS: Record<UserRole, string> = {
   owner: Colors.owner,
   provider: Colors.provider,
@@ -17,144 +16,83 @@ const ROLE_COLORS: Record<UserRole, string> = {
   government: Colors.government,
   admin: Colors.admin,
 };
+const ROLE_LABELS: Record<UserRole, string> = {
+  owner: 'Owner',
+  provider: 'Service provider',
+  officer: 'Officer',
+  government: 'Government',
+  admin: 'Administrator',
+};
 
 export const RoleHeader: React.FC<RoleHeaderProps> = ({ title, subtitle, onRefresh }) => {
   const { role, logout } = useAuthStore();
-  const activeColor = role ? ROLE_COLORS[role] : Colors.primary;
-
+  const accent = role ? ROLE_COLORS[role] : Colors.primary;
   return (
-    <View style={styles.container}>
-      {/* Top bar */}
-      <View style={styles.topRow}>
-        <View style={styles.brandRow}>
-          <Text style={styles.brandDrive}>DRIVE</Text>
-          <Text style={styles.brandDock}>DOCK</Text>
-        </View>
-        <View style={styles.topRight}>
-          {onRefresh && (
-            <TouchableOpacity onPress={onRefresh} style={styles.iconBtn}>
-              <Ionicons name="refresh-outline" size={18} color={Colors.textSecondary} />
+    <View style={styles.header}>
+      <View style={styles.inner}>
+        <View style={styles.top}>
+          <View style={styles.brand}>
+            <View style={[styles.brandIcon, { backgroundColor: accent }]}>
+              <Ionicons name="layers-outline" size={19} color="#FFFFFF" />
+            </View>
+            <Text style={styles.brandText}>
+              Drive<Text style={{ color: Colors.primary }}>Dock</Text>
+            </Text>
+          </View>
+          <View style={styles.actions}>
+            {onRefresh && (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Refresh screen"
+                onPress={onRefresh}
+                style={styles.iconButton}
+              >
+                <Ionicons name="refresh-outline" size={21} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Sign out"
+              onPress={logout}
+              style={styles.iconButton}
+            >
+              <Ionicons name="log-out-outline" size={21} color={Colors.textSecondary} />
             </TouchableOpacity>
-          )}
-          <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
-            <Ionicons name="log-out-outline" size={14} color={Colors.primary} />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
+          </View>
         </View>
-      </View>
-
-      {/* Divider */}
-      <View style={styles.divider} />
-
-      {/* Page title row */}
-      <View style={styles.titleRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.pageTitle}>{title.toUpperCase()}</Text>
-          {subtitle ? <Text style={styles.pageSubtitle}>{subtitle}</Text> : null}
-        </View>
-        <View style={[styles.rolePill, { borderColor: activeColor, backgroundColor: activeColor + '12' }]}>
-          <Text style={[styles.rolePillText, { color: activeColor }]}>{role?.toUpperCase()}</Text>
-        </View>
+        {role && <Text style={[styles.role, { color: accent }]}>{ROLE_LABELS[role]} workspace</Text>}
+        <Text accessibilityRole="header" style={styles.title}>
+          {title}
+        </Text>
+        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       </View>
     </View>
   );
 };
-
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    ...Shadow.card,
+  header: { backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  inner: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 22,
   },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 0,
-  },
-  brandDrive: {
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 1,
-    color: Colors.textPrimary,
-  },
-  brandDock: {
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 1,
-    color: Colors.primary,
-  },
-  topRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  brandIcon: { height: 32, width: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  brandText: { fontSize: 21, fontWeight: '800', letterSpacing: -0.7, color: Colors.textPrimary },
+  actions: { flexDirection: 'row', gap: 4 },
+  iconButton: {
+    height: 44,
+    width: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 12,
     backgroundColor: Colors.surfaceAlt,
   },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceAlt,
-  },
-  logoutText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.divider,
-    marginBottom: 10,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  pageTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    color: Colors.textPrimary,
-  },
-  pageSubtitle: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-    fontWeight: '400',
-  },
-  rolePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1.5,
-  },
-  rolePillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
+  role: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
+  title: { fontSize: 27, fontWeight: '800', letterSpacing: -0.6, lineHeight: 34, color: Colors.textPrimary },
+  subtitle: { fontSize: 14, lineHeight: 21, color: Colors.textSecondary, marginTop: 5 },
 });
