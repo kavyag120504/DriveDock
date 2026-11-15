@@ -104,6 +104,8 @@ export const processUploadedFile = async (
   }
 
   // Local storage URL
-  const fileUrl = `http://${reqHost}/uploads/${file.filename}`;
+  // reqHost may carry the scheme ("https://api.example"); behind a TLS proxy that keeps links https
+  const base = /^https?:\/\//.test(reqHost) ? reqHost : `http://${reqHost}`;
+  const fileUrl = `${base}/uploads/${file.filename}`;
   return { fileUrl, fileHash };
 };

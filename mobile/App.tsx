@@ -6,6 +6,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { Colors } from './src/theme/colors';
 import Constants, { AppOwnership } from 'expo-constants';
+import { Text } from 'react-native';
+
+// Set per build (eas.json) so a pilot/test APK can never be mistaken for a live service
+const BUILD_LABEL = process.env.EXPO_PUBLIC_BUILD_LABEL;
 
 const queryClient = new QueryClient();
 
@@ -36,6 +40,11 @@ export default function App() {
         <StatusBar style="dark" />
         {/* Keeps every screen clear of the status bar, notch and Dynamic Island */}
         <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: Colors.surface }}>
+          {BUILD_LABEL ? (
+            <Text style={{ backgroundColor: '#FEF3C7', color: '#92400E', fontSize: 11, fontWeight: '700', textAlign: 'center', paddingVertical: 3 }}>
+              {BUILD_LABEL}
+            </Text>
+          ) : null}
           <RootNavigator />
         </SafeAreaView>
       </QueryClientProvider>

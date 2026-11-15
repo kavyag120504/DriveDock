@@ -359,7 +359,7 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
     let certificateUrl = booking.certificateUrl;
     let fileHash = '';
     if (req.file) {
-      const host = req.get('host') || 'localhost:5000';
+      const host = `${req.protocol}://${req.get('host') || 'localhost:5000'}`; // https when TRUST_PROXY sees a TLS proxy
       const result = await processUploadedFile(req.file, host);
       certificateUrl = result.fileUrl;
       fileHash = result.fileHash;

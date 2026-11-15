@@ -57,3 +57,11 @@ server/*.traineddata
 # Seed toolkit — cached data and generated sample images
 server/scripts/seed/data/osm_fuel.json
 server/scripts/seed/out/
+
+# Pilot environment (real secrets, never commit)
+.env.pilot
+server/.env.pilot
+mobile/.env.pilot
+
+# Values to paste into Render (never commit)
+server/.env.render

@@ -14,6 +14,8 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
+# The server creates ./uploads at startup; /app is root-owned, so pre-create it for the node user
+RUN mkdir -p /app/uploads && chown node:node /app/uploads
 
 # Run as the built-in non-root user
 USER node

@@ -18,7 +18,10 @@
     "migrate:up": "migrate-mongo up",
     "migrate:down": "migrate-mongo down",
     "migrate:create": "migrate-mongo create",
-    "test": "jest"
+    "test": "jest",
+    "pilot:env": "bash scripts/pilot-env.sh",
+    "pilot:api": "bash scripts/pilot-api.sh",
+    "pilot:seed": "bash -c 'set -a; source .env.pilot; set +a; npx ts-node scripts/seed-pilot.ts --confirm=${MONGO_URI##*/}'"
   },
   "keywords": [
     "drivedock",
