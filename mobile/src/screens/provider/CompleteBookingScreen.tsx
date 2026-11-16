@@ -240,7 +240,7 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
 
       {/* Issue & Expiry Dates */}
       <View style={[styles.dateRow, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}>
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="Issue Date"
             value={issueDate}
@@ -257,7 +257,7 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
             </Text>
           )}
         </View>
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="Expiry Date"
             value={expiryDate}

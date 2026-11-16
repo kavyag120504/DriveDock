@@ -4,7 +4,7 @@ The Pixel 4a photos showed a fixed workspace header taking much of the screen, a
 
 The UI now chooses spacing and column layout from the available width, height and system font scale. Workspace headings scroll away with their page. Narrow cards use full-width actions, document/challan metrics reflow, and the region has a full-width line. The garage title no longer competes with a decorative icon at narrow widths. Short navigation labels fit the five owner tabs; full accessibility labels remain available. Navigation-label scaling is bounded separately from body text. Body text retains system font scaling.
 
-The compact pilot banner retains student-pilot, synthetic-data and test-payment wording, with the complete build label available to accessibility services. Provider date fields and tight choice controls adapt to the available text space. Scanner permission content can grow rather than being clipped by a fixed height.
+The compact pilot banner retains student-pilot, synthetic-data and test-payment wording, with the complete build label available to accessibility services. Provider date fields, summary cards and tight choice controls adapt to the available text space. Stacked form fields and choice controls use intrinsic height on native Android rather than keeping the horizontal row flex sizing. Scanner permission content can grow rather than being clipped by a fixed height.
 
 Validation:
 

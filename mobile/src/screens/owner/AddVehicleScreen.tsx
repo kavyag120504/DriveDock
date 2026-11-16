@@ -140,7 +140,7 @@ export const AddVehicleScreen = ({ navigation }: any) => {
       </View>
 
       <View style={[styles.row, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}>
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="Manufacturer (Make)"
             placeholder="e.g. Tata / Hyundai"
@@ -150,7 +150,7 @@ export const AddVehicleScreen = ({ navigation }: any) => {
           />
         </View>
 
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="Model"
             placeholder="e.g. Nexon / Creta"
@@ -162,7 +162,7 @@ export const AddVehicleScreen = ({ navigation }: any) => {
       </View>
 
       <View style={[styles.row, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}>
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="Manufacture Year"
             placeholder="2023"
@@ -173,7 +173,7 @@ export const AddVehicleScreen = ({ navigation }: any) => {
           />
         </View>
 
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="RTO District"
             placeholder="Mumbai"

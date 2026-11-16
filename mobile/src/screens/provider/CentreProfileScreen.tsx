@@ -216,7 +216,7 @@ export const CentreProfileScreen = () => {
               <TouchableOpacity
                 accessibilityRole="button"
                 key={s.key}
-                style={[styles.chip, active && styles.chipActive]}
+                style={[styles.chip, { flex: stackFields ? 0 : 1 }, active && styles.chipActive]}
                 onPress={() => toggleService(s.key)}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>{s.label}</Text>
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
   },
   stepBtnOff: { opacity: 0.35 },
   stepBtnText: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', lineHeight: 28 },
-  stepValueBox: { alignItems: 'center' },
+  stepValueBox: { flex: 1, minWidth: 0, paddingHorizontal: 8, alignItems: 'center' },
   stepValue: { fontSize: 28, fontWeight: '900', color: Colors.textPrimary },
   stepUnit: { fontSize: 13, color: Colors.textSecondary },
   saveBtn: {

@@ -155,7 +155,11 @@ export const ManageSlotsScreen = () => {
                 <TouchableOpacity
                   accessibilityRole="button"
                   key={i}
-                  style={[styles.templateBtn, selectedTemplate === i && styles.templateBtnActive]}
+                  style={[
+                    styles.templateBtn,
+                    { flex: stackFields ? 0 : 1 },
+                    selectedTemplate === i && styles.templateBtnActive,
+                  ]}
                   onPress={() => setSelectedTemplate(i)}
                 >
                   <Text
