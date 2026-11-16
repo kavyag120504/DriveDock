@@ -1,10 +1,11 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { BookingsAPI } from '../../api/endpoints';
 import { RoleHeader } from '../../components/RoleHeader';
 import { StatusPill } from '../../components/StatusPill';
 import { Button, Notice, ScreenState } from '../../components/UI';
+import { WorkspaceScreen } from '../../components/WorkspaceScreen';
 import { useAuthStore } from '../../store/authStore';
 import { Colors, Layout } from '../../theme/colors';
 
@@ -114,19 +115,18 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <RoleHeader
-        title="Inspection desk"
-        subtitle={
-          stationName
-            ? `${stationName} · customer bookings`
-            : 'Renewal appointments awaiting testing & certification'
+      <WorkspaceScreen
+        header={
+          <RoleHeader
+            title="Inspection desk"
+            subtitle={
+              stationName
+                ? `${stationName} · customer bookings`
+                : 'Renewal appointments awaiting testing & certification'
+            }
+            onRefresh={onRefresh}
+          />
         }
-        onRefresh={onRefresh}
-      />
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={Colors.provider} />
         }
@@ -194,7 +194,7 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
             )}
           </>
         )}
-      </ScrollView>
+      </WorkspaceScreen>
     </View>
   );
 };
@@ -204,10 +204,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  scroll: {
-    flex: 1,
-  },
-  content: Layout.content,
   summary: { flexDirection: 'row', gap: 12, marginBottom: 24, flexWrap: 'wrap' },
   summaryItem: { flex: 1, minWidth: 120, ...Layout.card },
   summaryValue: { color: Colors.provider, fontSize: 32, fontWeight: '700' },

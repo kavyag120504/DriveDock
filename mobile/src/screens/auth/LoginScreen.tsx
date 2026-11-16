@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useResponsiveLayout } from '../../theme/responsive';
 import { DemoAPI } from '../../api/endpoints';
 import { Button, Field, FormScreen, Notice } from '../../components/UI';
 import { useAuthStore, UserRole } from '../../store/authStore';
@@ -51,6 +52,7 @@ const DEMO_ROLES: {
 ];
 
 export const LoginScreen = ({ navigation }: any) => {
+  const { compact } = useResponsiveLayout();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -102,15 +104,17 @@ export const LoginScreen = ({ navigation }: any) => {
     <FormScreen>
       <View style={styles.brandHeader}>
         <View style={styles.logoRow}>
-          <View style={styles.brandIcon}>
+          <View style={[styles.brandIcon, compact && { width: 40, height: 40 }]}>
             <Ionicons name="layers-outline" size={28} color="#FFFFFF" />
           </View>
-          <Text style={styles.logoDrive}>
-            Drive<Text style={styles.logoDock}>Dock</Text>
+          <Text maxFontSizeMultiplier={1.3} style={[styles.logoDrive, compact && { fontSize: 26 }]}>
+            Drive<Text style={[styles.logoDock, compact && { fontSize: 26 }]}>Dock</Text>
           </Text>
         </View>
         <Text style={styles.kicker}>YOUR VEHICLE. ONE PASSPORT.</Text>
-        <Text style={styles.tagline}>Keep every journey{'\n'}one step ahead.</Text>
+        <Text style={[styles.tagline, compact && { fontSize: 27, lineHeight: 34 }]}>
+          Keep every journey{'\n'}one step ahead.
+        </Text>
         <Text style={styles.explainer}>
           Your vehicle documents, renewals and verification, together in one place.
         </Text>

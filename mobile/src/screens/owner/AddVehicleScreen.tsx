@@ -3,8 +3,10 @@ import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } fr
 import { VehiclesAPI } from '../../api/endpoints';
 import { Field, FormScreen, PageHeading } from '../../components/UI';
 import { Colors } from '../../theme/colors';
+import { useResponsiveLayout } from '../../theme/responsive';
 
 export const AddVehicleScreen = ({ navigation }: any) => {
+  const { stackFields, choiceMinWidth } = useResponsiveLayout();
   const [regNumber, setRegNumber] = useState('');
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
@@ -86,12 +88,16 @@ export const AddVehicleScreen = ({ navigation }: any) => {
 
       {/* Fuel Type Selector */}
       <Text style={styles.label}>Fuel type</Text>
-      <View style={styles.toggleRow}>
+      <View style={[styles.toggleRow, { flexWrap: 'wrap' }]}>
         {(['petrol', 'diesel', 'ev'] as const).map((ft) => (
           <TouchableOpacity
             accessibilityRole="button"
             key={ft}
-            style={[styles.toggleBtn, fuelType === ft && styles.toggleActive]}
+            style={[
+              styles.toggleBtn,
+              { minWidth: choiceMinWidth, minHeight: 44 },
+              fuelType === ft && styles.toggleActive,
+            ]}
             onPress={() => setFuelType(ft)}
           >
             <Text style={[styles.toggleText, fuelType === ft && styles.toggleTextActive]}>
@@ -103,12 +109,16 @@ export const AddVehicleScreen = ({ navigation }: any) => {
 
       {/* Vehicle Type */}
       <Text style={styles.label}>Vehicle Category</Text>
-      <View style={styles.toggleRow}>
+      <View style={[styles.toggleRow, { flexWrap: 'wrap' }]}>
         {(['car', 'bike', 'other'] as const).map((vt) => (
           <TouchableOpacity
             accessibilityRole="button"
             key={vt}
-            style={[styles.toggleBtn, vehicleType === vt && styles.toggleActive]}
+            style={[
+              styles.toggleBtn,
+              { minWidth: choiceMinWidth, minHeight: 44 },
+              vehicleType === vt && styles.toggleActive,
+            ]}
             onPress={() => setVehicleType(vt)}
           >
             <Text style={[styles.toggleText, vehicleType === vt && styles.toggleTextActive]}>
@@ -129,7 +139,7 @@ export const AddVehicleScreen = ({ navigation }: any) => {
         />
       </View>
 
-      <View style={styles.row}>
+      <View style={[styles.row, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}>
         <View style={[styles.inputGroup, { flex: 1 }]}>
           <Field
             label="Manufacturer (Make)"
@@ -151,7 +161,7 @@ export const AddVehicleScreen = ({ navigation }: any) => {
         </View>
       </View>
 
-      <View style={styles.row}>
+      <View style={[styles.row, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}>
         <View style={[styles.inputGroup, { flex: 1 }]}>
           <Field
             label="Manufacture Year"

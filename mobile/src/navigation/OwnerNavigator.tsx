@@ -2,7 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TabLabel } from '../components/TabLabel';
 import { Colors } from '../theme/colors';
+import { useResponsiveLayout } from '../theme/responsive';
 
 import { BuyCarScreen } from '../features/twin/BuyCarScreen';
 import { ShareTwinScreen } from '../features/twin/ShareTwinScreen';
@@ -50,13 +52,14 @@ const StationsStack = () => (
 
 export const OwnerNavigator = () => {
   const insets = useSafeAreaInsets();
+  const { tabHeight } = useResponsiveLayout();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
           backgroundColor: Colors.surface,
-          height: 64 + insets.bottom,
+          height: tabHeight + insets.bottom,
           paddingTop: 6,
           paddingBottom: Math.max(insets.bottom, 8),
           borderTopColor: Colors.border,
@@ -71,7 +74,8 @@ export const OwnerNavigator = () => {
         name="Dashboard"
         component={DashboardStack}
         options={{
-          tabBarLabel: 'Passport',
+          tabBarLabel: ({ color }) => <TabLabel label="Home" color={color} />,
+          tabBarAccessibilityLabel: 'Vehicle passport',
           tabBarIcon: ({ color, size }) => <Ionicons name="car-outline" size={size} color={color} />,
         }}
       />
@@ -79,7 +83,8 @@ export const OwnerNavigator = () => {
         name="StationsTab"
         component={StationsStack}
         options={{
-          tabBarLabel: 'Stations',
+          tabBarLabel: ({ color }) => <TabLabel label="Map" color={color} />,
+          tabBarAccessibilityLabel: 'Find service stations',
           tabBarIcon: ({ color, size }) => <Ionicons name="location-outline" size={size} color={color} />,
         }}
       />
@@ -87,7 +92,8 @@ export const OwnerNavigator = () => {
         name="AddVehicleTab"
         component={AddVehicleStack}
         options={{
-          tabBarLabel: 'Add Vehicle',
+          tabBarLabel: ({ color }) => <TabLabel label="Add" color={color} />,
+          tabBarAccessibilityLabel: 'Add vehicle',
           tabBarIcon: ({ color, size }) => <Ionicons name="add-circle-outline" size={size} color={color} />,
         }}
       />
@@ -95,7 +101,8 @@ export const OwnerNavigator = () => {
         name="BookSlotTab"
         component={BookSlotScreen}
         options={{
-          tabBarLabel: 'Renewals',
+          tabBarLabel: ({ color }) => <TabLabel label="Renew" color={color} />,
+          tabBarAccessibilityLabel: 'Book document renewals',
           tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
         }}
       />
@@ -103,7 +110,8 @@ export const OwnerNavigator = () => {
         name="Challans"
         component={OwnerChallansScreen}
         options={{
-          tabBarLabel: 'e-Challans',
+          tabBarLabel: ({ color }) => <TabLabel label="Fines" color={color} />,
+          tabBarAccessibilityLabel: 'View e-challans',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="document-text-outline" size={size} color={color} />
           ),
