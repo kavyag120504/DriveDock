@@ -26,6 +26,9 @@ services:
       # Render free has a temporary disk; keep uploaded certificates in Atlas (GridFS) instead
       - key: UPLOAD_STORAGE
         value: gridfs
+      # Render free has a fraction of one CPU; OCR of an RC photo takes far longer than on a laptop
+      - key: OCR_TIMEOUT_MS
+        value: "45000"
       - key: MONGO_URI
         sync: false # Atlas connection string ending in /drivedock_pilot_20261116
       - key: JWT_ACCESS_SECRET
