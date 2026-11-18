@@ -8,8 +8,13 @@ import { Booking } from '../models/Booking';
 import { Violation } from '../models/Violation';
 import { OwnershipTransfer } from '../models/OwnershipTransfer';
 import { generateQRToken } from '../services/qrService';
+import { normalizeRegNumber, isValidRegNumber, REG_NUMBER_FORMAT_MESSAGE } from '../services/regNumber';
 import { ownerScope } from '../services/accessService';
 import { isDocumentGood, isVehicleCompliant } from '../services/complianceService';
+import { countFound } from '../services/rcParserService';
+import { discardUploadedFile } from '../services/uploadService';
+import { providers } from '../providers';
+import { ENV } from '../config/env';
 
 export const createVehicle = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -20,7 +25,11 @@ export const createVehicle = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const cleanedReg = regNumber.toUpperCase().replace(/\s+/g, '');
+    const cleanedReg = normalizeRegNumber(String(regNumber));
+    if (!isValidRegNumber(cleanedReg)) {
+      res.status(400).json({ success: false, code: 'INVALID_REG_NUMBER', message: REG_NUMBER_FORMAT_MESSAGE });
+      return;
+    }
     const existing = await Vehicle.findOne({ regNumber: cleanedReg });
     if (existing) {
       res.status(409).json({ success: false, message: `Vehicle with registration ${cleanedReg} already exists` });
@@ -218,5 +227,46 @@ export const getVehicleQRToken = async (req: Request, res: Response): Promise<vo
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * POST /vehicles/scan-rc — reads an RC photo and returns Add Vehicle suggestions for the owner
+ * to review. Nothing is saved: the image is deleted straight after OCR, no personal data is
+ * returned, and OCR failure degrades to empty suggestions (manual entry always still works).
+ */
+export const scanRc = async (req: Request, res: Response): Promise<void> => {
+  const empty = { regNumber: null, make: null, model: null, year: null, fuelType: null, vehicleType: null };
+  try {
+    if (!req.file) {
+      res.status(400).json({ success: false, message: 'Take or choose a photo of the RC to scan' });
+      return;
+    }
+    if (req.file.mimetype === 'application/pdf') {
+      discardUploadedFile(req.file);
+      res.status(200).json({ success: true, data: { ...empty, found: 0, warning: 'PDFs can\'t be scanned. Take a photo of the RC instead.' } });
+      return;
+    }
+    if (!ENV.OCR_SCAN_ENABLED) {
+      discardUploadedFile(req.file);
+      res.status(200).json({ success: true, data: { ...empty, found: 0, warning: 'RC scanning is turned off right now. Please enter the details manually.' } });
+      return;
+    }
+
+    const suggestions = await providers.ocr.scanRc(req.file.path);
+    discardUploadedFile(req.file);
+    const found = countFound(suggestions);
+    res.status(200).json({
+      success: true,
+      data: {
+        ...suggestions,
+        found,
+        warning: found === 0 ? 'Couldn\'t read the RC. Try a sharper photo in good light, or enter the details manually.' : null
+      }
+    });
+  } catch (error: any) {
+    console.error('[VehicleController.scanRc] error:', error?.message);
+    discardUploadedFile(req.file);
+    res.status(200).json({ success: true, data: { ...empty, found: 0, warning: 'Couldn\'t read the RC. Please enter the details manually.' } });
   }
 };

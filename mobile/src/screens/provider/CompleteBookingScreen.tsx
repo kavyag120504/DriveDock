@@ -5,6 +5,7 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BookingsAPI, DocumentsAPI } from '../../api/endpoints';
 import { Button, Field, FormScreen, PageHeading } from '../../components/UI';
 import { Colors } from '../../theme/colors';
+import { useResponsiveLayout } from '../../theme/responsive';
 import { DISMISSIBLE_ALERT, withCancelButton } from '../../utils/alerts';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
@@ -21,6 +22,7 @@ interface SelectedFile {
 }
 
 export const CompleteBookingScreen = ({ route, navigation }: any) => {
+  const { stackFields } = useResponsiveLayout();
   const { booking } = route.params;
   const [notes, setNotes] = useState(
     'Vehicle passed official inspection standards. Genuine certificate issued.'
@@ -237,8 +239,8 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
       </View>
 
       {/* Issue & Expiry Dates */}
-      <View style={styles.dateRow}>
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+      <View style={[styles.dateRow, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="Issue Date"
             value={issueDate}
@@ -255,7 +257,7 @@ export const CompleteBookingScreen = ({ route, navigation }: any) => {
             </Text>
           )}
         </View>
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="Expiry Date"
             value={expiryDate}

@@ -66,6 +66,9 @@ jobs:
       - name: Type-check
         run: npx tsc --noEmit
 
+      - name: Responsive layout checks
+        run: node --test tests/responsive.test.cjs
+
   secret-scan:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest

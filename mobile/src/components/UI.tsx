@@ -15,7 +15,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { BorderRadius, Colors, Layout, Typography } from '../theme/colors';
-
+import { useResponsiveLayout } from '../theme/responsive';
 type Icon = keyof typeof Ionicons.glyphMap;
 type ButtonProps = {
   label: string;
@@ -133,7 +133,7 @@ export function Notice({
         size={21}
         color={color}
       />
-      <View style={{ flex: 1, gap: 3 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
         <Text style={[styles.noticeTitle, { color }]}>{title}</Text>
         <Text style={Typography.caption}>{children}</Text>
       </View>
@@ -184,10 +184,11 @@ export function ScreenState({
 
 /** Keep forms scrollable above the keyboard, including on small Android phones. */
 export function FormScreen({ children }: { children: React.ReactNode }) {
+  const { pagePadding } = useResponsiveLayout();
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
-        contentContainerStyle={Layout.form}
+        contentContainerStyle={[Layout.form, { paddingHorizontal: pagePadding, paddingTop: pagePadding }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
@@ -207,8 +208,9 @@ export function PageHeading({
   onBack?: () => void;
   backLabel?: string;
 }) {
+  const { compact } = useResponsiveLayout();
   return (
-    <View style={{ marginBottom: 24 }}>
+    <View style={{ marginBottom: compact ? 16 : 24 }}>
       {onBack && (
         <Pressable
           accessibilityRole="button"
@@ -220,7 +222,10 @@ export function PageHeading({
           <Text style={styles.backText}>{backLabel}</Text>
         </Pressable>
       )}
-      <Text accessibilityRole="header" style={Typography.title}>
+      <Text
+        accessibilityRole="header"
+        style={[Typography.title, compact && { fontSize: 24, lineHeight: 31 }]}
+      >
         {title}
       </Text>
       {subtitle && <Text style={[Typography.body, { marginTop: 8 }]}>{subtitle}</Text>}
@@ -240,8 +245,10 @@ const styles = StyleSheet.create({
     gap: 9,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 0,
+    maxWidth: '100%',
   },
-  buttonText: { fontSize: 15, fontWeight: '700', textAlign: 'center', flexShrink: 1 },
+  buttonText: { fontSize: 15, fontWeight: '700', textAlign: 'center', flexShrink: 1, minWidth: 0 },
   field: { marginBottom: 18 },
   label: { ...Typography.label, marginBottom: 7 },
   notice: { flexDirection: 'row', gap: 10, padding: 16, borderRadius: BorderRadius.md, marginBottom: 20 },

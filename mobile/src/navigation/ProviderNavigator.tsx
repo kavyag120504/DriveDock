@@ -5,7 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProvidersAPI } from '../api/endpoints';
+import { TabLabel } from '../components/TabLabel';
 import { Colors } from '../theme/colors';
+import { useResponsiveLayout } from '../theme/responsive';
 
 import { CentreProfileScreen, providerProfileKey } from '../screens/provider/CentreProfileScreen';
 import { CompleteBookingScreen } from '../screens/provider/CompleteBookingScreen';
@@ -25,6 +27,7 @@ const BookingsStack = () => (
 
 export const ProviderNavigator = () => {
   const insets = useSafeAreaInsets();
+  const { tabHeight, compact } = useResponsiveLayout();
   const userId = useAuthStore((s) => s.user?.id);
   const {
     data: profile,
@@ -66,7 +69,7 @@ export const ProviderNavigator = () => {
         headerShown: false,
         tabBarStyle: {
           backgroundColor: Colors.surface,
-          height: 64 + insets.bottom,
+          height: tabHeight + insets.bottom,
           paddingTop: 6,
           paddingBottom: Math.max(insets.bottom, 8),
           borderTopColor: Colors.border,
@@ -81,7 +84,8 @@ export const ProviderNavigator = () => {
         name="OrdersTab"
         component={BookingsStack}
         options={{
-          tabBarLabel: 'Inspections',
+          tabBarLabel: ({ color }) => <TabLabel label={compact ? 'Orders' : 'Inspections'} color={color} />,
+          tabBarAccessibilityLabel: 'Inspection orders',
           tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" color={color} size={size} />,
         }}
       />
@@ -89,7 +93,8 @@ export const ProviderNavigator = () => {
         name="SlotsTab"
         component={ManageSlotsScreen}
         options={{
-          tabBarLabel: 'Bays & Slots',
+          tabBarLabel: ({ color }) => <TabLabel label={compact ? 'Slots' : 'Bays & Slots'} color={color} />,
+          tabBarAccessibilityLabel: 'Manage bays and slots',
           tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" color={color} size={size} />,
         }}
       />
@@ -97,7 +102,7 @@ export const ProviderNavigator = () => {
         name="CentreTab"
         component={CentreProfileScreen}
         options={{
-          tabBarLabel: 'Centre',
+          tabBarLabel: ({ color }) => <TabLabel label="Centre" color={color} />,
           tabBarIcon: ({ color, size }) => <Ionicons name="business-outline" color={color} size={size} />,
         }}
       />

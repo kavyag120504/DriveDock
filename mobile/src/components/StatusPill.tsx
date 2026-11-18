@@ -49,9 +49,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 999,
     flexShrink: 1,
+    maxWidth: '100%',
+    alignSelf: 'flex-start',
     borderWidth: 1,
   },
   text: {
+    flexShrink: 1,
+    minWidth: 0,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.1,

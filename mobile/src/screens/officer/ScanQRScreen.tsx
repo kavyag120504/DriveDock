@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,9 +15,12 @@ import {
 import { VerificationAPI } from '../../api/endpoints';
 import { RoleHeader } from '../../components/RoleHeader';
 import { Button, Notice } from '../../components/UI';
-import { BorderRadius, Colors, Layout, Shadow } from '../../theme/colors';
+import { WorkspaceScreen } from '../../components/WorkspaceScreen';
+import { BorderRadius, Colors, Shadow } from '../../theme/colors';
+import { useResponsiveLayout } from '../../theme/responsive';
 
 export const ScanQRScreen = ({ navigation }: any) => {
+  const { cameraHeight, scanFrameSize } = useResponsiveLayout();
   const isFocused = useIsFocused();
   const verificationLock = useRef(false);
   useEffect(() => {
@@ -53,14 +55,23 @@ export const ScanQRScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <RoleHeader title="Verify a vehicle" subtitle="Scan the owner’s current vehicle passport QR." />
-
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <WorkspaceScreen
+        header={
+          <RoleHeader title="Verify a vehicle" subtitle="Scan the owner’s current vehicle passport QR." />
+        }
+      >
         <Notice title="Ask for a fresh QR">
           The owner can open Show QR Code in their vehicle passport. Each code expires after two minutes.
         </Notice>
         {/* Camera Viewport */}
-        <View style={[styles.cameraBox, Shadow.card]}>
+        <View
+          style={[
+            styles.cameraBox,
+            Shadow.card,
+            { minHeight: cameraHeight },
+            permission?.granted && { height: cameraHeight },
+          ]}
+        >
           {!permission ? (
             <View style={styles.camNotice}>
               <ActivityIndicator color={Colors.primary} />
@@ -96,7 +107,7 @@ export const ScanQRScreen = ({ navigation }: any) => {
               onBarcodeScanned={onBarcodeScanned}
             >
               <View style={styles.overlay}>
-                <View style={styles.scanFrame}>
+                <View style={[styles.scanFrame, { width: scanFrameSize, height: scanFrameSize }]}>
                   {/* Corner markers */}
                   <View style={[styles.corner, styles.cornerTL]} />
                   <View style={[styles.corner, styles.cornerTR]} />
@@ -148,18 +159,16 @@ export const ScanQRScreen = ({ navigation }: any) => {
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
+      </WorkspaceScreen>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: Layout.content,
 
   cameraBox: {
     width: '100%',
-    height: 300,
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
@@ -167,7 +176,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     marginBottom: 16,
   },
-  camNotice: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 10 },
+  camNotice: { minHeight: 280, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 10 },
   camIconWrap: {
     width: 64,
     height: 64,

@@ -1,15 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { RemindersAPI, VehiclesAPI } from '../../api/endpoints';
 import { RoleHeader } from '../../components/RoleHeader';
 import { RotatingQRModal } from '../../components/RotatingQRModal';
 import { StatusPill } from '../../components/StatusPill';
-import { Notice, ScreenState } from '../../components/UI';
+import { Button, Notice, ScreenState } from '../../components/UI';
+import { WorkspaceScreen } from '../../components/WorkspaceScreen';
 import { TwinAPI } from '../../features/twin/api';
-import { BorderRadius, Colors, Layout, Shadow } from '../../theme/colors';
+import { BorderRadius, Colors, Shadow } from '../../theme/colors';
+import { useResponsiveLayout } from '../../theme/responsive';
 
 export const OwnerDashboardScreen = ({ navigation }: any) => {
+  const { compact, stack } = useResponsiveLayout();
   const [loadError, setLoadError] = useState(false);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [reminders, setReminders] = useState<any[]>([]);
@@ -77,15 +80,14 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <RoleHeader
-        title="Vehicle Passport"
-        subtitle="Your vehicles, documents and next steps."
-        onRefresh={onRefresh}
-      />
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
+      <WorkspaceScreen
+        header={
+          <RoleHeader
+            title="Vehicle passport"
+            subtitle={compact ? undefined : 'Your vehicles, documents and next steps.'}
+            onRefresh={onRefresh}
+          />
+        }
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
@@ -97,24 +99,25 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
           </Notice>
         )}
         {!isLoading && !loadError && (
-          <View style={styles.overview}>
-            <View style={{ flex: 1 }}>
+          <View style={[styles.overview, compact && { padding: 16 }]}>
+            <View style={styles.flexContent}>
               <Text style={styles.overviewLabel}>YOUR GARAGE</Text>
-              <Text style={styles.overviewValue}>
-                {vehicles.length} vehicle{vehicles.length === 1 ? '' : 's'}
-              </Text>
-              <Text style={styles.overviewCaption}>Everything in one place.</Text>
+              <Text
+                style={styles.overviewValue}
+              >{`${vehicles.length} ${vehicles.length === 1 ? 'vehicle' : 'vehicles'}`}</Text>
             </View>
-            <View style={styles.overviewIcon}>
-              <Ionicons name="car-sport-outline" size={38} color="#FFFFFF" />
-            </View>
+            {!stack && (
+              <View style={styles.overviewIcon}>
+                <Ionicons name="car-sport-outline" size={32} color="#FFFFFF" />
+              </View>
+            )}
           </View>
         )}
         {/* Ownership requests: waiting for my approval (seller) or for the seller's (buyer) */}
         {transfers.map((t) => (
-          <View key={t._id} style={styles.transferBanner}>
+          <View key={t._id} style={[styles.transferBanner, stack && styles.stack]}>
             <Ionicons name="swap-horizontal" size={18} color={Colors.primary} />
-            <View style={{ flex: 1 }}>
+            <View style={styles.flexContent}>
               <Text style={styles.transferTitle}>
                 {t.role === 'seller' ? 'OWNERSHIP REQUEST' : 'WAITING FOR SELLER APPROVAL'}
               </Text>
@@ -138,9 +141,9 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
 
         {/* Paperwork still to do after an approved transfer */}
         {paperwork.map((t) => (
-          <View key={'pw-' + t._id} style={styles.transferBanner}>
+          <View key={'pw-' + t._id} style={[styles.transferBanner, stack && styles.stack]}>
             <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
-            <View style={{ flex: 1 }}>
+            <View style={styles.flexContent}>
               <Text style={styles.transferTitle}>TRANSFER PAPERWORK</Text>
               <Text style={styles.transferText}>
                 {t.openTasks} task{t.openTasks === 1 ? '' : 's'} left for{' '}
@@ -163,11 +166,11 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
 
         {/* Compliance Alert Banner */}
         {attention.length > 0 && (
-          <View style={styles.alertBanner}>
+          <View style={[styles.alertBanner, stack && styles.stack]}>
             <View style={styles.alertIconWrap}>
               <Ionicons name="alert-circle" size={18} color={Colors.warning} />
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={styles.flexContent}>
               <Text style={styles.alertTitle}>Documents need attention</Text>
               <Text style={styles.alertCount}>
                 {attention.length} document{attention.length > 1 ? 's' : ''} require attention
@@ -185,9 +188,9 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
 
         {/* Reminder detail items */}
         {attention.map((rem, idx) => (
-          <View key={idx} style={styles.reminderRow}>
+          <View key={idx} style={[styles.reminderRow, stack && styles.stack]}>
             <View style={styles.reminderDot} />
-            <View style={{ flex: 1 }}>
+            <View style={styles.flexContent}>
               <Text style={styles.reminderReg}>
                 {rem.vehicleId?.regNumber || 'Vehicle'} · {rem.vehicleId?.model}
               </Text>
@@ -211,11 +214,12 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
           </View>
           <TouchableOpacity
             accessibilityRole="button"
+            accessibilityLabel="Add vehicle"
             style={styles.addBtn}
             onPress={() => navigation.navigate('AddVehicle')}
           >
             <Ionicons name="add" size={16} color={Colors.primary} />
-            <Text style={styles.addBtnText}>Add Vehicle</Text>
+            <Text style={styles.addBtnText}>Add</Text>
           </TouchableOpacity>
         </View>
 
@@ -265,10 +269,17 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
 
                 <View style={styles.cardBody}>
                   {/* Header row */}
-                  <View style={styles.cardTop}>
-                    <View style={{ flex: 1 }}>
+                  <View style={[styles.cardTop, stack && styles.stack]}>
+                    <View style={styles.flexContent}>
                       <View style={styles.regRow}>
-                        <Text style={styles.regText}>{v.regNumber}</Text>
+                        <Text
+                          style={styles.regText}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.65}
+                        >
+                          {v.regNumber}
+                        </Text>
                         <View style={styles.fuelBadge}>
                           <Text style={styles.fuelText}>{v.fuelType?.toUpperCase()}</Text>
                         </View>
@@ -283,16 +294,15 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
                     />
                   </View>
 
-                  {/* Stats row */}
-                  <View style={styles.statsRow}>
-                    <View style={styles.stat}>
+                  <View style={[styles.statsRow, stack && styles.stack]}>
+                    <View style={[styles.stat, stack && styles.statCompact]}>
+                      <Text style={styles.statLbl}>Verified documents</Text>
                       <Text style={styles.statVal}>
                         {v.verifiedCount} / {v.documentCount || 5}
                       </Text>
-                      <Text style={styles.statLbl}>VERIFIED DOCS</Text>
                     </View>
-                    <View style={styles.statDivider} />
-                    <View style={styles.stat}>
+                    <View style={[styles.stat, stack && styles.statCompact]}>
+                      <Text style={styles.statLbl}>Challans</Text>
                       <Text
                         style={[
                           styles.statVal,
@@ -301,40 +311,34 @@ export const OwnerDashboardScreen = ({ navigation }: any) => {
                       >
                         {v.pendingChallans || 0}
                       </Text>
-                      <Text style={styles.statLbl}>CHALLANS</Text>
-                    </View>
-                    <View style={styles.statDivider} />
-                    <View style={styles.stat}>
-                      <Text style={styles.statVal}>{v.region?.district || 'Not set'}</Text>
-                      <Text style={styles.statLbl}>RTO REGION</Text>
                     </View>
                   </View>
+                  <View style={styles.regionRow}>
+                    <Text style={styles.statLbl}>Region</Text>
+                    <Text style={styles.regionValue}>{v.region?.district || 'Not set'}</Text>
+                  </View>
 
-                  {/* Action buttons */}
-                  <View style={styles.actionsRow}>
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      style={styles.qrBtn}
+                  <View style={[styles.actionsRow, stack && styles.stack]}>
+                    <Button
+                      label={stack ? 'Show QR code' : 'Show QR'}
+                      icon="qr-code-outline"
                       onPress={() => handleOpenQR(v._id, v.regNumber)}
-                    >
-                      <Ionicons name="qr-code-outline" size={15} color="#fff" />
-                      <Text style={styles.qrBtnText}>Show QR Code</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      style={styles.detailBtn}
+                      style={stack ? styles.fullWidth : styles.actionButton}
+                    />
+                    <Button
+                      label="Documents"
+                      icon="document-text-outline"
+                      variant="secondary"
                       onPress={() => navigation.navigate('VehicleDetail', { vehicleId: v._id })}
-                    >
-                      <Ionicons name="document-text-outline" size={15} color={Colors.primary} />
-                      <Text style={styles.detailBtnText}>Manage Papers</Text>
-                    </TouchableOpacity>
+                      style={stack ? styles.fullWidth : styles.actionButton}
+                    />
                   </View>
                 </View>
               </View>
             );
           })
         )}
-      </ScrollView>
+      </WorkspaceScreen>
 
       {activeVehicle && (
         <RotatingQRModal
@@ -372,8 +376,13 @@ const styles = StyleSheet.create({
   },
   transferBtnText: { color: '#fff', fontWeight: '800', fontSize: 12 },
   container: { flex: 1, backgroundColor: Colors.background },
-  scroll: { flex: 1 },
-  content: Layout.content,
+  flexContent: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  stack: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
+  statCompact: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  regionRow: { marginBottom: 16, gap: 4 },
+  regionValue: { fontSize: 14, lineHeight: 21, fontWeight: '600', color: Colors.textPrimary },
+  actionButton: { flex: 1 },
+  fullWidth: { width: '100%' },
   overview: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -384,11 +393,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   overviewLabel: { color: '#BCCDE3', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  overviewValue: { color: '#FFFFFF', fontSize: 30, fontWeight: '700', marginTop: 8 },
-  overviewCaption: { color: '#D5E2F1', fontSize: 13, marginTop: 6 },
+  overviewValue: { color: '#FFFFFF', fontSize: 26, fontWeight: '700', marginTop: 8 },
   overviewIcon: {
-    width: 72,
-    height: 72,
+    width: 56,
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#29425F',
@@ -458,6 +466,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
     marginBottom: 12,
+    gap: 12,
+    flexWrap: 'wrap',
   },
   sectionLabel: { fontSize: 21, fontWeight: '700', color: Colors.textPrimary },
   sectionCount: { fontSize: 14, fontWeight: '700', color: Colors.textPrimary, marginTop: 1 },
@@ -525,7 +535,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardStripe: { height: 4, width: '100%' },
-  cardBody: { padding: 20 },
+  cardBody: { padding: 16 },
   cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -555,39 +565,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 12,
+    gap: 12,
     marginBottom: 14,
   },
-  stat: { flex: 1, alignItems: 'center' },
+  stat: { flexGrow: 1, flexShrink: 1, minWidth: 0, gap: 4 },
   statVal: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
-  statLbl: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginTop: 2, letterSpacing: 0.5 },
-  statDivider: { width: 1, backgroundColor: Colors.border },
+  statLbl: { fontSize: 12, lineHeight: 18, color: Colors.textSecondary, flexShrink: 1 },
 
   // Actions
   actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  qrBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: Colors.primary,
-    minHeight: 48,
-    paddingVertical: 13,
-    borderRadius: BorderRadius.md,
-  },
-  qrBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  detailBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: Colors.primaryLight,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    minHeight: 48,
-    paddingVertical: 13,
-    borderRadius: BorderRadius.md,
-  },
-  detailBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 13 },
 });
