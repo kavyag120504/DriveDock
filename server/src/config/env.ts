@@ -97,6 +97,10 @@ const envSchema = z.object({
 
   // Lets ops disable OCR document-scanning (CPU-heavy per request) without a redeploy.
   OCR_SCAN_ENABLED: boolFromEnv(true),
+  // Per-scan OCR time limit. Small hosted CPUs (e.g. Render free) need far longer than a laptop.
+  OCR_TIMEOUT_MS: numericFromEnv(9000),
+  // Writable folder for Tesseract's language data (~10 MB), downloaded once and then reused.
+  OCR_CACHE_DIR: z.string().default(''),
   // Personal details entered for a vehicle transfer are encrypted with these keys. Format:
   // "keyId:base64Key,keyId2:base64Key2" (each key 32 bytes). New writes use the ACTIVE id; every listed
   // key can still decrypt old records, so keep old keys until a re-encrypt run and all backups using them

@@ -3,6 +3,7 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuthStore, UserRole } from '../store/authStore';
 import { Colors } from '../theme/colors';
+import { useResponsiveLayout } from '../theme/responsive';
 
 interface RoleHeaderProps {
   title: string;
@@ -26,16 +27,17 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 export const RoleHeader: React.FC<RoleHeaderProps> = ({ title, subtitle, onRefresh }) => {
   const { role, logout } = useAuthStore();
+  const { compact, pagePadding } = useResponsiveLayout();
   const accent = role ? ROLE_COLORS[role] : Colors.primary;
   return (
     <View style={styles.header}>
-      <View style={styles.inner}>
-        <View style={styles.top}>
+      <View style={[styles.inner, { paddingHorizontal: pagePadding }, compact && styles.innerCompact]}>
+        <View style={[styles.top, compact && styles.topCompact]}>
           <View style={styles.brand}>
             <View style={[styles.brandIcon, { backgroundColor: accent }]}>
               <Ionicons name="layers-outline" size={19} color="#FFFFFF" />
             </View>
-            <Text style={styles.brandText}>
+            <Text maxFontSizeMultiplier={1.2} style={[styles.brandText, compact && styles.brandTextCompact]}>
               Drive<Text style={{ color: Colors.primary }}>Dock</Text>
             </Text>
           </View>
@@ -61,7 +63,7 @@ export const RoleHeader: React.FC<RoleHeaderProps> = ({ title, subtitle, onRefre
           </View>
         </View>
         {role && <Text style={[styles.role, { color: accent }]}>{ROLE_LABELS[role]} workspace</Text>}
-        <Text accessibilityRole="header" style={styles.title}>
+        <Text accessibilityRole="header" style={[styles.title, compact && styles.titleCompact]}>
           {title}
         </Text>
         {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
@@ -71,6 +73,10 @@ export const RoleHeader: React.FC<RoleHeaderProps> = ({ title, subtitle, onRefre
 };
 const styles = StyleSheet.create({
   header: { backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  innerCompact: { paddingBottom: 14 },
+  topCompact: { marginBottom: 6 },
+  brandTextCompact: { fontSize: 18 },
+  titleCompact: { fontSize: 22, lineHeight: 29 },
   inner: {
     width: '100%',
     maxWidth: 760,
@@ -80,10 +86,10 @@ const styles = StyleSheet.create({
     paddingBottom: 22,
   },
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 },
   brandIcon: { height: 32, width: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   brandText: { fontSize: 21, fontWeight: '800', letterSpacing: -0.7, color: Colors.textPrimary },
-  actions: { flexDirection: 'row', gap: 4 },
+  actions: { flexDirection: 'row', gap: 4, flexShrink: 0 },
   iconButton: {
     height: 44,
     width: 44,

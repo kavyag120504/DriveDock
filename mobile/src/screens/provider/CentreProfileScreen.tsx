@@ -6,7 +6,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,8 +14,10 @@ import {
 } from 'react-native';
 import { ProvidersAPI } from '../../api/endpoints';
 import { RoleHeader } from '../../components/RoleHeader';
+import { WorkspaceScreen } from '../../components/WorkspaceScreen';
 import { useAuthStore } from '../../store/authStore';
-import { Colors, Layout } from '../../theme/colors';
+import { Colors } from '../../theme/colors';
+import { useResponsiveLayout } from '../../theme/responsive';
 
 export const providerProfileKey = (userId?: string) => ['providerProfile', userId];
 
@@ -29,6 +30,7 @@ const SERVICES = [
 const MAX_BAYS = 50;
 
 export const CentreProfileScreen = () => {
+  const { stackFields } = useResponsiveLayout();
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);
   const {
@@ -139,17 +141,15 @@ export const CentreProfileScreen = () => {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <RoleHeader
-        title={isOnboarding ? 'Set up your centre' : 'Centre profile'}
-        subtitle={
-          isOnboarding ? 'Owners will see these details when booking' : 'Details owners see when booking'
+      <WorkspaceScreen
+        header={
+          <RoleHeader
+            title={isOnboarding ? 'Set up your centre' : 'Centre profile'}
+            subtitle={
+              isOnboarding ? 'Owners will see these details when booking' : 'Details owners see when booking'
+            }
+          />
         }
-      />
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
       >
         {isOnboarding && (
           <View style={styles.notice}>
@@ -209,14 +209,14 @@ export const CentreProfileScreen = () => {
         </Text>
 
         <Text style={styles.label}>Services you offer</Text>
-        <View style={styles.chipRow}>
+        <View style={[styles.chipRow, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}>
           {SERVICES.map((s) => {
             const active = serviceTypes.includes(s.key);
             return (
               <TouchableOpacity
                 accessibilityRole="button"
                 key={s.key}
-                style={[styles.chip, active && styles.chipActive]}
+                style={[styles.chip, { flex: stackFields ? 0 : 1 }, active && styles.chipActive]}
                 onPress={() => toggleService(s.key)}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>{s.label}</Text>
@@ -276,7 +276,7 @@ export const CentreProfileScreen = () => {
             </Text>
           )}
         </TouchableOpacity>
-      </ScrollView>
+      </WorkspaceScreen>
     </KeyboardAvoidingView>
   );
 };
@@ -284,8 +284,6 @@ export const CentreProfileScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  scroll: { flex: 1 },
-  content: Layout.content,
   notice: {
     backgroundColor: Colors.warningBg,
     borderColor: Colors.warningBorder,
@@ -359,7 +357,7 @@ const styles = StyleSheet.create({
   },
   stepBtnOff: { opacity: 0.35 },
   stepBtnText: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', lineHeight: 28 },
-  stepValueBox: { alignItems: 'center' },
+  stepValueBox: { flex: 1, minWidth: 0, paddingHorizontal: 8, alignItems: 'center' },
   stepValue: { fontSize: 28, fontWeight: '900', color: Colors.textPrimary },
   stepUnit: { fontSize: 13, color: Colors.textSecondary },
   saveBtn: {

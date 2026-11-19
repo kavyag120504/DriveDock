@@ -1,19 +1,12 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { ProvidersAPI } from '../../api/endpoints';
 import { RoleHeader } from '../../components/RoleHeader';
 import { Notice, ScreenState } from '../../components/UI';
-import { Colors, Layout } from '../../theme/colors';
+import { WorkspaceScreen } from '../../components/WorkspaceScreen';
+import { Colors } from '../../theme/colors';
+import { useResponsiveLayout } from '../../theme/responsive';
 
 const TIME_TEMPLATES = [
   {
@@ -47,6 +40,7 @@ const TIME_TEMPLATES = [
 const todayDate = () => new Date().toLocaleDateString('en-CA');
 
 export const ManageSlotsScreen = () => {
+  const { stackFields } = useResponsiveLayout();
   const [loadError, setLoadError] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
@@ -111,13 +105,15 @@ export const ManageSlotsScreen = () => {
 
   return (
     <View style={styles.container}>
-      <RoleHeader
-        title="Inspection Slots"
-        subtitle="Manage testing bays & appointment capacity"
-        onRefresh={fetchProfileAndSlots}
-      />
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <WorkspaceScreen
+        header={
+          <RoleHeader
+            title="Inspection Slots"
+            subtitle="Manage testing bays & appointment capacity"
+            onRefresh={fetchProfileAndSlots}
+          />
+        }
+      >
         {loadError && (
           <Notice title="Couldn't refresh availability" tone="error">
             Check your connection and try again. Previously loaded slots may be out of date.
@@ -152,12 +148,18 @@ export const ManageSlotsScreen = () => {
             />
 
             <Text style={styles.formLabel}>Time Template</Text>
-            <View style={styles.templateRow}>
+            <View
+              style={[styles.templateRow, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}
+            >
               {TIME_TEMPLATES.map((t, i) => (
                 <TouchableOpacity
                   accessibilityRole="button"
                   key={i}
-                  style={[styles.templateBtn, selectedTemplate === i && styles.templateBtnActive]}
+                  style={[
+                    styles.templateBtn,
+                    { flex: stackFields ? 0 : 1 },
+                    selectedTemplate === i && styles.templateBtnActive,
+                  ]}
                   onPress={() => setSelectedTemplate(i)}
                 >
                   <Text
@@ -221,7 +223,10 @@ export const ManageSlotsScreen = () => {
             const capacity = s.capacity ?? 1;
             const booked = s.bookedCount ?? (s.isBooked ? 1 : 0);
             return (
-              <View key={s._id} style={styles.slotRow}>
+              <View
+                key={s._id}
+                style={[styles.slotRow, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}
+              >
                 <View>
                   <Text style={styles.slotTime}>
                     {s.startTime} - {s.endTime}
@@ -253,7 +258,7 @@ export const ManageSlotsScreen = () => {
             );
           })
         )}
-      </ScrollView>
+      </WorkspaceScreen>
     </View>
   );
 };
@@ -263,10 +268,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  scroll: {
-    flex: 1,
-  },
-  content: Layout.content,
   addBtn: {
     backgroundColor: Colors.provider,
     borderRadius: 12,

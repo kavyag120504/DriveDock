@@ -16,7 +16,12 @@ export const VehiclesAPI = {
   delete: (id: string) => apiClient.delete(`/vehicles/${id}`),
   getQRToken: (id: string) => apiClient.get(`/vehicles/${id}/qr-token`),
   getRcVerification: (id: string) => apiClient.get(`/vehicles/${id}/rc-verification`),
-  verifyRc: (id: string) => apiClient.post(`/vehicles/${id}/rc-verification`, { consent: true })
+  verifyRc: (id: string) => apiClient.post(`/vehicles/${id}/rc-verification`, { consent: true }),
+  // RC photo -> Add Vehicle suggestions (never saves anything)
+  scanRc: (formData: FormData) =>
+    apiClient.post('/vehicles/scan-rc', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }, timeout: UPLOAD_TIMEOUT_MS
+    })
 };
 
 export const DocumentsAPI = {

@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { VehiclesAPI } from '../../api/endpoints';
-import { Field, FormScreen, PageHeading } from '../../components/UI';
+import { Button, Field, FormScreen, Notice, PageHeading } from '../../components/UI';
+import { checkRegNumber, normalizeRegNumber } from '../../utils/regNumber';
 import { Colors } from '../../theme/colors';
+import { useResponsiveLayout } from '../../theme/responsive';
 
 export const AddVehicleScreen = ({ navigation }: any) => {
+  const { stackFields, choiceMinWidth } = useResponsiveLayout();
   const [regNumber, setRegNumber] = useState('');
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
@@ -14,9 +19,69 @@ export const AddVehicleScreen = ({ navigation }: any) => {
   const [district, setDistrict] = useState('Mumbai');
   const [isLoading, setIsLoading] = useState(false);
 
-  // State code + 1-2 digit district code + 0-3 series letters + 4 digits.
-  // Covers MH01AB1234 and Delhi-style plates such as DL3CAB1234 (district 3, series CAB).
-  const IN_REG = /^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$/;
+  // RC scan: suggestions only. Fields filled from the RC are marked until the owner edits them.
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<{ found: number; warning: string | null } | null>(null);
+  const [fromRc, setFromRc] = useState<Set<string>>(new Set());
+  const edited = (field: string) =>
+    setFromRc((prev) => {
+      if (!prev.has(field)) return prev;
+      const next = new Set(prev);
+      next.delete(field);
+      return next;
+    });
+  const rcHint = (field: string) => (fromRc.has(field) ? 'From your RC: please check' : undefined);
+
+  // Live registration-number feedback while typing (same rule the server enforces)
+  const regCheck = checkRegNumber(regNumber);
+  const regError = regCheck.state === 'invalid' ? regCheck.message : undefined;
+  const regHint =
+    regCheck.state === 'valid'
+      ? fromRc.has('regNumber') ? 'Valid format. From your RC: please check' : 'Valid format'
+      : regCheck.state === 'incomplete' ? regCheck.message : 'State code + RTO number + series + 4 digits';
+  const canSubmit = regCheck.state === 'valid' && !!make.trim() && !!model.trim() && !!year && !isScanning;
+
+  const scanRc = async (asset: ImagePicker.ImagePickerAsset) => {
+    const filename = asset.uri.split('/').pop() || 'rc.jpg';
+    const ext = /\.(\w+)$/.exec(filename)?.[1]?.toLowerCase() ?? 'jpg';
+    setIsScanning(true);
+    setScanResult(null);
+    try {
+      const formData = new FormData();
+      // @ts-ignore React Native file part
+      formData.append('file', { uri: asset.uri, name: filename, type: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
+      const res = await VehiclesAPI.scanRc(formData);
+      const d = res.data?.data ?? {};
+      const filled = new Set<string>();
+      if (d.regNumber) { setRegNumber(d.regNumber); filled.add('regNumber'); }
+      if (d.make) { setMake(d.make); filled.add('make'); }
+      if (d.model) { setModel(d.model); filled.add('model'); }
+      if (d.year) { setYear(String(d.year)); filled.add('year'); }
+      if (d.fuelType) { setFuelType(d.fuelType); filled.add('fuelType'); }
+      if (d.vehicleType) { setVehicleType(d.vehicleType); filled.add('vehicleType'); }
+      setFromRc(filled);
+      setScanResult({ found: filled.size, warning: d.warning ?? null });
+    } catch (err: any) {
+      setScanResult({ found: 0, warning: err.response?.data?.message || 'Couldn\'t reach the server to read the RC. Enter the details manually.' });
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const takeRcPhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Camera access needed', 'Allow camera access to photograph your RC, or choose a photo instead.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    if (!result.canceled && result.assets[0]) await scanRc(result.assets[0]);
+  };
+
+  const chooseRcPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+    if (!result.canceled && result.assets[0]) await scanRc(result.assets[0]);
+  };
 
   const handleSubmit = async () => {
     if (!regNumber || !make || !model || !year) {
@@ -24,12 +89,9 @@ export const AddVehicleScreen = ({ navigation }: any) => {
       return;
     }
 
-    const cleanedReg = regNumber.replace(/[\s-]/g, '').toUpperCase();
-    if (!IN_REG.test(cleanedReg)) {
-      Alert.alert(
-        'Invalid Registration Number',
-        'Format must be: State Code + District + Series + Number\nExamples: MH01AB1234, DL3CAB1234, HR26DK9012'
-      );
+    const cleanedReg = normalizeRegNumber(regNumber);
+    if (regCheck.state !== 'valid') {
+      Alert.alert('Check the registration number', regError || regHint);
       return;
     }
 
@@ -84,15 +146,55 @@ export const AddVehicleScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </View>
 
+      {/* Auto-fill from a photo of the RC */}
+      <View style={styles.scanCard}>
+        <View style={styles.scanHead}>
+          <Ionicons name="scan-outline" size={22} color={Colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.scanTitle}>Auto-fill from your RC</Text>
+            <Text style={styles.scanSub}>
+              Photograph your registration certificate and we'll fill in the number, make, model, year and fuel.
+              The photo isn't stored.
+            </Text>
+          </View>
+        </View>
+        {isScanning ? (
+          <View style={styles.scanning}>
+            <ActivityIndicator color={Colors.primary} />
+            <Text style={styles.scanSub}>Reading your RC…</Text>
+          </View>
+        ) : (
+          <View style={[styles.row, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}>
+            <Button label="Take photo" icon="camera-outline" onPress={takeRcPhoto} style={{ flex: stackFields ? 0 : 1 }} />
+            <Button label="Choose photo" icon="images-outline" variant="secondary" onPress={chooseRcPhoto} style={{ flex: stackFields ? 0 : 1 }} />
+          </View>
+        )}
+      </View>
+      {scanResult ? (
+        scanResult.found > 0 ? (
+          <Notice title={`Filled ${scanResult.found} detail${scanResult.found === 1 ? '' : 's'} from your RC`}>
+            Check each one against your RC before saving. Anything it couldn't read is left for you to fill in.
+          </Notice>
+        ) : (
+          <Notice title="Couldn't read the RC" tone="warning">
+            {scanResult.warning || 'Try a sharper photo in good light, or enter the details manually.'}
+          </Notice>
+        )
+      ) : null}
+
       {/* Fuel Type Selector */}
       <Text style={styles.label}>Fuel type</Text>
-      <View style={styles.toggleRow}>
+      <View style={[styles.toggleRow, { flexWrap: 'wrap' }]}>
         {(['petrol', 'diesel', 'ev'] as const).map((ft) => (
           <TouchableOpacity
             accessibilityRole="button"
             key={ft}
-            style={[styles.toggleBtn, fuelType === ft && styles.toggleActive]}
-            onPress={() => setFuelType(ft)}
+            style={[
+              styles.toggleBtn,
+              { minWidth: choiceMinWidth, minHeight: 44 },
+              fuelType === ft && styles.toggleActive,
+            ]}
+            onPress={() => { setFuelType(ft); edited('fuelType'); }}
           >
             <Text style={[styles.toggleText, fuelType === ft && styles.toggleTextActive]}>
               {ft.toUpperCase()}
@@ -103,13 +205,17 @@ export const AddVehicleScreen = ({ navigation }: any) => {
 
       {/* Vehicle Type */}
       <Text style={styles.label}>Vehicle Category</Text>
-      <View style={styles.toggleRow}>
+      <View style={[styles.toggleRow, { flexWrap: 'wrap' }]}>
         {(['car', 'bike', 'other'] as const).map((vt) => (
           <TouchableOpacity
             accessibilityRole="button"
             key={vt}
-            style={[styles.toggleBtn, vehicleType === vt && styles.toggleActive]}
-            onPress={() => setVehicleType(vt)}
+            style={[
+              styles.toggleBtn,
+              { minWidth: choiceMinWidth, minHeight: 44 },
+              vehicleType === vt && styles.toggleActive,
+            ]}
+            onPress={() => { setVehicleType(vt); edited('vehicleType'); }}
           >
             <Text style={[styles.toggleText, vehicleType === vt && styles.toggleTextActive]}>
               {vt.toUpperCase()}
@@ -124,46 +230,53 @@ export const AddVehicleScreen = ({ navigation }: any) => {
           placeholder="e.g. MH01AB1234"
           placeholderTextColor={Colors.textMuted}
           value={regNumber}
-          onChangeText={(t) => setRegNumber(t.toUpperCase())}
+          onChangeText={(t) => { setRegNumber(t.toUpperCase()); edited('regNumber'); }}
           autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={14}
+          error={regError}
+          hint={regHint}
         />
       </View>
 
-      <View style={styles.row}>
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+      <View style={[styles.row, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="Manufacturer (Make)"
             placeholder="e.g. Tata / Hyundai"
             placeholderTextColor={Colors.textMuted}
             value={make}
-            onChangeText={setMake}
+            onChangeText={(t) => { setMake(t); edited('make'); }}
+            hint={rcHint('make')}
           />
         </View>
 
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="Model"
             placeholder="e.g. Nexon / Creta"
             placeholderTextColor={Colors.textMuted}
             value={model}
-            onChangeText={setModel}
+            onChangeText={(t) => { setModel(t); edited('model'); }}
+            hint={rcHint('model')}
           />
         </View>
       </View>
 
-      <View style={styles.row}>
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+      <View style={[styles.row, stackFields && { flexDirection: 'column', alignItems: 'stretch' }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="Manufacture Year"
             placeholder="2023"
             placeholderTextColor={Colors.textMuted}
             value={year}
-            onChangeText={setYear}
+            onChangeText={(t) => { setYear(t); edited('year'); }}
+            hint={rcHint('year')}
             keyboardType="numeric"
           />
         </View>
 
-        <View style={[styles.inputGroup, { flex: 1 }]}>
+        <View style={[styles.inputGroup, { flex: stackFields ? 0 : 1 }]}>
           <Field
             label="RTO District"
             placeholder="Mumbai"
@@ -176,9 +289,10 @@ export const AddVehicleScreen = ({ navigation }: any) => {
 
       <TouchableOpacity
         accessibilityRole="button"
-        style={[styles.submitBtn, isLoading && styles.btnDisabled]}
+        style={[styles.submitBtn, (isLoading || !canSubmit) && styles.btnDisabled]}
         onPress={handleSubmit}
-        disabled={isLoading}
+        disabled={isLoading || !canSubmit}
+        accessibilityState={{ disabled: isLoading || !canSubmit }}
       >
         {isLoading ? (
           <ActivityIndicator color="#FFFFFF" />
@@ -208,6 +322,17 @@ const styles = StyleSheet.create({
   buySub: { fontSize: 12, color: Colors.textSecondary, marginTop: 3, lineHeight: 16 },
   buyBtn: { backgroundColor: Colors.compliant, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   buyBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  scanCard: {
+    backgroundColor: Colors.primaryLight,
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    marginBottom: 16,
+  },
+  scanHead: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  scanTitle: { fontSize: 15, fontWeight: '800', color: Colors.textPrimary },
+  scanSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 3, lineHeight: 17 },
+  scanning: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   label: {
     fontSize: 12,
     fontWeight: '700',

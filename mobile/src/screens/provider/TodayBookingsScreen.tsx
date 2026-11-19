@@ -1,14 +1,17 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { BookingsAPI } from '../../api/endpoints';
 import { RoleHeader } from '../../components/RoleHeader';
 import { StatusPill } from '../../components/StatusPill';
 import { Button, Notice, ScreenState } from '../../components/UI';
+import { WorkspaceScreen } from '../../components/WorkspaceScreen';
 import { useAuthStore } from '../../store/authStore';
+import { useResponsiveLayout } from '../../theme/responsive';
 import { Colors, Layout } from '../../theme/colors';
 
 export const TodayBookingsScreen = ({ navigation }: any) => {
+  const { stack } = useResponsiveLayout();
   const [loadError, setLoadError] = useState(false);
   const [bookings, setBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,9 +59,11 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
 
     return (
       <View key={b._id} style={[styles.bookingCard, isConfirmed && isNew(b) && styles.newCard]}>
-        <View style={styles.bTop}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.bReg}>{b.vehicleId?.regNumber || 'Vehicle'}</Text>
+        <View style={[styles.bTop, stack && { flexDirection: 'column', alignItems: 'stretch' }]}>
+          <View style={{ flexGrow: 1, flexShrink: 1, minWidth: 0 }}>
+            <Text style={styles.bReg} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
+              {b.vehicleId?.regNumber || 'Vehicle'}
+            </Text>
             <Text style={styles.bModel}>
               {b.vehicleId?.make} {b.vehicleId?.model} · Owner: {b.ownerId?.name}
             </Text>
@@ -114,19 +119,18 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <RoleHeader
-        title="Inspection desk"
-        subtitle={
-          stationName
-            ? `${stationName} · customer bookings`
-            : 'Renewal appointments awaiting testing & certification'
+      <WorkspaceScreen
+        header={
+          <RoleHeader
+            title="Inspection desk"
+            subtitle={
+              stationName
+                ? `${stationName} · customer bookings`
+                : 'Renewal appointments awaiting testing & certification'
+            }
+            onRefresh={onRefresh}
+          />
         }
-        onRefresh={onRefresh}
-      />
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={Colors.provider} />
         }
@@ -141,12 +145,12 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
           </Notice>
         )}
         {!isLoading && !loadError && (
-          <View style={styles.summary}>
-            <View style={styles.summaryItem}>
+          <View style={[styles.summary, stack && { flexDirection: 'column', flexWrap: 'nowrap' }]}>
+            <View style={[styles.summaryItem, { flex: stack ? 0 : 1 }]}>
               <Text style={styles.summaryValue}>{upcoming.length}</Text>
               <Text style={styles.summaryLabel}>Ready to inspect</Text>
             </View>
-            <View style={styles.summaryItem}>
+            <View style={[styles.summaryItem, { flex: stack ? 0 : 1 }]}>
               <Text style={styles.summaryValue}>{awaitingPayment.length}</Text>
               <Text style={styles.summaryLabel}>Awaiting payment</Text>
             </View>
@@ -194,7 +198,7 @@ export const TodayBookingsScreen = ({ navigation }: any) => {
             )}
           </>
         )}
-      </ScrollView>
+      </WorkspaceScreen>
     </View>
   );
 };
@@ -204,10 +208,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  scroll: {
-    flex: 1,
-  },
-  content: Layout.content,
   summary: { flexDirection: 'row', gap: 12, marginBottom: 24, flexWrap: 'wrap' },
   summaryItem: { flex: 1, minWidth: 120, ...Layout.card },
   summaryValue: { color: Colors.provider, fontSize: 32, fontWeight: '700' },
