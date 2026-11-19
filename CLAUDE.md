@@ -2,7 +2,30 @@
 
 Read this first. It is the shared, current picture of the project for both teammates and for Claude Code sessions. Update it in the same PR whenever you change how the project runs or what it guarantees.
 
-Last updated: 2026-11-01 (transfer paperwork, two-party ownership transfer and OCR scanning complete; Phase 1 production-hardening foundation merged on the `phase-1-foundation` branch; remaining items need external accounts, manual testing, or checking legal rules against official text)
+Last updated: 2026-11-19 (hosted pilot on Render + Atlas, RC photo auto-fill, registration-number validation, 25-minute slots, Arya RC registry check committed but not live)
+
+## Current state and handover (19 Nov 2026)
+
+**Live pilot (student pilot, synthetic data, test payments only)**
+- API: https://drivedock-pilot-api.onrender.com (Render free, service `drivedock-pilot-api`, Singapore). Render deploys the **`pilot/20261116`** branch, not master, through the `render.yaml` blueprint. A `render.yaml` change syncs and deploys by itself; code-only changes need **Manual Deploy → Deploy latest commit** in the Render dashboard. Bring the branch up to master with a PR (base `pilot/20261116`, head `master`).
+- Database: MongoDB Atlas project "DriveDock Pilot", free cluster in Mumbai, database `drivedock_pilot_20261116`. Network access is `0.0.0.0/0` because Render free has no fixed IP.
+- Keep-awake: a free UptimeRobot monitor calls `/healthz` every 5 minutes so the free instance does not sleep.
+- Secrets: Render generates the token secrets; `MONGO_URI` and `PAPERWORK_ENCRYPTION_KEYS` are pasted in the Render dashboard (copies are in the git-ignored `server/.env.render` on the original laptop). Never commit them.
+- Uploads are stored in Atlas (GridFS, `UPLOAD_STORAGE=gridfs`), so certificates survive restarts.
+- OCR runs on Render with `OCR_TIMEOUT_MS=45000`; an RC scan takes about 20 s on the free CPU.
+- Demo logins: see "Demo accounts" below. On the hosted pilot every seeded account uses one private password (`SEED_PASSWORD` in the git-ignored `server/.env.pilot`), not `password123`. Ask the previous owner for it.
+- Runbook (restart, reset demo data, device checklist, demo script): `docs/PILOT.md`.
+
+**Branches**
+- `master`: everything merged up to the RC photo scan and the OCR fix (PRs #8, #10).
+- `feat/arya-rc-verification`: **not merged yet.** Contains the Arya RC registry check, master merged in (two small conflicts already resolved) and the 25-minute slots (`feat/puc-25min-slots`). Server 487/487 tests, both type-checks pass. Open a PR from it into master.
+
+**Next steps, in order**
+1. Merge `feat/arya-rc-verification` into master, then into `pilot/20261116`, then Manual Deploy on Render.
+2. Arya goes live only after adding `RC_VERIFICATION_ENABLED=true` and `ARYA_API_TOKEN` in Render's environment and testing one lookup on a registration number the team owns (it costs an Arya credit). No live lookup has been made yet. With the V1 Lite plan a match shows "RC record matched", not verified, because that plan returns no RC expiry (see `docs/RC_VERIFICATION.md`).
+3. Clean the hosted data: a test station "Pilot Test PUC Centre (TEST)" and one test e-challan on `DL8CAF5678` were created by end-to-end checks on 18 Nov. Slots already in Atlas are 1 hour; new ones are 25 minutes.
+4. Build a new APK only after the above (`cd mobile && npx eas-cli build --platform android --profile pilot`); the `pilot` profile points at the Render API. Regenerate the install QR and card in `docs/pilot/` for the new download link.
+5. Then the gaps in "Known gaps": real Razorpay checkout, challan payment, push (Firebase project), forgot password, SMS/email providers.
 
 ## What DriveDock is
 
@@ -42,10 +65,11 @@ server/   Node.js + Express + TypeScript + MongoDB (Mongoose) API
 | Backend | Express + TypeScript, run with ts-node-dev |
 | Database | MongoDB via Mongoose |
 | Auth | JWT access token (15 min) + refresh token (7 days); expo-secure-store on device, localStorage on web. Refresh tokens are **stateful and single-use**: each is recorded server-side by hash (`RefreshToken` model), rotated on every `/auth/refresh`, and reusing an already-rotated/revoked token revokes the whole rotation family (theft defence). `POST /auth/logout` revokes the presented token; `POST /auth/logout-all` revokes every session; `GET /auth/sessions` lists active sessions with a device label. DPDP: `GET /auth/export` returns a machine-readable copy of the caller's own data (no password hash, no other-party PII); `DELETE /auth/account` erases an **owner** account but refuses while they still hold vehicles (enforcement records must survive — Trust Rule 8 — so delete/transfer first; accepted-transfer ledger rows are never touched). The app refreshes only on a `TOKEN_EXPIRED` 401; a refused refresh token returns the user to the login screen, but a network failure keeps the saved session. Requests time out after 30 s (2 min for uploads). |
-| Uploads | Local `server/uploads/` (AWS S3 if AWS keys are set). Only JPEG, PNG, WEBP and PDF are accepted, judged by content type; the stored extension comes from that type, never from the file name. Files are served with `nosniff`. Oversized files return 413. |
+| Uploads | Local `server/uploads/` (AWS S3 if AWS keys are set; MongoDB GridFS when `UPLOAD_STORAGE=gridfs`, which the hosted pilot uses). Only JPEG, PNG, WEBP and PDF are accepted, judged by content type; the stored extension comes from that type, never from the file name. Files are served with `nosniff`. Oversized files return 413. |
 | Payments | Razorpay test flow with server-side HMAC verification (see "Known gaps") |
 | Push | expo-notifications + Expo Push API |
-| Maps | react-native-maps on phones; a placeholder on web (`src/components/Map.web.tsx`) |
+| Maps | react-native-maps on phones; without a real Google Maps key the stations map draws free OpenStreetMap/CARTO tiles (with attribution). A placeholder on web (`src/components/Map.web.tsx`) |
+| OCR | Tesseract.js on the server: document date suggestions (`POST /documents/scan`) and RC photo auto-fill for Add Vehicle (`POST /vehicles/scan-rc`). Suggestions only, never verification; the image is deleted after reading and personal data is never returned. `OCR_TIMEOUT_MS`, `OCR_CACHE_DIR`, `OCR_SCAN_ENABLED` |
 | QR | react-native-qrcode-svg to show, expo-camera to scan |
 
 ## Running it locally
@@ -118,7 +142,7 @@ The login screen also has one-tap demo buttons per role (development builds only
 Seeded vehicles: `MH01AB1234` scans GREEN, `MH02CD5678` scans RED, and `MH04EF9012` has a PUC expiring in 5 days with a due reminder.
 
 
-**NCR demo dataset (`npm run seed:demo`).** Synthetic data for presentations. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Also `buyer@drivedock.com`, a second owner with no vehicles: on **Add Vehicle → Buying a used car? → Scan QR** they scan the seller's transfer QR (Vehicle Twin → Transfer Ownership), read the buyer report and tap **Apply for Approval**; the seller then approves on the QR screen (or from the Vehicle Twin page or dashboard banner), and only then does the car move to the buyer's passport. Walkthrough vehicles for `owner@drivedock.com`:
+**NCR walkthrough dataset (`server/scripts/seed-demo.ts`; on a pilot database use the guarded `npm run pilot:seed`).** Synthetic data for presentations. Same logins as above, plus `officer2@drivedock.demo`, `officer3@drivedock.demo` and `station2…9@drivedock.demo`. Also `buyer@drivedock.com`, a second owner with no vehicles: on **Add Vehicle → Buying a used car? → Scan QR** they scan the seller's transfer QR (Vehicle Twin → Transfer Ownership), read the buyer report and tap **Apply for Approval**; the seller then approves on the QR screen (or from the Vehicle Twin page or dashboard banner), and only then does the car move to the buyer's passport. Walkthrough vehicles for `owner@drivedock.com`:
 
 | Vehicle | Set up to show |
 |---|---|
@@ -179,6 +203,9 @@ These are the product's core promise. Don't weaken them without discussing it wi
 
 ## API notes
 
+- `POST /vehicles` requires a valid Indian registration number (state code + RTO number + series + 4 digits, e.g. MH01AB1234, DL3CAB1234, or Bharat series 22BH1234AB); anything else returns 400 `INVALID_REG_NUMBER`. The rule lives in `server/src/services/regNumber.ts` and is mirrored for live feedback in `mobile/src/utils/regNumber.ts`; keep them in step.
+- Station slot templates (Manage Slots) create back-to-back 25-minute slots: Morning 9–12, Afternoon 1–5, Full Day both.
+
 - Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/public/verify`, `/public/twin`, `/reminders/trigger-job` (internal secret instead) and `/payments/webhook` (Razorpay HMAC over the raw body instead).
 - Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`. `documentTypeExpired` must list known document types (capitals accepted, stored lowercase), a non-blank `location` is required, and a document that is verified, valid and unexpired can't be cited (400).
 - `POST /auth/logout` clears the user's push token.
@@ -193,8 +220,10 @@ These are the product's core promise. Don't weaken them without discussing it wi
 | GET | `/twin/vehicles/:id/timeline` | Chronological history (docs, services, violations, transfers) |
 | POST | `/twin/transfers` | Create a transfer token (10-min JWT); blocked by pending booking or challan |
 | GET | `/twin/transfers/preview?token=` | Buyer preview from a transfer token; no seller personal data |
-| POST | `/twin/transfers/accept` | Atomic accept — one winner on concurrent calls (409 for the rest) |
-| DELETE | `/twin/transfers/:id` | Cancel a pending outgoing transfer |
+| POST | `/twin/transfers/request` | Buyer applies with a transfer token (one buyer per QR) |
+| POST | `/twin/transfers/:id/approve` | Seller approves; ownership moves and the ledger hash is recorded |
+| POST | `/twin/transfers/:id/reject` | Seller declines |
+| POST | `/twin/transfers/:id/cancel` | Seller cancels a pending outgoing transfer |
 | GET | `/twin/transfers` | List own transfers |
 | POST | `/twin/vehicles/:id/share` | Create a 7-day share link (JWT) |
 | DELETE | `/twin/shares/:id` | Revoke a share |
@@ -225,6 +254,12 @@ Remember the APK talks to whatever `EXPO_PUBLIC_API_URL` was at build time.
 - ~~**`PATCH /vehicles/:id` writes the request body straight to the record**~~ — fixed: only type, make, model, year, fuelType, region are accepted.
 - ~~**Slots are never released** when a booking is cancelled or left unpaid~~ — fixed: cancellation releases the slot immediately; a cron every 5 min cancels bookings unpaid for >30 min.
 - **Challans:** `PATCH /challans/:id/pay` marks a challan paid without any payment.
+- **Push notifications are not delivered.** No Firebase project / FCM credentials are set up in EAS (the previous Google account hit its Cloud project limit). Token registration fails quietly; no reminder pushes arrive.
+- **No forgot-password flow**, and SMS/email adapters only log. Needs an email or SMS provider.
+- **Production mode cannot start yet:** `assertProductionReady()` refuses while the registry, SMS, email and geocoding adapters are sandboxes, so the hosted pilot runs with `NODE_ENV=development` and random secrets. Don't weaken that check.
+- **RC scan is slow on Render free** (~20 s per photo). A paid instance or on-device OCR would fix it.
+- **Arya RC registry check is not live** (see "Current state and handover").
+- **No iOS build.**
 - ~~**Officers can send any `penaltyAmount`**~~ — fixed: server always computes penalty from PENALTY_MAP; client input ignored.
 - ~~**Public exposure:** `/public/verify` returns the owner's phone~~ — fixed: phone removed from public response.
 - ~~**Expiry date:** a provider can set any `expiryDate`~~ — fixed: server rejects past dates and dates > 10 years out.
@@ -395,10 +430,22 @@ Personal details entered for a transfer are encrypted with a keyring: `PAPERWORK
 | `server/src/services/buyerReport.service.ts` | Buyer-safe report from a transfer or share token; never returns personal data |
 | `server/src/controllers/buyerReport.controller.ts` | Handler for `GET /twin/buyer-report` |
 | `mobile/src/features/twin/VehicleTwinScreen.tsx` | Twin Score, timeline, transfer/share/buy entry buttons |
-| `mobile/src/features/twin/AcceptTransferScreen.tsx` | Camera + atomic accept flow for incoming transfers |
 | `mobile/src/features/twin/BuyCarScreen.tsx` | Buyer report screen: scan QR → full report → accept or walk away |
 | `mobile/src/features/twin/api.ts` | `TwinAPI` object with all twin API calls |
 | `mobile/src/features/twin/buyerApi.ts` | `getBuyerReport(token)` call for the buyer report endpoint |
+
+### Added since 1 Nov
+
+| File | Purpose |
+|---|---|
+| `render.yaml`, `server/Dockerfile` | Render blueprint and image for the hosted pilot API |
+| `server/scripts/seed-pilot.ts`, `pilot-env.sh`, `pilot-api.sh`, `pilot-to-atlas.sh`, `pilot-qr-token.sh` | Guarded pilot seed (only `drivedock_pilot_YYYYMMDD` databases), pilot env/launcher, copy pilot data to Atlas, QR token for the browser fallback |
+| `server/src/services/regNumber.ts`, `mobile/src/utils/regNumber.ts` | Registration-number rule and live feedback |
+| `server/src/services/rcParserService.ts`, `ocrService.ts` | RC text → Add Vehicle suggestions; shared OCR |
+| `mobile/src/screens/owner/AddVehicleScreen.tsx` | RC photo auto-fill + live plate check |
+| `server/src/providers/aryaRegistry.ts`, `controllers/rcVerificationController.ts`, `docs/RC_VERIFICATION.md` | Arya RC registry check (branch `feat/arya-rc-verification`) |
+| `mobile/plugins/withWorkManagerKeepRules.js` | Keeps WorkManager's Room database in release builds (APK crashed at launch without it) |
+| `docs/PILOT.md`, `docs/pilot/` | Pilot runbook, install page, QR and card |
 
 ## Working conventions
 
