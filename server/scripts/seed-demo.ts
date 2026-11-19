@@ -134,7 +134,18 @@ const CHECKPOINTS = ['ITO Crossing, Delhi', 'Dhaula Kuan, Delhi', 'AIIMS Flyover
 const DOC_TYPES: DocumentType[] = ['rc', 'insurance', 'puc', 'license', 'fitness'];
 const PENALTY: Record<DocumentType, number> = { puc: 1000, insurance: 2000, rc: 5000, fitness: 3000, license: 1500 };
 const SAMPLE_FILE = 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=800&q=80';
-const SLOT_TIMES: [string, string][] = [['09:00 AM', '10:00 AM'], ['10:30 AM', '11:30 AM'], ['12:00 PM', '01:00 PM'], ['02:00 PM', '03:00 PM'], ['03:30 PM', '04:30 PM'], ['05:00 PM', '06:00 PM']];
+// 25-minute PUC slots, back to back 9:00–12:00 and 1:00–5:00 (same as the station app's Full Day template)
+const SLOT_MINUTES = 25;
+const label12h = (m: number) => {
+  const h24 = Math.floor(m / 60), h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${String(h12).padStart(2, '0')}:${String(m % 60).padStart(2, '0')} ${h24 < 12 ? 'AM' : 'PM'}`;
+};
+const slotsBetween = (fromH: number, toH: number): [string, string][] => {
+  const out: [string, string][] = [];
+  for (let t = fromH * 60; t + SLOT_MINUTES <= toH * 60; t += SLOT_MINUTES) out.push([label12h(t), label12h(t + SLOT_MINUTES)]);
+  return out;
+};
+const SLOT_TIMES: [string, string][] = [...slotsBetween(9, 12), ...slotsBetween(13, 17)];
 
 const usedPlates = new Set<string>();
 const plateFor = (area: Area): string => {
@@ -295,7 +306,7 @@ const run = async () => {
   {
     const capital = approved[0];
     const bookedAt = new Date(NOW - 2 * 60 * 60 * 1000);
-    const slot = { _id: new Types.ObjectId(), providerId: capital._id, date: isoDate(daysFromNow(1)), startTime: '11:00 AM', endTime: '12:00 PM', isBooked: true, createdAt: daysAgo(3), updatedAt: bookedAt };
+    const slot = { _id: new Types.ObjectId(), providerId: capital._id, date: isoDate(daysFromNow(1)), startTime: '11:05 AM', endTime: '11:30 AM', isBooked: true, createdAt: daysAgo(3), updatedAt: bookedAt };
     const bookingId = new Types.ObjectId(); const paymentId = new Types.ObjectId();
     slots.push(slot);
     payments.push({ _id: paymentId, bookingId, amount: SERVICE_FEES_INR.puc, currency: 'INR', razorpayOrderId: `order_demo_${hex(14)}`, razorpayPaymentId: `pay_demo_${hex(14)}`, razorpaySignature: hex(64), status: 'paid', createdAt: bookedAt, updatedAt: bookedAt });
@@ -348,7 +359,7 @@ const run = async () => {
   }
   for (let i = 0; i < 18; i++) {
     const p = pick(approved); const v = pick(vehicles.slice(HERO_COUNT)); const when = daysAgo(int(2, 150));
-    const slot = { _id: new Types.ObjectId(), providerId: p._id, date: isoDate(when), startTime: '11:00 AM', endTime: '12:00 PM', isBooked: false, createdAt: when, updatedAt: when };
+    const slot = { _id: new Types.ObjectId(), providerId: p._id, date: isoDate(when), startTime: '11:05 AM', endTime: '11:30 AM', isBooked: false, createdAt: when, updatedAt: when };
     slots.push(slot);
     bookings.push({ _id: new Types.ObjectId(), ownerId: v.ownerId, vehicleId: v._id, providerId: p._id, slotId: slot._id, documentType: pick(p.serviceTypes as DocumentType[]), status: 'cancelled', paymentId: null, certificateUrl: '', notes: '', cancellationReason: chance(0.7) ? 'payment_timeout' : 'cancelled', createdAt: when, updatedAt: new Date(when.getTime() + DAY / 48) });
   }
@@ -405,7 +416,7 @@ const run = async () => {
   console.log(' 2. QR RED .............. DL8CAF5678 -> RED: PUC + licence unverified, insurance expired, fitness missing; e-challan');
   console.log(' 3. Renewal not due ..... Renewals > DL3CAB1234 > PUC -> "No renewal needed yet", opens 30 days before expiry');
   console.log(' 4. Book + pay .......... Renewals > HR26DK9012 > PUC (expires in 5 days) -> pick a station -> Book & Pay');
-  console.log(' 5. Already booked ...... Renewals > UP16KB4321 > PUC -> booked and paid at Capital Auto for tomorrow 11:00 AM');
+  console.log(' 5. Already booked ...... Renewals > UP16KB4321 > PUC -> booked and paid at Capital Auto for tomorrow 11:05 AM');
   console.log(' 6. Station sees it ..... Approved Provider > Capital Auto -> UP16KB4321 at the top (NEW) -> Certify & Complete');
   console.log(' 7. Fix a RED car ....... Renewals > DL8CAF5678 > INSURANCE (expired) or PUC (unverified) -> Book & Pay');
   console.log(' 8. Upload papers ....... DL4CXY7788 (no documents) > Manage Papers -> upload -> stays UNVERIFIED until a station certifies');
