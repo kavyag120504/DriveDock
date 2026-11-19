@@ -46,7 +46,7 @@ export const VehicleStatusScreen = ({ route, navigation }: any) => {
       <Notice title={invalidQR ? 'Ask the owner to refresh their QR' : 'What this result checks'}>
         {invalidQR
           ? 'Scan a fresh code from the owner’s app to check the vehicle documents.'
-          : 'RC, insurance, PUC, licence and fitness must all be valid and verified by approved providers. Owner uploads alone do not count as verified.'}
+          : 'RC, insurance, PUC, licence and fitness must all be valid and verified. RC registry checks and approved-provider certificates are shown separately; owner uploads alone do not qualify.'}
       </Notice>
 
       {vehicle && (
@@ -74,7 +74,7 @@ export const VehicleStatusScreen = ({ route, navigation }: any) => {
               <Text style={styles.issueText}>
                 Unverified papers:{' '}
                 <Text style={{ fontWeight: '800' }}>{issues.unverifiedDocs.join(', ')}</Text> (uploaded for
-                tracking; not certified by an approved provider)
+                tracking; verification has not been completed)
               </Text>
             </View>
           )}
@@ -108,7 +108,8 @@ export const VehicleStatusScreen = ({ route, navigation }: any) => {
                 <Text style={styles.docExpiry}>Expires: {new Date(d.expiryDate).toLocaleDateString()}</Text>
                 <Text style={styles.docIssuer}>
                   {d.verified
-                    ? `Issued by: ${d.issuedBy?.businessName || 'Approved Station'}`
+                    ? d.verificationSource === 'arya' ? 'RC registry checked through Arya'
+                      : `Issued by: ${d.issuedBy?.businessName || 'Approved Station'}`
                     : 'Uncertified photo'}
                 </Text>
               </View>

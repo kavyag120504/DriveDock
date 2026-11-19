@@ -379,7 +379,9 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
         doc.expiryDate = newExpiry;
         doc.status = 'valid';
         doc.lastUpdatedBy = 'provider';
-        doc.verified = true; // CRITICAL: Only provider completion sets verified to TRUE!
+        doc.verified = true; // Approved provider certification replaces any earlier RC registry proof.
+        doc.verificationSource = 'provider';
+        doc.registryVerification = undefined;
         doc.issuedByProviderId = provider._id;
         await doc.save();
       } else {
@@ -393,6 +395,7 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
           status: 'valid',
           lastUpdatedBy: 'provider',
           verified: true, // CRITICAL: Verified is TRUE
+          verificationSource: 'provider',
           issuedByProviderId: provider._id
         });
       }

@@ -4,7 +4,7 @@ export const REQUIRED_DOCUMENTS: DocumentType[] = ['rc', 'insurance', 'puc', 'li
 
 type DocLike = { type: string; verified: boolean; status: string; expiryDate: Date };
 
-/** A document counts towards compliance when it is provider-verified and not expired ("expiring soon" still counts). */
+/** A document counts when verified by a provider or the RC registry and unexpired ("expiring soon" still counts). */
 export const isDocumentGood = (d: DocLike, now = Date.now()): boolean =>
   d.verified && d.status !== 'expired' && new Date(d.expiryDate).getTime() >= now;
 

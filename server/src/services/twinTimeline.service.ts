@@ -28,7 +28,7 @@ export const buildTimeline = async (vehicleId: string | Types.ObjectId): Promise
       type: 'document',
       title: `${d.type.toUpperCase()} Verified`,
       date: d.updatedAt ?? d.createdAt!,
-      detail: `Certified by ${(d.issuedByProviderId as any)?.businessName ?? 'Approved Provider'}. Valid until ${new Date(d.expiryDate).toLocaleDateString('en-IN')}`
+      detail: `${d.verificationSource === 'arya' ? 'RC registry checked through Arya' : `Certified by ${(d.issuedByProviderId as any)?.businessName ?? 'Approved Provider'}`}. Valid until ${new Date(d.expiryDate).toLocaleDateString('en-IN')}`
     });
   }
 

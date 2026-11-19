@@ -88,7 +88,7 @@ export const verifyVehicleQR = async (req: Request, res: Response): Promise<void
 
     let failureReasons: string[] = [];
     if (unverifiedDocs.length > 0) {
-      failureReasons.push(`Unverified documents (not certified by approved provider): ${unverifiedDocs.join(', ')}`);
+      failureReasons.push(`Unverified documents (no approved-provider or RC-registry verification): ${unverifiedDocs.join(', ')}`);
     }
     if (expiredDocs.length > 0) {
       failureReasons.push(`Expired documents: ${expiredDocs.join(', ')}`);
@@ -99,7 +99,7 @@ export const verifyVehicleQR = async (req: Request, res: Response): Promise<void
 
     const compliance = isFullyCompliant ? 'GREEN' : 'RED';
     const reason = isFullyCompliant
-      ? 'All required documents verified genuine and valid by approved providers.'
+      ? 'All required document records are verified and unexpired (provider certification or RC registry check).'
       : failureReasons.join(' | ');
 
     res.status(200).json({
@@ -130,6 +130,8 @@ export const verifyVehicleQR = async (req: Request, res: Response): Promise<void
           type: d.type,
           status: d.status,
           verified: d.verified,
+          verificationSource: d.verificationSource,
+          registryCheckedAt: d.registryVerification?.checkedAt,
           issueDate: d.issueDate,
           expiryDate: d.expiryDate,
           fileUrl: d.fileUrl,

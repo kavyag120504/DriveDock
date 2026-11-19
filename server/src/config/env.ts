@@ -77,6 +77,10 @@ const envSchema = z.object({
 
   // 'gridfs' stores uploads in MongoDB instead of the local disk (for hosts whose disk is temporary)
   UPLOAD_STORAGE: z.enum(['disk', 'gridfs']).default('disk'),
+  // RC lookups are explicit, server-only calls; disabled until credentials are configured.
+  RC_VERIFICATION_ENABLED: boolFromEnv(false),
+  ARYA_API_TOKEN: z.string().default(''),
+  ARYA_RC_DAILY_LIMIT: numericFromEnv(50),
   AWS_ACCESS_KEY_ID: z.string().default(''),
   AWS_SECRET_ACCESS_KEY: z.string().default(''),
   AWS_S3_BUCKET: z.string().default('drivedock-documents'),

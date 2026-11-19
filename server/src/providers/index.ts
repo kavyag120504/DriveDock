@@ -4,14 +4,16 @@
  *
  * Mode selection:
  *   - payment/storage pick 'real' automatically when their credentials exist.
- *   - registry/sms/email/maps/ocr are sandbox/mock until their Phase 3+ real impls land.
+ *   - registry uses Arya only when explicitly enabled; otherwise it is sandbox/unconfigured.
+ *   - sms/email/maps remain sandbox/mock pending their real implementations.
  *
  * Production guarantee (Ground Rule 4): assertProductionReady() throws at startup
  * if ANY adapter is still 'sandbox' or 'mock', so a prod deploy can never silently
  * run on stubs. Called from index.ts alongside validateProductionSecrets().
  */
 
-import { isProduction } from '../config/env';
+import { ENV, isProduction } from '../config/env';
+import { AryaRegistryProvider } from './aryaRegistry';
 import { AdapterMode } from './types';
 import { RegistryProvider, SandboxRegistryProvider, UnconfiguredRegistryProvider } from './registry';
 import { PaymentProvider, RazorpayPaymentProvider } from './payment';
@@ -32,10 +34,10 @@ export interface Providers {
   ocr: OcrProvider;
 }
 
-// Registry real impl isn't wired yet; use the deterministic sandbox outside prod.
-const registry: RegistryProvider = isProduction()
-  ? new UnconfiguredRegistryProvider()
-  : new SandboxRegistryProvider();
+// Explicit opt-in prevents uploads or ordinary screen loads from consuming paid credits.
+const registry: RegistryProvider = ENV.RC_VERIFICATION_ENABLED
+  ? new AryaRegistryProvider({ token: ENV.ARYA_API_TOKEN, dailyLimit: ENV.ARYA_RC_DAILY_LIMIT })
+  : isProduction() ? new UnconfiguredRegistryProvider() : new SandboxRegistryProvider();
 
 export const providers: Providers = {
   registry,

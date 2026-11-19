@@ -330,7 +330,9 @@ export const BuyCarScreen = ({ navigation }: any) => {
                       <>
                         <Text style={styles.docMeta}>
                           {doc.verified
-                            ? `Verified by ${doc.issuedByBusinessName ?? 'approved provider'}`
+                            ? doc.verificationSource === 'arya'
+                              ? 'RC registration record verified through Arya'
+                              : `Verified by ${doc.issuedByBusinessName ?? 'approved provider'}`
                             : 'Not verified by a provider'}
                         </Text>
                         {doc.expiryDate && (

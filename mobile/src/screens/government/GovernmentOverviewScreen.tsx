@@ -68,7 +68,7 @@ export const GovernmentOverviewScreen = () => {
                 </View>
               </View>
               <Text style={styles.kpiExplainer}>
-                Vehicles with all 5 mandatory papers (RC, PUC, Insurance, License, Fitness) verified genuine by certified stations.
+                Vehicles with all 5 required document records verified and unexpired through approved providers or RC registry checks.
               </Text>
             </View>
 

@@ -2,7 +2,19 @@ import mongoose, { Schema, Types } from 'mongoose';
 
 export type DocumentType = 'insurance' | 'puc' | 'rc' | 'license' | 'fitness';
 export type DocumentStatus = 'valid' | 'expiring_soon' | 'expired';
-export type DocumentUpdatedBy = 'owner' | 'provider';
+export type DocumentUpdatedBy = 'owner' | 'provider' | 'registry';
+export type RcCheckOutcome = 'verified' | 'record_matched' | 'expired' | 'inactive' | 'unconfirmed' | 'not_found';
+
+export interface IRcRegistryVerification {
+  provider: 'arya';
+  referenceId: string;
+  registrationNumber: string;
+  checkedAt: Date;
+  outcome: RcCheckOutcome;
+  registryStatus: string;
+  rcValidUpto?: Date | null;
+  fileHash: string;
+}
 
 export interface IDocument {
   _id?: Types.ObjectId;
@@ -16,6 +28,8 @@ export interface IDocument {
   lastUpdatedBy: DocumentUpdatedBy;
   verified: boolean;
   issuedByProviderId?: Types.ObjectId | null;
+  verificationSource?: 'provider' | 'arya' | null;
+  registryVerification?: IRcRegistryVerification;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -39,13 +53,13 @@ const DocumentSchema = new Schema<IDocument>(
     },
     lastUpdatedBy: {
       type: String,
-      enum: ['owner', 'provider'],
+      enum: ['owner', 'provider', 'registry'],
       required: true,
       default: 'owner'
     },
     // CRITICAL TRUST RULE 1: Verified MUST default to false.
     // Uploading a photo for personal tracking does NOT verify it.
-    // Only an approved provider completing a booking updates verified: true.
+    // Approved provider completion, or a complete RC registry check, can verify a record.
     verified: {
       type: Boolean,
       default: false,
@@ -55,6 +69,20 @@ const DocumentSchema = new Schema<IDocument>(
       type: Schema.Types.ObjectId,
       ref: 'Provider',
       default: null
+    },
+    verificationSource: { type: String, enum: ['provider', 'arya', null], default: null },
+    registryVerification: {
+      type: new Schema({
+        provider: { type: String, enum: ['arya'], required: true },
+        referenceId: { type: String, required: true },
+        registrationNumber: { type: String, required: true },
+        checkedAt: { type: Date, required: true },
+        outcome: { type: String, enum: ['verified', 'record_matched', 'expired', 'inactive', 'unconfirmed', 'not_found'], required: true },
+        registryStatus: { type: String, required: true },
+        rcValidUpto: { type: Date, default: null },
+        fileHash: { type: String, required: true }
+      }, { _id: false }),
+      default: undefined
     }
   },
   {

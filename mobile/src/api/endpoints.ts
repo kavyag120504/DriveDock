@@ -14,7 +14,9 @@ export const VehiclesAPI = {
   create: (data: any) => apiClient.post('/vehicles', data),
   update: (id: string, data: any) => apiClient.patch(`/vehicles/${id}`, data),
   delete: (id: string) => apiClient.delete(`/vehicles/${id}`),
-  getQRToken: (id: string) => apiClient.get(`/vehicles/${id}/qr-token`)
+  getQRToken: (id: string) => apiClient.get(`/vehicles/${id}/qr-token`),
+  getRcVerification: (id: string) => apiClient.get(`/vehicles/${id}/rc-verification`),
+  verifyRc: (id: string) => apiClient.post(`/vehicles/${id}/rc-verification`, { consent: true })
 };
 
 export const DocumentsAPI = {

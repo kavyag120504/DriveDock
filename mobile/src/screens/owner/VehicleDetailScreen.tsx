@@ -15,7 +15,7 @@ import {
 import { DocumentsAPI, VehiclesAPI } from '../../api/endpoints';
 import { RotatingQRModal } from '../../components/RotatingQRModal';
 import { StatusPill } from '../../components/StatusPill';
-import { PageHeading, ScreenState } from '../../components/UI';
+import { Button, Notice, PageHeading, ScreenState } from '../../components/UI';
 import { Colors, Layout } from '../../theme/colors';
 import { DISMISSIBLE_ALERT, withCancelButton } from '../../utils/alerts';
 
@@ -41,6 +41,10 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [rcAvailability, setRcAvailability] = useState<any>(null);
+  const [rcCheckError, setRcCheckError] = useState<string | null>(null);
+  const [isRcVerifying, setIsRcVerifying] = useState(false);
+  const [rcConsentVisible, setRcConsentVisible] = useState(false);
 
   // Date picker modal state
   const [dateModal, setDateModal] = useState<{ visible: boolean; docType: string } | null>(null);
@@ -60,9 +64,13 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
 
   const fetchVehicleData = async () => {
     try {
-      const res = await VehiclesAPI.getById(vehicleId);
+      const [res, rcStatus] = await Promise.all([
+        VehiclesAPI.getById(vehicleId),
+        VehiclesAPI.getRcVerification(vehicleId).catch(() => null),
+      ]);
       setVehicle(res.data.data.vehicle);
       setDocuments(res.data.data.documents || []);
+      setRcAvailability(rcStatus?.data?.data ?? null);
     } catch (err) {
       console.error('Fetch vehicle error:', err);
     } finally {
@@ -73,6 +81,19 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
   useEffect(() => {
     fetchVehicleData();
   }, [vehicleId]);
+
+  const requestRcCheck = async () => {
+    setRcConsentVisible(false);
+    setIsRcVerifying(true);
+    setRcCheckError(null);
+    try {
+      const res = await VehiclesAPI.verifyRc(vehicleId);
+      setRcAvailability((current: any) => ({ ...current, latest: res.data.data.result }));
+      await fetchVehicleData();
+    } catch (error: any) {
+      setRcCheckError(error.response?.data?.message || 'Could not complete RC verification. Please try again later.');
+    } finally { setIsRcVerifying(false); }
+  };
 
   const handleUpload = (docType: string) => {
     Alert.alert(
@@ -150,7 +171,9 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
       await DocumentsAPI.upload(vehicleId, formData);
       Alert.alert(
         'Uploaded for Tracking',
-        'Document saved. Note (Trust Rule 1): Document remains UNVERIFIED until inspected and certified by an approved provider.'
+        docType === 'rc'
+          ? 'RC saved as unverified. Use Check RC to compare registration records through Arya, or complete the approved-provider workflow.'
+          : 'Document saved as unverified until inspected and certified by an approved provider.'
       );
       fetchVehicleData();
     } catch (err: any) {
@@ -276,8 +299,8 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
           {/* Trust Banner Explainer */}
           <View style={styles.trustExplainer}>
             <Text style={styles.trustText}>
-              Upload documents for personal tracking. They remain unverified until an approved provider
-              completes a service and issues a certificate.
+              Uploads remain unverified. Approved providers certify service documents; an RC can also be
+              checked against registry records through Arya. Registry checks do not prove ownership or image authenticity.
             </Text>
           </View>
         </View>
@@ -329,9 +352,38 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
                   <View style={styles.issuerRow}>
                     <Text style={styles.issuerText}>
                       {isVerified
-                        ? `Certified by: ${doc.issuedByProviderId?.businessName || 'Approved Station'}`
+                        ? doc.verificationSource === 'arya'
+                          ? 'RC registration record verified through Arya'
+                          : `Certified by: ${doc.issuedByProviderId?.businessName || 'Approved Station'}`
                         : `Uploaded by: Owner (Uncertified tracking photo)`}
                     </Text>
+                  </View>
+                )}
+
+                {item.key === 'rc' && (
+                  <View style={{ marginTop: 12, gap: 10 }}>
+                    {rcAvailability?.latest && (
+                      <Notice
+                        title={rcAvailability.latest.outcome === 'verified' ? 'RC record verified'
+                          : rcAvailability.latest.outcome === 'record_matched' ? 'RC record matched'
+                          : 'RC verification result'}
+                        tone={['verified', 'record_matched'].includes(rcAvailability.latest.outcome) ? 'info' : 'warning'}
+                      >
+                        {rcAvailability.latest.message}
+                        {'\n'}Checked: {new Date(rcAvailability.latest.checkedAt).toLocaleString()}
+                      </Notice>
+                    )}
+                    {rcCheckError && <Notice title="RC check could not finish" tone="error">{rcCheckError}</Notice>}
+                    {!rcAvailability?.enabled && (
+                      <Text style={styles.issuerText}>Arya RC verification is not enabled on this server.</Text>
+                    )}
+                    {!doc && <Text style={styles.issuerText}>Upload your RC before requesting a registry check.</Text>}
+                    <Button
+                      label={rcAvailability?.latest ? 'Check RC again' : 'Verify RC with Arya'}
+                      loading={isRcVerifying}
+                      disabled={!rcAvailability?.enabled || !doc || isUploading || isRcVerifying}
+                      onPress={() => setRcConsentVisible(true)}
+                    />
                   </View>
                 )}
 
@@ -341,7 +393,7 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
                     accessibilityRole="button"
                     style={styles.uploadBtn}
                     onPress={() => handleUpload(item.key)}
-                    disabled={isUploading}
+                    disabled={isUploading || isRcVerifying}
                   >
                     <Text style={styles.uploadBtnText}>{doc ? 'Re-upload' : 'Upload'}</Text>
                   </TouchableOpacity>
@@ -372,6 +424,22 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
         regNumber={vehicle.regNumber}
         onClose={() => setQrModalVisible(false)}
       />
+
+      <Modal visible={rcConsentVisible} transparent animationType="fade" onRequestClose={() => setRcConsentVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Check RC with Arya?</Text>
+            <Text style={styles.modalSubtitle}>
+              This sends {vehicle.regNumber} to Arya and may use one verification credit. It checks registration records,
+              not ownership or the authenticity of the uploaded image. Recent results may be reused for five minutes.
+            </Text>
+            <Button label="Check RC" onPress={requestRcCheck} />
+            <TouchableOpacity accessibilityRole="button" style={styles.modalCancelBtn} onPress={() => setRcConsentVisible(false)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Scanning indicator — shown while the picked image is being OCR'd, before the date modal opens */}
       <Modal visible={isScanning} transparent animationType="fade">

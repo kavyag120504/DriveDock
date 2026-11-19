@@ -5,10 +5,8 @@
  * father's name, mobile, address and every other personal field from the vendor
  * response MUST be dropped inside the adapter and never stored or logged.
  *
- * The real implementation is intentionally not wired yet — the team chooses a
- * vendor (Cashfree / Surepass / Gridlines / Perfios) in Phase 3. Until then the
- * sandbox provides deterministic data so downstream work (claim flow, expiry
- * cross-check, verified:true marking) can be built and tested.
+ * Arya is selected explicitly with RC_VERIFICATION_ENABLED. The sandbox remains
+ * available for isolated development; it cannot certify documents through the RC endpoint.
  */
 
 import crypto from 'crypto';
@@ -17,7 +15,7 @@ import { AdapterError, AdapterMode, CircuitBreaker, UsageMeter, withResilience }
 /** The ONLY data the rest of the system is ever allowed to see from the registry. */
 export interface RegistryVehicle {
   registrationNumber: string;
-  status: 'active' | 'suspended' | 'scrapped' | 'unknown';
+  status: 'active' | 'suspended' | 'scrapped' | 'inactive' | 'unknown';
   makeModel: string;
   fuelType: 'petrol' | 'diesel' | 'ev' | 'cng' | 'unknown';
   registrationDate: string | null; // ISO date
@@ -26,6 +24,8 @@ export interface RegistryVehicle {
   pucValidUpto: string | null;
   fitnessValidUpto: string | null;
   challansPending: boolean;
+  referenceId?: string;
+  found?: boolean;
 }
 
 export interface RegistryProvider {

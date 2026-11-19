@@ -51,7 +51,7 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
 
     // CRITICAL TRUST RULE 1:
     // A document uploaded by an owner for personal tracking defaults strictly to verified: false!
-    // It can ONLY become verified: true when an approved provider confirms a completed service.
+    // RC may also be verified by the explicit registry-check endpoint; uploads never grant verification.
     let document = await DocumentModel.findOne({ vehicleId, type });
 
     if (document) {
@@ -63,6 +63,8 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       document.lastUpdatedBy = 'owner';
       document.verified = false; // Reset to unverified on manual owner re-upload
       document.issuedByProviderId = null;
+      document.verificationSource = null;
+      document.registryVerification = undefined;
       await document.save();
     } else {
       document = await DocumentModel.create({
@@ -144,9 +146,12 @@ export const updateDocument = async (req: Request, res: Response): Promise<void>
       document.status = calculateStatus(document.expiryDate);
     }
 
-    // A manual edit always resets the verified flag: only a completed booking can verify a document
+    // A manual edit resets every verification proof, including a prior RC registry check.
     document.verified = false;
     document.lastUpdatedBy = 'owner';
+    document.issuedByProviderId = null;
+    document.verificationSource = null;
+    document.registryVerification = undefined;
 
     await document.save();
 

@@ -51,6 +51,7 @@ export interface DocReport {
   label:                string;
   present:              boolean;
   verified:             boolean;
+  verificationSource?: 'provider' | 'arya' | null;
   expired:              boolean;
   expiryDate:           Date | null;
   issuedByBusinessName: string | null;
@@ -165,6 +166,7 @@ export async function buildBuyerReport(token: string, viewerId?: string): Promis
       label:    DOC_LABELS[reqType] ?? reqType,
       present:  true,
       verified: doc.verified,
+      verificationSource: doc.verificationSource,
       expired,
       expiryDate:           doc.expiryDate,
       // NEVER return provider user details; only business name for verified docs
@@ -211,7 +213,7 @@ export async function buildBuyerReport(token: string, viewerId?: string): Promis
   for (const doc of documents) {
     if (!doc.present)        redFlags.push(`${doc.label} is not on record`);
     else if (doc.expired)    redFlags.push(`${doc.label} has expired`);
-    else if (!doc.verified)  redFlags.push(`${doc.label} has not been verified by an approved provider`);
+    else if (!doc.verified)  redFlags.push(`${doc.label} has not been verified`);
   }
   if (pendingChallanCount > 0) {
     redFlags.push('This vehicle has unpaid fines (challans)');

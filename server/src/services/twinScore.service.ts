@@ -40,7 +40,7 @@ export const computeTwinScore = async (
   let verifiedCount = 0;
   for (const reqType of requiredTypes) {
     const doc = docs.find((d) => d.type === reqType);
-    // A document only counts when provider-verified AND not expired
+    // A document only counts when verified (provider or RC registry) AND not expired
     if (doc && doc.verified && new Date(doc.expiryDate).getTime() >= now && doc.status !== 'expired') {
       verifiedCount++;
     }
