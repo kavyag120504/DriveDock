@@ -8,32 +8,28 @@ import { WorkspaceScreen } from '../../components/WorkspaceScreen';
 import { Colors } from '../../theme/colors';
 import { useResponsiveLayout } from '../../theme/responsive';
 
+// A PUC test plus handover fits in 25 minutes, so slots run back to back in 25-minute steps.
+const SLOT_MINUTES = 25;
+
+const label12h = (minutes: number) => {
+  const h24 = Math.floor(minutes / 60);
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${String(h12).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')} ${h24 < 12 ? 'AM' : 'PM'}`;
+};
+
+/** Back-to-back slots inside a window, e.g. 9:00–12:00 gives 9:00–9:25 … 11:30–11:55. */
+const slotsBetween = (fromHour: number, toHour: number) => {
+  const slots: { startTime: string; endTime: string }[] = [];
+  for (let t = fromHour * 60; t + SLOT_MINUTES <= toHour * 60; t += SLOT_MINUTES) {
+    slots.push({ startTime: label12h(t), endTime: label12h(t + SLOT_MINUTES) });
+  }
+  return slots;
+};
+
 const TIME_TEMPLATES = [
-  {
-    label: 'Morning (9-12)',
-    slots: [
-      { startTime: '09:00 AM', endTime: '10:00 AM' },
-      { startTime: '10:30 AM', endTime: '11:30 AM' },
-    ],
-  },
-  {
-    label: 'Afternoon (12-5)',
-    slots: [
-      { startTime: '01:00 PM', endTime: '02:00 PM' },
-      { startTime: '02:30 PM', endTime: '03:30 PM' },
-      { startTime: '04:00 PM', endTime: '05:00 PM' },
-    ],
-  },
-  {
-    label: 'Full Day',
-    slots: [
-      { startTime: '09:00 AM', endTime: '10:00 AM' },
-      { startTime: '10:30 AM', endTime: '11:30 AM' },
-      { startTime: '01:00 PM', endTime: '02:00 PM' },
-      { startTime: '02:30 PM', endTime: '03:30 PM' },
-      { startTime: '04:00 PM', endTime: '05:00 PM' },
-    ],
-  },
+  { label: 'Morning (9-12)', slots: slotsBetween(9, 12) },
+  { label: 'Afternoon (1-5)', slots: slotsBetween(13, 17) },
+  { label: 'Full Day', slots: [...slotsBetween(9, 12), ...slotsBetween(13, 17)] },
 ];
 
 // Local calendar date (toISOString is UTC, which is still "yesterday" in India until 5:30 am)
@@ -170,7 +166,7 @@ export const ManageSlotsScreen = () => {
                   <Text
                     style={[styles.templateCount, selectedTemplate === i && styles.templateBtnTextActive]}
                   >
-                    {t.slots.length} slots
+                    {t.slots.length} × {SLOT_MINUTES}-min slots
                   </Text>
                 </TouchableOpacity>
               ))}
