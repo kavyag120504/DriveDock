@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1130 284" role="img" aria-labelledby="title description">
+  <title id="title">How PUC booking works in DriveDock</title>
+  <desc id="description">The owner chooses an approved station. The server reserves an available seat. A test payment confirms the booking. After inspection, the station uploads the certificate to the Vehicle Passport.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M1 1 L6 4 L1 7" fill="none" stroke="#245BD6" stroke-width="1.5"/></marker>
+  </defs>
+  <rect width="1130" height="284" rx="22" fill="#F3F6FA"/>
+  <g fill="#FFFFFF" stroke="#DCE3ED" stroke-width="2">
+    <rect x="25" y="62" width="231" height="152" rx="16"/>
+    <rect x="305" y="62" width="231" height="152" rx="16"/>
+    <rect x="585" y="62" width="231" height="152" rx="16"/>
+    <rect x="865" y="62" width="240" height="152" rx="16"/>
+  </g>
+  <g fill="none" stroke="#245BD6" stroke-width="3" marker-end="url(#arrow)">
+    <path d="M263 137h33"/><path d="M543 137h33"/><path d="M823 137h33"/>
+  </g>
+  <g font-family="Arial, sans-serif" text-anchor="middle">
+    <g font-size="16" font-weight="bold" fill="#245BD6">
+      <text x="140" y="98">OWNER</text><text x="420" y="98">BOOKING API</text><text x="700" y="98">TEST PAYMENT</text><text x="985" y="98" fill="#7040B5">STATION</text>
+    </g>
+    <g font-size="23" font-weight="bold" fill="#142A43">
+      <text x="140" y="139">Choose a centre</text><text x="420" y="139">Reserve a seat</text><text x="700" y="139">Confirm booking</text><text x="985" y="139">Issue certificate</text>
+    </g>
+    <g font-size="17" fill="#4E627A">
+      <text x="140" y="172">Select an approved station</text><text x="140" y="194">and an available slot.</text>
+      <text x="420" y="172">The slot closes when</text><text x="420" y="194">all bays are booked.</text>
+      <text x="700" y="172">The pilot confirms</text><text x="700" y="194">the simulated payment.</text>
+      <text x="985" y="172">After inspection, upload</text><text x="985" y="194">to the Vehicle Passport.</text>
+    </g>
+  </g>
+</svg>

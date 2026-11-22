@@ -2,7 +2,7 @@
 
 Read this first. It is the shared, current picture of the project for both teammates and for Claude Code sessions. Update it in the same PR whenever you change how the project runs or what it guarantees.
 
-Last updated: 2026-11-22 (handover to the second teammate: RC registry providers merged, StampMitra sandbox works, APK blocked on the Expo account, Render still on old code)
+Last updated: 22 Nov 2026 (Android pilot APK built from master; phone testing pending)
 
 ## Current state and handover (22 Nov 2026)
 
@@ -11,14 +11,14 @@ Read this section first. It was written at the end of Shreya's session so that a
 **What exists on `master`** (everything except one local-only secret, below): all five roles, the trust rules, capacity-aware booking with 25-minute slots, Vehicle Twin and two-party ownership transfer with paperwork worksheets, OCR auto-fill, hardening (refresh-token rotation, DPDP export/erasure, rate limits, validation), the Render/Atlas hosted pilot setup, and **pluggable RC registry providers** (`RC_PROVIDER`: `arya` default, `stampmitra`, `cashfree`, `idfy`, `apiexpress`; table and rules in `docs/RC_VERIFICATION.md`). Server tests: 550 of 551 pass (see "Gotchas"), both type-checks pass.
 
 **Hosted pilot (student pilot, synthetic data, test payments only)**
-- API: https://drivedock-pilot-api.onrender.com (Render free, service `drivedock-pilot-api`, Singapore). `render.yaml` now says `branch: master`, but **the Render blueprint in the dashboard may still point at `pilot/20261116` and the service is still running the old code** until someone does Blueprints → drivedock-pilot → Settings → branch `master` → Sync, then service → **Manual Deploy → Deploy latest commit**, then checks `/api/health`. Auto-deploy is off on purpose. For a frozen demo build, cut a branch and point the blueprint at it.
+- API: https://drivedock-pilot-api.onrender.com (Render free, Singapore). The team reported a manual redeploy from master. The public health endpoint returned HTTP 200. Auto-deploy is disabled.
 - Database: MongoDB Atlas "DriveDock Pilot" (free, Mumbai), database `drivedock_pilot_20261116`, network access `0.0.0.0/0` (Render free has no fixed IP). Uploads live in Atlas (GridFS). A free UptimeRobot monitor calls `/healthz` every 5 minutes.
 - Secrets: Render generates the token secrets; `MONGO_URI` and `PAPERWORK_ENCRYPTION_KEYS` are pasted in the Render dashboard. Never commit secrets. Demo logins on the hosted pilot use one private password (`SEED_PASSWORD` in a git-ignored `server/.env.pilot`); ask Shreya.
 - OCR on Render takes about 20 s per RC photo. Runbook: `docs/PILOT.md`.
 - Hosted data still to clean: test station "Pilot Test PUC Centre (TEST)" and one test e-challan on `DL8CAF5678` (from 18 Nov); slots already in Atlas are 1 hour, new ones are 25 minutes.
 
-**Open blockers and decisions (nobody has resolved these yet)**
-1. **APK build is blocked on the Expo account.** `mobile/app.json` has `owner: "angelina10"` and `extra.eas.projectId` 0228238a-…; Shreya's CLI is logged in as `shreya_k21`, which gets "Entity not authorized" on that project. Options: angelina10 adds `shreya_k21` as a collaborator (keeps the signing key and install page); log in as angelina10 (`npx eas-cli login`, never share the password in chat); or `eas project:init` a new project (changes `owner`/`projectId`, new signing key, installed test builds must be uninstalled). Build command: `cd mobile && npx eas-cli build --platform android --profile pilot`. Do the Render redeploy first so the APK talks to current code; then regenerate the install QR and card in `docs/pilot/`.
+**Release status and open decisions**
+1. **Android pilot APK built 22 Nov 2026.** Commit `25d919b`, Expo account `angelina10`, pilot profile and existing Android signing key. [Download the APK](https://expo.dev/artifacts/eas/YKz9trr2ptzo5KqPDiIo6KmqF-_0f3qau3xUOqavtZQ.apk) or open the [EAS build](https://expo.dev/accounts/angelina10/projects/drivedock/builds/b7954abe-8db3-4272-a5bc-57fb0847acdc). Install assets are in `docs/pilot/`. Device testing is pending.
 2. **Google Maps key.** The repo holds the placeholder `YOUR_GOOGLE_MAPS_API_KEY` in `mobile/app.json`, so the stations map uses free OpenStreetMap/CARTO tiles (`USE_FREE_TILES` in `Map.tsx`). Shreya has a real key in her **local, uncommitted** `app.json` (restricted to `com.drivedock.app` and an EAS SHA-1 via `npx eas credentials`). **Do not commit a real key** (or move it to an `app.config.js` reading an env var / EAS secret if the team wants it in builds). With a real key and a wrong SHA-1 the map goes grey with no fallback, so check the map on a phone after each build. Expo Go does not exercise the key.
 3. **No RC registry provider has completed a live lookup.** The StampMitra sandbox is the only one that runs end to end (shows "Sandbox test", never changes a document). To go live: StampMitra needs a KYC-approved organisation, an IP-allowlisted key (Render free cannot provide a fixed IP) and a wallet; Arya has 0 credits; Cashfree needs a business PAN and website; IDfy's result endpoint is not routed; API Express's API host does not resolve. Details: `docs/RC_VERIFICATION.md`. Enable on a host with `RC_VERIFICATION_ENABLED=true`, `RC_PROVIDER`, and that provider's key in the host's secret env only.
 4. **Branch and PR policy.** The convention below is branch + PR into `master`; the 22 Nov commits went straight to `master` by agreement between Shreya and the teammate. Confirm the policy with the teammate.
@@ -33,8 +33,8 @@ Read this section first. It was written at the end of Shreya's session so that a
 - The `.sf/` folder is unrelated tooling; do not commit changes to it.
 
 **Next steps, in order**
-1. Repoint Render to `master`, Sync, Manual Deploy, check `/api/health` (see above); clean the hosted test data.
-2. Resolve the Expo account (blocker 1), then build the pilot APK and test on two phones: owner signs up → adds vehicle → books and pays (test) → station certifies → officer scans → GREEN, plus the ownership-transfer flow.
+1. Check the deployed commit in Render when recording the report evidence. Review the hosted test data with the team.
+2. Test the pilot APK on two phones. Check RC OCR and station map tiles and pins, then a 25-minute PUC booking with test payment and station certification. For a GREEN officer scan, all five documents must be verified and current. Test the seller QR, buyer application and seller approval on a designated test vehicle.
 3. Optionally enable StampMitra sandbox on Render to demo the "Sandbox test" RC result (`RC_VERIFICATION_ENABLED=true`, `RC_PROVIDER=stampmitra`, `STAMPMITRA_API_KEY=sk_test_…` in Render's env).
 4. Fill the report's remaining placeholders with real hosted results.
 5. Then the gaps in "Known gaps": real Razorpay checkout and challan payment, push (Firebase project), forgot password, SMS/email providers, private S3 storage.
