@@ -2,30 +2,42 @@
 
 Read this first. It is the shared, current picture of the project for both teammates and for Claude Code sessions. Update it in the same PR whenever you change how the project runs or what it guarantees.
 
-Last updated: 2026-11-22 (Render pilot now deploys master; Arya branch merged; pluggable RC registry providers, none live yet)
+Last updated: 2026-11-22 (handover to the second teammate: RC registry providers merged, StampMitra sandbox works, APK blocked on the Expo account, Render still on old code)
 
 ## Current state and handover (22 Nov 2026)
 
-**Live pilot (student pilot, synthetic data, test payments only)**
-- API: https://drivedock-pilot-api.onrender.com (Render free, service `drivedock-pilot-api`, Singapore). Render deploys **`master`** through the `render.yaml` blueprint (switched from `pilot/20261116` on 22 Nov; the blueprint's branch is set in the Render dashboard under Blueprints → drivedock-pilot → Settings). Auto-deploy is off: a push never goes live by itself, so after merging use **Manual Deploy → Deploy latest commit**. A `render.yaml` change syncs the blueprint. For a frozen demo build, cut a branch and point the blueprint at it for that week.
-- Database: MongoDB Atlas project "DriveDock Pilot", free cluster in Mumbai, database `drivedock_pilot_20261116`. Network access is `0.0.0.0/0` because Render free has no fixed IP.
-- Keep-awake: a free UptimeRobot monitor calls `/healthz` every 5 minutes so the free instance does not sleep.
-- Secrets: Render generates the token secrets; `MONGO_URI` and `PAPERWORK_ENCRYPTION_KEYS` are pasted in the Render dashboard (copies are in the git-ignored `server/.env.render` on the original laptop). Never commit them.
-- Uploads are stored in Atlas (GridFS, `UPLOAD_STORAGE=gridfs`), so certificates survive restarts.
-- OCR runs on Render with `OCR_TIMEOUT_MS=45000`; an RC scan takes about 20 s on the free CPU.
-- Demo logins: see "Demo accounts" below. On the hosted pilot every seeded account uses one private password (`SEED_PASSWORD` in the git-ignored `server/.env.pilot`), not `password123`. Ask the previous owner for it.
-- Runbook (restart, reset demo data, device checklist, demo script): `docs/PILOT.md`.
+Read this section first. It was written at the end of Shreya's session so that a fresh Claude Code session (or a teammate) can continue without the chat history.
 
-**Branches**
-- `master`: everything, including the Arya RC registry check, the 25-minute slots and the pluggable RC registry providers (merged 22 Nov). Server 550/551 tests (the one failure is the RC scan upload test, which resets the connection on Windows only), both type-checks pass.
-- `pilot/20261116`: the 16 Nov evaluation build. No longer deployed; kept for history.
+**What exists on `master`** (everything except one local-only secret, below): all five roles, the trust rules, capacity-aware booking with 25-minute slots, Vehicle Twin and two-party ownership transfer with paperwork worksheets, OCR auto-fill, hardening (refresh-token rotation, DPDP export/erasure, rate limits, validation), the Render/Atlas hosted pilot setup, and **pluggable RC registry providers** (`RC_PROVIDER`: `arya` default, `stampmitra`, `cashfree`, `idfy`, `apiexpress`; table and rules in `docs/RC_VERIFICATION.md`). Server tests: 550 of 551 pass (see "Gotchas"), both type-checks pass.
+
+**Hosted pilot (student pilot, synthetic data, test payments only)**
+- API: https://drivedock-pilot-api.onrender.com (Render free, service `drivedock-pilot-api`, Singapore). `render.yaml` now says `branch: master`, but **the Render blueprint in the dashboard may still point at `pilot/20261116` and the service is still running the old code** until someone does Blueprints → drivedock-pilot → Settings → branch `master` → Sync, then service → **Manual Deploy → Deploy latest commit**, then checks `/api/health`. Auto-deploy is off on purpose. For a frozen demo build, cut a branch and point the blueprint at it.
+- Database: MongoDB Atlas "DriveDock Pilot" (free, Mumbai), database `drivedock_pilot_20261116`, network access `0.0.0.0/0` (Render free has no fixed IP). Uploads live in Atlas (GridFS). A free UptimeRobot monitor calls `/healthz` every 5 minutes.
+- Secrets: Render generates the token secrets; `MONGO_URI` and `PAPERWORK_ENCRYPTION_KEYS` are pasted in the Render dashboard. Never commit secrets. Demo logins on the hosted pilot use one private password (`SEED_PASSWORD` in a git-ignored `server/.env.pilot`); ask Shreya.
+- OCR on Render takes about 20 s per RC photo. Runbook: `docs/PILOT.md`.
+- Hosted data still to clean: test station "Pilot Test PUC Centre (TEST)" and one test e-challan on `DL8CAF5678` (from 18 Nov); slots already in Atlas are 1 hour, new ones are 25 minutes.
+
+**Open blockers and decisions (nobody has resolved these yet)**
+1. **APK build is blocked on the Expo account.** `mobile/app.json` has `owner: "angelina10"` and `extra.eas.projectId` 0228238a-…; Shreya's CLI is logged in as `shreya_k21`, which gets "Entity not authorized" on that project. Options: angelina10 adds `shreya_k21` as a collaborator (keeps the signing key and install page); log in as angelina10 (`npx eas-cli login`, never share the password in chat); or `eas project:init` a new project (changes `owner`/`projectId`, new signing key, installed test builds must be uninstalled). Build command: `cd mobile && npx eas-cli build --platform android --profile pilot`. Do the Render redeploy first so the APK talks to current code; then regenerate the install QR and card in `docs/pilot/`.
+2. **Google Maps key.** The repo holds the placeholder `YOUR_GOOGLE_MAPS_API_KEY` in `mobile/app.json`, so the stations map uses free OpenStreetMap/CARTO tiles (`USE_FREE_TILES` in `Map.tsx`). Shreya has a real key in her **local, uncommitted** `app.json` (restricted to `com.drivedock.app` and an EAS SHA-1 via `npx eas credentials`). **Do not commit a real key** (or move it to an `app.config.js` reading an env var / EAS secret if the team wants it in builds). With a real key and a wrong SHA-1 the map goes grey with no fallback, so check the map on a phone after each build. Expo Go does not exercise the key.
+3. **No RC registry provider has completed a live lookup.** The StampMitra sandbox is the only one that runs end to end (shows "Sandbox test", never changes a document). To go live: StampMitra needs a KYC-approved organisation, an IP-allowlisted key (Render free cannot provide a fixed IP) and a wallet; Arya has 0 credits; Cashfree needs a business PAN and website; IDfy's result endpoint is not routed; API Express's API host does not resolve. Details: `docs/RC_VERIFICATION.md`. Enable on a host with `RC_VERIFICATION_ENABLED=true`, `RC_PROVIDER`, and that provider's key in the host's secret env only.
+4. **Branch and PR policy.** The convention below is branch + PR into `master`; the 22 Nov commits went straight to `master` by agreement between Shreya and the teammate. Confirm the policy with the teammate.
+5. Unresolved legal text: Form 29 and Form 30 deadlines and worksheet layouts (see "Transfer deadlines").
+
+**Project report** (university submission) lives **outside the repo**, in Shreya's Downloads: `DriveDock_Project_Report_draft_2_tracked.docx` (every edit as a tracked change by "Claude") and `..._clean.docx`. Still to fill: 18 screenshots, hosted end-to-end results (Table 6.3), deployment and APK tables (6.2, 6.4), names and roll number, citations and access dates, and Table 4.1 counts taken from the hosted data (the seed generator dates records relative to the day it runs). Section 5.10 I and Table 7.1 describe the RC providers as of 22 Nov. Re-check any number in the report against the code before submitting.
+
+**Gotchas for whoever picks this up**
+- **Tests:** on a low-RAM machine every Jest suite starts its own MongoMemoryServer; use `cd server && npx jest --maxWorkers=2` (or `--runInBand`) or you get "Instance failed to start within 10000ms". On Windows, `rcScan.test.ts` › "scan-rc needs a photo, and is owner-only" fails with `ECONNRESET` (the server refuses an upload before reading it); it comes from the RC photo scan code and is not a regression.
+- **Windows:** many files have CRLF line endings, so match them when scripting edits. `mobile/src/screens/owner/OwnerDashboardScreen.tsx` is Windows-1252, so patch it byte-safely. `npm run pilot:api` and the other `server/scripts/*.sh` need **Git Bash**; with WSL's `bash` first on PATH they fail with "execvpe(/bin/bash) failed". Start the pilot API with Git Bash and a local Mongo on port 27019 (`docs/PILOT.md`).
+- **Pilot env files** (`server/.env.pilot`, `.env.render`) are git-ignored and hold real keys; each developer creates their own (`npm run pilot:env`, see `server/.env.example` for every variable).
+- The `.sf/` folder is unrelated tooling; do not commit changes to it.
 
 **Next steps, in order**
-1. In Render, point the blueprint at `master`, Sync, then Manual Deploy; check `/api/health`.
-2. RC registry check: `RC_VERIFICATION_ENABLED=true` plus `RC_PROVIDER` (`arya` default, `cashfree`, `idfy`, `apiexpress`) and that provider's key, all backend-only (see `server/.env.example`). Each adapter drops personal data; a vendor sandbox result (Cashfree `CASHFREE_ENV=sandbox`) is shown as a test result and never changes a document. **No provider has completed a live lookup yet:** Arya's account has no credits (RC Verification is also gone from its India catalogue), IDfy on RapidAPI accepts lookups but its result endpoint is not routed on either listing, Cashfree needs business KYC, and API Express's API host does not exist. Arya V1 Lite and IDfy return no RC expiry, so a real match there shows "RC record matched", not verified (see `docs/RC_VERIFICATION.md`).
-3. Clean the hosted data: a test station "Pilot Test PUC Centre (TEST)" and one test e-challan on `DL8CAF5678` were created by end-to-end checks on 18 Nov. Slots already in Atlas are 1 hour; new ones are 25 minutes.
-4. Build a new APK only after the above (`cd mobile && npx eas-cli build --platform android --profile pilot`); the `pilot` profile points at the Render API. Regenerate the install QR and card in `docs/pilot/` for the new download link.
-5. Then the gaps in "Known gaps": real Razorpay checkout, challan payment, push (Firebase project), forgot password, SMS/email providers.
+1. Repoint Render to `master`, Sync, Manual Deploy, check `/api/health` (see above); clean the hosted test data.
+2. Resolve the Expo account (blocker 1), then build the pilot APK and test on two phones: owner signs up → adds vehicle → books and pays (test) → station certifies → officer scans → GREEN, plus the ownership-transfer flow.
+3. Optionally enable StampMitra sandbox on Render to demo the "Sandbox test" RC result (`RC_VERIFICATION_ENABLED=true`, `RC_PROVIDER=stampmitra`, `STAMPMITRA_API_KEY=sk_test_…` in Render's env).
+4. Fill the report's remaining placeholders with real hosted results.
+5. Then the gaps in "Known gaps": real Razorpay checkout and challan payment, push (Firebase project), forgot password, SMS/email providers, private S3 storage.
 
 ## What DriveDock is
 
@@ -200,6 +212,7 @@ These are the product's core promise. Don't weaken them without discussing it wi
 10. **Reminders are "due and not sent".** The job processes `scheduledFor <= now AND sent: false`, so it catches up after downtime. It runs daily at 00:00 (node-cron), and `POST /reminders/trigger-job` with header `x-internal-job-secret` runs it on demand. The same job moves valid documents inside 30 days of expiry to `expiring_soon`. `services/reminderService.ts` schedules reminders for an upload, an expiry edit or a provider completion: thresholds already passed are not all sent at once (one catch-up reminder with the real days left is queued instead), and an expired document gets none.
 11. **Vehicle Twin ledger is append-only.** Each accepted transfer stores a SHA-256 hash chained to the previous record (`prevHash → hash`). `verifyLedger()` recomputes every hash; any mismatch sets `ledgerIntact: false` on the score response.
 12. **Buyer report never exposes personal data.** `GET /twin/buyer-report` returns masked reg number, business names only (never provider user details), and anonymous ownership labels ("Owner 1 (2021–2023)"). Seller name, email, phone, address, full reg, and user IDs are never returned. `canAccept: true` only when the token is a transfer token AND the transfer is still `pending` and not past `expiresAt`.
+13. **RC registry checks add no trust on their own.** `POST /vehicles/:id/rc-verification` needs the owner's (or an admin's) explicit consent and an uploaded RC, takes the plate from the vehicle record (not the request), and stores only an allow-listed summary. A document becomes registry-verified only when a live provider returns an active record **and** an explicit RC validity date; `record matched`, `unconfirmed` and every vendor **sandbox/test result** never set `verified`, dates or status (they are stored with `testMode: true` and shown as "Sandbox test"). Definitive negatives (expired, inactive, not found) remove an earlier registry verification. Provider certification (rule 1) is unaffected. Details: `docs/RC_VERIFICATION.md`.
 
 ## API notes
 
@@ -235,8 +248,8 @@ These are the product's core promise. Don't weaken them without discussing it wi
 
 Fill these placeholders first:
 
-1. **Google Maps key:** replace `YOUR_GOOGLE_MAPS_API_KEY` in `mobile/app.json` (Google Cloud → Maps SDK for Android). Maps show grey tiles without it.
-2. **EAS project:** run `npx eas login` and then `npx eas project:init` in `mobile/`. This fills `YOUR_EAS_PROJECT_ID` in `app.json`, which push tokens need.
+1. **Google Maps key (optional):** without it the stations map uses free OpenStreetMap/CARTO tiles. To use Google's map, put a key restricted to `com.drivedock.app` and the build's SHA-1 (`npx eas credentials`) in your **local** `mobile/app.json` in place of `YOUR_GOOGLE_MAPS_API_KEY`, and never commit it.
+2. **EAS project:** `app.json` already names project `0228238a-…` owned by Expo account `angelina10`. Your CLI account must have access to it (collaborator or logged in as that account); otherwise `eas build` fails with "Entity not authorized". A new project under your own account means `npx eas project:init` (changes `owner` and `projectId`, new signing key).
 
 Then build:
 
@@ -258,7 +271,7 @@ Remember the APK talks to whatever `EXPO_PUBLIC_API_URL` was at build time.
 - **No forgot-password flow**, and SMS/email adapters only log. Needs an email or SMS provider.
 - **Production mode cannot start yet:** `assertProductionReady()` refuses while the registry, SMS, email and geocoding adapters are sandboxes, so the hosted pilot runs with `NODE_ENV=development` and random secrets. Don't weaken that check.
 - **RC scan is slow on Render free** (~20 s per photo). A paid instance or on-device OCR would fix it.
-- **Arya RC registry check is not live** (see "Current state and handover").
+- **No RC registry provider has completed a live lookup** (see "Current state and handover" and `docs/RC_VERIFICATION.md`).
 - **No iOS build.**
 - ~~**Officers can send any `penaltyAmount`**~~ — fixed: server always computes penalty from PENALTY_MAP; client input ignored.
 - ~~**Public exposure:** `/public/verify` returns the owner's phone~~ — fixed: phone removed from public response.
@@ -443,7 +456,10 @@ Personal details entered for a transfer are encrypted with a keyring: `PAPERWORK
 | `server/src/services/regNumber.ts`, `mobile/src/utils/regNumber.ts` | Registration-number rule and live feedback |
 | `server/src/services/rcParserService.ts`, `ocrService.ts` | RC text → Add Vehicle suggestions; shared OCR |
 | `mobile/src/screens/owner/AddVehicleScreen.tsx` | RC photo auto-fill + live plate check |
-| `server/src/providers/aryaRegistry.ts`, `controllers/rcVerificationController.ts`, `docs/RC_VERIFICATION.md` | Arya RC registry check (branch `feat/arya-rc-verification`) |
+| `server/src/providers/index.ts` | Picks the RC registry adapter from `RC_PROVIDER` (and the other adapters) |
+| `server/src/providers/{arya,stampmitra,cashfree,idfy,apiExpress}Registry.ts` | One RC adapter per provider: allow-listed fields only, bounded timeout, no retries, `testMode` for vendor sandboxes (shared error type and date parser in `aryaRegistry.ts`) |
+| `server/src/controllers/rcVerificationController.ts`, `docs/RC_VERIFICATION.md` | RC check endpoint (consent, caching, outcome rules, sandbox guard) and the provider table |
+| `mobile/src/utils/registryLabels.ts` | Display names for registry providers |
 | `mobile/plugins/withWorkManagerKeepRules.js` | Keeps WorkManager's Room database in release builds (APK crashed at launch without it) |
 | `docs/PILOT.md`, `docs/pilot/` | Pilot runbook, install page, QR and card |
 

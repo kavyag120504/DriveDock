@@ -1,8 +1,31 @@
-# RC verification through Arya
+# RC verification (pluggable registry providers)
 
-DriveDock supports Arya's V1 Lite RC lookup from the owner's Vehicle Passport. The integration is disabled by default. No new dependency, seed, database migration or automatic lookup is required.
+DriveDock can check an owner's registration number against a registry provider from the Vehicle Passport. The integration is disabled by default, runs only when the owner taps the button and consents, and needs no new dependency, seed or migration. The provider is chosen on the server with `RC_PROVIDER`; the controller, the app and the trust rules are the same for every provider. Arya was the first provider; the sections below that mention Arya's response describe the Arya adapter.
 
-## Activation
+## Providers (status on 22 Nov 2026)
+
+| `RC_PROVIDER` | Provider | Server env | Explicit RC expiry? | Status |
+|---|---|---|---|---|
+| `arya` (default) | Arya V1 Lite | `ARYA_API_TOKEN` | No: a match shows "RC record matched" | Token works but the account has 0 credits (the trial showed 0 complimentary hits) and RC Verification is no longer listed in Arya's India catalogue. Never completed a live lookup. |
+| `stampmitra` | StampMitra Verify Vehicle RC (`POST /v1/verify/rc`) | `STAMPMITRA_API_KEY` (`sk_test_` sandbox, `sk_live_` production) | Yes (`rcExpiryDate`) | **Sandbox works end to end** (22 Nov: "TEST RESULT ONLY", document unchanged). Going live needs a KYC-approved organisation, an IP-allowlisted key (Render free has no fixed IP) and a wallet at about ₹9 per call. |
+| `cashfree` | Cashfree Secure ID Vehicle RC | `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_ENV` | Yes (`rc_expiry_date`) | Never run: account creation asks for a business PAN and a live website. Production also needs IP whitelisting or the `x-cf-signature` 2FA (`CASHFREE_PUBLIC_KEY_PATH`). |
+| `idfy` | IDfy `ind_rc_plus` via RapidAPI | `RAPIDAPI_KEY`, `IDFY_RC_HOST` | No | The submit call is accepted (HTTP 202) but `GET /v3/tasks` answers "Endpoint does not exist" on both IDfy listings, so no result can be fetched. |
+| `apiexpress` | API Express | `APIEXPRESS_API_KEY`, `APIEXPRESS_BASE_URL` | n/a | Their documented API host `api.apiexpress.in` does not resolve (NXDOMAIN). Keep only if they fix it. |
+
+Rules shared by every adapter (`server/src/providers/*Registry.ts`, shared error type and date parser in `aryaRegistry.ts`):
+- Only allow-listed fields leave the adapter. Owner and father's name, addresses, mobile, chassis, engine, financer and policy numbers are never stored, logged or returned.
+- One request per check (IDfy: one submit plus at most three result polls), a bounded timeout, no automatic retries, and a per-provider daily limit (`*_DAILY_LIMIT` env).
+- Vendor error text is never passed to the client; errors map to fixed messages and codes (`RC_CREDITS_UNAVAILABLE`, `RC_PROVIDER_AUTH_FAILED`, `RC_PROVIDER_UNAVAILABLE`, ...).
+- **Vendor test environments are sample data.** A provider whose `testMode` is true (StampMitra `sk_test_` key, Cashfree `CASHFREE_ENV=sandbox`) has its result stored with `testMode: true`, shown as "Sandbox test" and never changes the document's `verified`, dates, status or source. A cached sandbox result is not reused once the server is on live keys.
+- A result can be `verified` only with an explicit RC validity date, so Arya and IDfy can never produce it; a live StampMitra or Cashfree lookup can.
+
+### Try the StampMitra sandbox locally
+1. Create a free account at developer.stampmitra.in, copy a `sk_test_` key that has the `verification.rc.read` scope.
+2. In the git-ignored env file the server reads (`server/.env` or `server/.env.pilot`): `RC_VERIFICATION_ENABLED=true`, `RC_PROVIDER=stampmitra`, `STAMPMITRA_API_KEY=sk_test_...`.
+3. Start the API, open a vehicle that has an uploaded RC, tap **Verify RC with StampMitra**. Expect a "Sandbox test" notice; the document stays unverified.
+4. Tests for every provider use a mocked `fetch`, so `npx jest src/__tests__/stampmitraRegistry.test.ts` (and the cashfree, idfy, apiexpress, arya and rcVerification suites) need no network or key.
+
+## Activation (Arya)
 
 Configure these values in the **backend's secret environment settings**, then deploy/restart the backend when authorised:
 
