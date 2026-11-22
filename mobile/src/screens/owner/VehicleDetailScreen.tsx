@@ -18,6 +18,7 @@ import { StatusPill } from '../../components/StatusPill';
 import { Button, Notice, PageHeading, ScreenState } from '../../components/UI';
 import { Colors, Layout } from '../../theme/colors';
 import { DISMISSIBLE_ALERT, withCancelButton } from '../../utils/alerts';
+import { REGISTRY_LABELS } from '../../utils/registryLabels';
 
 const ALL_DOC_TYPES = [
   { key: 'rc', label: 'Registration Certificate (RC)' },
@@ -172,7 +173,7 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
       Alert.alert(
         'Uploaded for Tracking',
         docType === 'rc'
-          ? 'RC saved as unverified. Use Check RC to compare registration records through Arya, or complete the approved-provider workflow.'
+          ? 'RC saved as unverified. Use Check RC to compare registration records through the RC registry, or complete the approved-provider workflow.'
           : 'Document saved as unverified until inspected and certified by an approved provider.'
       );
       fetchVehicleData();
@@ -300,7 +301,7 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
           <View style={styles.trustExplainer}>
             <Text style={styles.trustText}>
               Uploads remain unverified. Approved providers certify service documents; an RC can also be
-              checked against registry records through Arya. Registry checks do not prove ownership or image authenticity.
+              checked against registry records through {rcAvailability?.providerLabel ?? 'an RC registry'}. Registry checks do not prove ownership or image authenticity.
             </Text>
           </View>
         </View>
@@ -352,8 +353,8 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
                   <View style={styles.issuerRow}>
                     <Text style={styles.issuerText}>
                       {isVerified
-                        ? doc.verificationSource === 'arya'
-                          ? 'RC registration record verified through Arya'
+                        ? REGISTRY_LABELS[doc.verificationSource]
+                          ? `RC registration record verified through ${REGISTRY_LABELS[doc.verificationSource]}`
                           : `Certified by: ${doc.issuedByProviderId?.businessName || 'Approved Station'}`
                         : `Uploaded by: Owner (Uncertified tracking photo)`}
                     </Text>
@@ -364,10 +365,11 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
                   <View style={{ marginTop: 12, gap: 10 }}>
                     {rcAvailability?.latest && (
                       <Notice
-                        title={rcAvailability.latest.outcome === 'verified' ? 'RC record verified'
+                        title={(rcAvailability.latest.testMode ? 'Sandbox test: ' : '')
+                          + (rcAvailability.latest.outcome === 'verified' ? 'RC record verified'
                           : rcAvailability.latest.outcome === 'record_matched' ? 'RC record matched'
-                          : 'RC verification result'}
-                        tone={['verified', 'record_matched'].includes(rcAvailability.latest.outcome) ? 'info' : 'warning'}
+                          : 'RC verification result')}
+                        tone={!rcAvailability.latest.testMode && ['verified', 'record_matched'].includes(rcAvailability.latest.outcome) ? 'info' : 'warning'}
                       >
                         {rcAvailability.latest.message}
                         {'\n'}Checked: {new Date(rcAvailability.latest.checkedAt).toLocaleString()}
@@ -375,11 +377,11 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
                     )}
                     {rcCheckError && <Notice title="RC check could not finish" tone="error">{rcCheckError}</Notice>}
                     {!rcAvailability?.enabled && (
-                      <Text style={styles.issuerText}>Arya RC verification is not enabled on this server.</Text>
+                      <Text style={styles.issuerText}>RC verification is not enabled on this server.</Text>
                     )}
                     {!doc && <Text style={styles.issuerText}>Upload your RC before requesting a registry check.</Text>}
                     <Button
-                      label={rcAvailability?.latest ? 'Check RC again' : 'Verify RC with Arya'}
+                      label={rcAvailability?.latest ? 'Check RC again' : `Verify RC with ${rcAvailability?.providerLabel ?? 'registry'}`}
                       loading={isRcVerifying}
                       disabled={!rcAvailability?.enabled || !doc || isUploading || isRcVerifying}
                       onPress={() => setRcConsentVisible(true)}
@@ -428,9 +430,9 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
       <Modal visible={rcConsentVisible} transparent animationType="fade" onRequestClose={() => setRcConsentVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Check RC with Arya?</Text>
+            <Text style={styles.modalTitle}>Check RC with {rcAvailability?.providerLabel ?? 'the registry'}?</Text>
             <Text style={styles.modalSubtitle}>
-              This sends {vehicle.regNumber} to Arya and may use one verification credit. It checks registration records,
+              This sends {vehicle.regNumber} to {rcAvailability?.providerLabel ?? 'the RC registry service'} and may use one verification credit. It checks registration records,
               not ownership or the authenticity of the uploaded image. Recent results may be reused for five minutes.
             </Text>
             <Button label="Check RC" onPress={requestRcCheck} />

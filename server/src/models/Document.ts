@@ -6,7 +6,9 @@ export type DocumentUpdatedBy = 'owner' | 'provider' | 'registry';
 export type RcCheckOutcome = 'verified' | 'record_matched' | 'expired' | 'inactive' | 'unconfirmed' | 'not_found';
 
 export interface IRcRegistryVerification {
-  provider: 'arya';
+  provider: 'arya' | 'apiexpress' | 'cashfree' | 'idfy';
+  /** Vendor test environment (canned data). Recorded for display only; never changes verification. */
+  testMode?: boolean;
   referenceId: string;
   registrationNumber: string;
   checkedAt: Date;
@@ -28,7 +30,7 @@ export interface IDocument {
   lastUpdatedBy: DocumentUpdatedBy;
   verified: boolean;
   issuedByProviderId?: Types.ObjectId | null;
-  verificationSource?: 'provider' | 'arya' | null;
+  verificationSource?: 'provider' | 'arya' | 'apiexpress' | 'cashfree' | 'idfy' | null;
   registryVerification?: IRcRegistryVerification;
   createdAt?: Date;
   updatedAt?: Date;
@@ -70,10 +72,11 @@ const DocumentSchema = new Schema<IDocument>(
       ref: 'Provider',
       default: null
     },
-    verificationSource: { type: String, enum: ['provider', 'arya', null], default: null },
+    verificationSource: { type: String, enum: ['provider', 'arya', 'apiexpress', 'cashfree', 'idfy', null], default: null },
     registryVerification: {
       type: new Schema({
-        provider: { type: String, enum: ['arya'], required: true },
+        provider: { type: String, enum: ['arya', 'apiexpress', 'cashfree', 'idfy'], required: true },
+        testMode: { type: Boolean, default: false },
         referenceId: { type: String, required: true },
         registrationNumber: { type: String, required: true },
         checkedAt: { type: Date, required: true },

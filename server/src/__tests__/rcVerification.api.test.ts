@@ -195,3 +195,41 @@ test('manual date edits clear registry proof; the next request is not cached', a
   expect((await post()).body.data.cached).toBe(false);
   expect(lookup).toHaveBeenCalledTimes(2);
 });
+
+describe('vendor sandbox (testMode) results', () => {
+  const registry = providers.registry as any;
+  afterEach(() => { registry.testMode = undefined; });
+
+  test('a sandbox "verified" result is shown but never verifies the document or changes its dates', async () => {
+    registry.testMode = true;
+    const { doc, post } = await fixture();
+    const res = await post();
+    expect(res.status).toBe(200);
+    expect(res.body.data.result).toMatchObject({ outcome: 'verified', testMode: true });
+    expect(res.body.data.result.message).toMatch(/^TEST RESULT ONLY/);
+    const stored = await DocumentModel.findById(doc!._id).lean();
+    expect(stored).toMatchObject({ verified: false, verificationSource: null, lastUpdatedBy: 'owner' });
+    expect(stored!.expiryDate!.toISOString()).toBe(new Date('2090-01-01').toISOString());
+  });
+
+  test('a sandbox "not found" result never clears an existing provider certification', async () => {
+    registry.testMode = true;
+    lookup.mockImplementation(async (reg) => activeRecord(reg, { found: false, status: 'unknown' }));
+    const { doc, post } = await fixture();
+    await DocumentModel.updateOne({ _id: doc!._id }, { verified: true, verificationSource: 'provider', lastUpdatedBy: 'provider' });
+    const res = await post();
+    expect(res.body.data.result).toMatchObject({ outcome: 'not_found', testMode: true });
+    expect(await DocumentModel.findById(doc!._id).lean()).toMatchObject({ verified: true, verificationSource: 'provider' });
+  });
+
+  test('a cached sandbox result is not reused once the server is on live keys', async () => {
+    registry.testMode = true;
+    const { post } = await fixture();
+    await post();
+    registry.testMode = false;
+    const res = await post();
+    expect(res.body.data.cached).toBe(false);
+    expect(res.body.data.result.testMode).toBe(false);
+    expect(lookup).toHaveBeenCalledTimes(2);
+  });
+});

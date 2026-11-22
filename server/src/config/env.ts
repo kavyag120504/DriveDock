@@ -81,6 +81,22 @@ const envSchema = z.object({
   RC_VERIFICATION_ENABLED: boolFromEnv(false),
   ARYA_API_TOKEN: z.string().default(''),
   ARYA_RC_DAILY_LIMIT: numericFromEnv(50),
+  // Which RC registry to use when RC_VERIFICATION_ENABLED is true.
+  RC_PROVIDER: z.enum(['arya', 'apiexpress', 'cashfree', 'idfy']).default('arya'),
+  // IDfy ind_rc_plus through RapidAPI (individual signup; Basic plan = 40 requests/month, hard limit).
+  RAPIDAPI_KEY: z.string().default(''),
+  IDFY_RC_HOST: z.string().default('vehicle-rc-verification-advanced.p.rapidapi.com'),
+  IDFY_RC_DAILY_LIMIT: numericFromEnv(10),
+  // Cashfree Secure ID. "sandbox" answers with canned test data that never changes a document.
+  CASHFREE_CLIENT_ID: z.string().default(''),
+  CASHFREE_CLIENT_SECRET: z.string().default(''),
+  CASHFREE_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+  CASHFREE_PUBLIC_KEY_PATH: z.string().default(''), // optional: 2FA public-key file for the x-cf-signature header
+  CASHFREE_RC_DAILY_LIMIT: numericFromEnv(50),
+  // API Express: sk_live_ keys use the production host, sk_test_ keys the sandbox host (unless the base URL is set).
+  APIEXPRESS_API_KEY: z.string().default(''),
+  APIEXPRESS_BASE_URL: z.string().default(''),
+  APIEXPRESS_RC_DAILY_LIMIT: numericFromEnv(50),
   AWS_ACCESS_KEY_ID: z.string().default(''),
   AWS_SECRET_ACCESS_KEY: z.string().default(''),
   AWS_S3_BUCKET: z.string().default('drivedock-documents'),

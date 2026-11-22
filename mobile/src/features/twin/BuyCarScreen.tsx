@@ -11,6 +11,7 @@ import { getBuyerReport } from './buyerApi';
 import { useAuthStore } from '../../store/authStore';
 import { BuyerDetailsModal } from './paperwork/BuyerDetailsModal';
 import { partyFromServer, serverMessages } from './paperwork/validators';
+import { REGISTRY_LABELS } from '../../utils/registryLabels';
 
 type BannerType = 'green' | 'amber' | 'red';
 
@@ -330,8 +331,8 @@ export const BuyCarScreen = ({ navigation }: any) => {
                       <>
                         <Text style={styles.docMeta}>
                           {doc.verified
-                            ? doc.verificationSource === 'arya'
-                              ? 'RC registration record verified through Arya'
+                            ? REGISTRY_LABELS[doc.verificationSource ?? '']
+                              ? `RC registration record verified through ${REGISTRY_LABELS[doc.verificationSource ?? '']}`
                               : `Verified by ${doc.issuedByBusinessName ?? 'approved provider'}`
                             : 'Not verified by a provider'}
                         </Text>

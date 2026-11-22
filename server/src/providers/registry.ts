@@ -30,6 +30,8 @@ export interface RegistryVehicle {
 
 export interface RegistryProvider {
   readonly mode: AdapterMode;
+  /** True when the vendor's own test environment answers with canned data. Such results never change a document. */
+  readonly testMode?: boolean;
   /** Look up a vehicle by registration number. Never returns personal data. */
   lookup(registrationNumber: string): Promise<RegistryVehicle>;
   /**

@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { StatusPill } from '../../components/StatusPill';
 import { Notice, PageHeading } from '../../components/UI';
 import { Colors, Layout } from '../../theme/colors';
+import { REGISTRY_LABELS } from '../../utils/registryLabels';
 
 export const VehicleStatusScreen = ({ route, navigation }: any) => {
   const result = route.params?.result || {};
@@ -108,7 +109,8 @@ export const VehicleStatusScreen = ({ route, navigation }: any) => {
                 <Text style={styles.docExpiry}>Expires: {new Date(d.expiryDate).toLocaleDateString()}</Text>
                 <Text style={styles.docIssuer}>
                   {d.verified
-                    ? d.verificationSource === 'arya' ? 'RC registry checked through Arya'
+                    ? REGISTRY_LABELS[d.verificationSource]
+                      ? `RC registry checked through ${REGISTRY_LABELS[d.verificationSource]}`
                       : `Issued by: ${d.issuedBy?.businessName || 'Approved Station'}`
                     : 'Uncertified photo'}
                 </Text>

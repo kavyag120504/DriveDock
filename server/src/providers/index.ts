@@ -14,6 +14,9 @@
 
 import { ENV, isProduction } from '../config/env';
 import { AryaRegistryProvider } from './aryaRegistry';
+import { ApiExpressRegistryProvider } from './apiExpressRegistry';
+import { CashfreeRegistryProvider } from './cashfreeRegistry';
+import { IdfyRegistryProvider } from './idfyRegistry';
 import { AdapterMode } from './types';
 import { RegistryProvider, SandboxRegistryProvider, UnconfiguredRegistryProvider } from './registry';
 import { PaymentProvider, RazorpayPaymentProvider } from './payment';
@@ -36,7 +39,18 @@ export interface Providers {
 
 // Explicit opt-in prevents uploads or ordinary screen loads from consuming paid credits.
 const registry: RegistryProvider = ENV.RC_VERIFICATION_ENABLED
-  ? new AryaRegistryProvider({ token: ENV.ARYA_API_TOKEN, dailyLimit: ENV.ARYA_RC_DAILY_LIMIT })
+  ? ENV.RC_PROVIDER === 'idfy'
+    ? new IdfyRegistryProvider({ rapidApiKey: ENV.RAPIDAPI_KEY, host: ENV.IDFY_RC_HOST, dailyLimit: ENV.IDFY_RC_DAILY_LIMIT })
+    : ENV.RC_PROVIDER === 'cashfree'
+    ? new CashfreeRegistryProvider({
+        clientId: ENV.CASHFREE_CLIENT_ID, clientSecret: ENV.CASHFREE_CLIENT_SECRET, environment: ENV.CASHFREE_ENV,
+        publicKeyPath: ENV.CASHFREE_PUBLIC_KEY_PATH, dailyLimit: ENV.CASHFREE_RC_DAILY_LIMIT
+      })
+    : ENV.RC_PROVIDER === 'apiexpress'
+    ? new ApiExpressRegistryProvider({
+        key: ENV.APIEXPRESS_API_KEY, baseUrl: ENV.APIEXPRESS_BASE_URL, dailyLimit: ENV.APIEXPRESS_RC_DAILY_LIMIT
+      })
+    : new AryaRegistryProvider({ token: ENV.ARYA_API_TOKEN, dailyLimit: ENV.ARYA_RC_DAILY_LIMIT })
   : isProduction() ? new UnconfiguredRegistryProvider() : new SandboxRegistryProvider();
 
 export const providers: Providers = {

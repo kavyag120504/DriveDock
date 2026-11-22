@@ -12,21 +12,37 @@ import { scheduleDocumentReminders } from '../services/reminderService';
 
 const CACHE_MS = 5 * 60 * 1000;
 const inFlight = new Map<string, Promise<RegistryVehicle>>();
-const messages: Record<RcCheckOutcome, string> = {
-  verified: 'RC registration and validity were verified through Arya. This checks registry records, not ownership or the authenticity of the uploaded image.',
-  record_matched: 'Arya matched an active RC record, but did not supply explicit RC validity dates. No new document verification was granted; fitness validity is not substituted for RC expiry.',
-  expired: 'The RC validity date returned by Arya has passed. This document is not compliant.',
-  inactive: 'The registration returned by Arya is inactive, suspended or scrapped. No verification was granted.',
+type RcProviderName = 'arya' | 'apiexpress' | 'cashfree' | 'idfy';
+const REGISTRY_SOURCES = ['arya', 'apiexpress', 'cashfree', 'idfy'];
+const providerName = (): RcProviderName => ENV.RC_PROVIDER;
+const labelOf = (provider: string): string =>
+  provider === 'apiexpress' ? 'API Express' : provider === 'cashfree' ? 'Cashfree' : provider === 'idfy' ? 'IDfy' : 'Arya';
+/** Vendor sandbox: canned data, so the result is shown but never changes the document. */
+const testMode = (): boolean => providers.registry.testMode === true;
+const TEST_PREFIX = 'TEST RESULT ONLY: this came from the provider\'s sandbox with sample data, not real registry records. Nothing on your document was changed. ';
+const messagesFor = (L: string): Record<RcCheckOutcome, string> => ({
+  verified: `RC registration and validity were verified through ${L}. This checks registry records, not ownership or the authenticity of the uploaded image.`,
+  record_matched: `${L} matched an active RC record, but did not supply explicit RC validity dates. No new document verification was granted; fitness validity is not substituted for RC expiry.`,
+  expired: `The RC validity date returned by ${L} has passed. This document is not compliant.`,
+  inactive: `The registration returned by ${L} is inactive, suspended or scrapped. No verification was granted.`,
   unconfirmed: 'The RC record could not be confirmed as active with usable validity dates. No new verification was granted.',
-  not_found: 'Arya did not find a matching RC record. No verification was granted.'
-};
+  not_found: `${L} did not find a matching RC record. No verification was granted.`
+});
 
-const configured = (): boolean => ENV.RC_VERIFICATION_ENABLED && !!ENV.ARYA_API_TOKEN.trim() && providers.registry.mode === 'real';
+const hasCredentials = (): boolean => {
+  const p = providerName();
+  if (p === 'cashfree') return !!ENV.CASHFREE_CLIENT_ID.trim() && !!ENV.CASHFREE_CLIENT_SECRET.trim();
+  if (p === 'idfy') return !!ENV.RAPIDAPI_KEY.trim();
+  return !!(p === 'apiexpress' ? ENV.APIEXPRESS_API_KEY : ENV.ARYA_API_TOKEN).trim();
+};
+const configured = (): boolean => ENV.RC_VERIFICATION_ENABLED && hasCredentials() && providers.registry.mode === 'real';
 const endOfDay = (date: string): Date => new Date(`${date}T23:59:59.999+05:30`);
-const summary = (doc: any) => doc?.registryVerification ? {
-  ...(doc.registryVerification.toObject?.() ?? doc.registryVerification),
-  message: messages[doc.registryVerification.outcome as RcCheckOutcome]
-} : null;
+const summary = (doc: any) => {
+  const rv = doc?.registryVerification;
+  if (!rv) return null;
+  const message = messagesFor(labelOf(rv.provider))[rv.outcome as RcCheckOutcome];
+  return { ...(rv.toObject?.() ?? rv), message: rv.testMode ? TEST_PREFIX + message : message };
+};
 
 async function ownVehicle(req: Request, res: Response) {
   if (!isValidObjectId(req.params.id)) {
@@ -45,7 +61,7 @@ export const getRcVerification = async (req: Request, res: Response): Promise<vo
     if (!vehicle) return;
     const doc = await DocumentModel.findOne({ vehicleId: vehicle._id, type: 'rc' }).sort({ updatedAt: -1 });
     res.json({ success: true, data: {
-      enabled: configured(), provider: 'arya', requiresUploadedRc: true,
+      enabled: configured(), provider: providerName(), providerLabel: labelOf(providerName()), testMode: testMode(), requiresUploadedRc: true,
       latest: summary(doc), cacheSeconds: CACHE_MS / 1000
     } });
   } catch {
@@ -59,11 +75,11 @@ export const verifyRc = async (req: Request, res: Response): Promise<void> => {
     const vehicle = await ownVehicle(req, res);
     if (!vehicle) return;
     if (req.body?.consent !== true) {
-      res.status(400).json({ success: false, code: 'RC_CONSENT_REQUIRED', message: 'Confirm that this registration number may be sent to Arya for verification.' });
+      res.status(400).json({ success: false, code: 'RC_CONSENT_REQUIRED', message: `Confirm that this registration number may be sent to ${labelOf(providerName())} for verification.` });
       return;
     }
     if (!configured()) {
-      res.status(503).json({ success: false, code: 'RC_NOT_CONFIGURED', message: 'RC verification is not enabled on this server. Ask the administrator to configure Arya.' });
+      res.status(503).json({ success: false, code: 'RC_NOT_CONFIGURED', message: `RC verification is not enabled on this server. Ask the administrator to configure ${labelOf(providerName())}.` });
       return;
     }
     const doc = await DocumentModel.findOne({ vehicleId: vehicle._id, type: 'rc' }).sort({ updatedAt: -1 });
@@ -74,6 +90,7 @@ export const verifyRc = async (req: Request, res: Response): Promise<void> => {
     const registration = normaliseRegistration(vehicle.regNumber);
     const previous = doc.registryVerification;
     if (previous && previous.registrationNumber === registration && previous.fileHash === doc.fileHash &&
+        previous.provider === providerName() && !!previous.testMode === testMode() &&
         Date.now() - previous.checkedAt.getTime() < CACHE_MS &&
         !(previous.outcome === 'verified' && (!previous.rcValidUpto || previous.rcValidUpto.getTime() < Date.now()))) {
       res.json({ success: true, data: { document: doc, result: summary(doc), cached: true } });
@@ -106,19 +123,22 @@ export const verifyRc = async (req: Request, res: Response): Promise<void> => {
       res.status(409).json({ success: false, message: 'Vehicle ownership changed during verification. Refresh the passport.' });
       return;
     }
+    const isTest = testMode();
     const set: Record<string, unknown> = { registryVerification: {
-      provider: 'arya', referenceId: record.referenceId!, registrationNumber: registration,
+      provider: providerName(), testMode: isTest, referenceId: record.referenceId!, registrationNumber: registration,
       checkedAt, outcome, registryStatus: record.status, rcValidUpto: expires, fileHash: doc.fileHash
     } };
-    if (outcome === 'verified') {
+    if (isTest) {
+      // Sandbox data is canned: record the result for display, never touch verification, dates or status.
+    } else if (outcome === 'verified') {
       set.verified = true;
-      set.verificationSource = 'arya';
+      set.verificationSource = providerName();
       set.issuedByProviderId = null;
       set.lastUpdatedBy = 'registry';
       set.issueDate = issued;
       set.expiryDate = expires;
       set.status = expires!.getTime() - Date.now() <= 30 * 86400000 ? 'expiring_soon' : 'valid';
-    } else if (['expired', 'inactive', 'not_found'].includes(outcome) || doc.verificationSource === 'arya') {
+    } else if (['expired', 'inactive', 'not_found'].includes(outcome) || REGISTRY_SOURCES.includes(doc.verificationSource ?? '')) {
       set.verified = false;
       set.verificationSource = null;
       set.issuedByProviderId = null;
@@ -140,7 +160,7 @@ export const verifyRc = async (req: Request, res: Response): Promise<void> => {
     }
     await recordAudit({ actorId: req.user!.userId, actorRole: req.user!.role, action: 'rc_registry_checked',
       entityType: 'document', entityId: updated._id, fields: ['registryVerification', 'verified'],
-      metadata: { provider: 'arya', outcome, referenceId: record.referenceId! }, ip: req.ip });
+      metadata: { provider: providerName(), testMode: isTest, outcome, referenceId: record.referenceId! }, ip: req.ip });
     res.json({ success: true, data: { document: updated, result: summary(updated), cached: false } });
   } catch (error) {
     if (error instanceof RcVerificationError) {
