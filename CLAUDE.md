@@ -81,7 +81,7 @@ server/   Node.js + Express + TypeScript + MongoDB (Mongoose) API
 | Payments | Razorpay test flow with server-side HMAC verification (see "Known gaps") |
 | Push | expo-notifications + Expo Push API |
 | Maps | react-native-maps on phones; without a real Google Maps key the stations map draws free OpenStreetMap/CARTO tiles (with attribution). A placeholder on web (`src/components/Map.web.tsx`) |
-| OCR | Tesseract.js on the server: document date suggestions (`POST /documents/scan`) and RC photo auto-fill for Add Vehicle (`POST /vehicles/scan-rc`). Suggestions only, never verification; the image is deleted after reading and personal data is never returned. `OCR_TIMEOUT_MS`, `OCR_CACHE_DIR`, `OCR_SCAN_ENABLED` |
+| OCR | Tesseract.js on the server: document date suggestions (`POST /documents/scan`) and RC photo auto-fill for Add Vehicle (`POST /vehicles/scan-rc`). Suggestions only, never verification; the image is deleted after reading and personal data is never returned. `OCR_TIMEOUT_MS`, `OCR_CACHE_DIR`, `OCR_SCAN_ENABLED`, `OCR_MAX_PIXELS` (default 2,000,000: tall gallery images and screenshots are scaled down to about the cost of a landscape camera shot, because OCR time grows with pixel count and timed out on Render free) |
 | QR | react-native-qrcode-svg to show, expo-camera to scan |
 
 ## Running it locally
