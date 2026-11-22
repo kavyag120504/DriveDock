@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -83,6 +83,18 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
   useEffect(() => {
     fetchVehicleData();
   }, [vehicleId]);
+
+  // Coming from Add Vehicle after an RC scan: start the normal RC upload with that photo (the owner still confirms
+  // the dates), then show the normal consent screen. Nothing is sent to a registry without that consent.
+  const checkRcAfterUpload = useRef<boolean>(!!route.params?.checkRcAfterUpload);
+  const startedFromScan = useRef(false);
+  useEffect(() => {
+    const photo = route.params?.rcPhoto;
+    if (!photo || startedFromScan.current) return;
+    startedFromScan.current = true;
+    navigation.setParams({ rcPhoto: undefined });
+    void scanAndPrefill('rc', photo.uri, photo.name, photo.type);
+  }, [route.params?.rcPhoto]);
 
   const requestRcCheck = async () => {
     setRcConsentVisible(false);
@@ -171,6 +183,12 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
       formData.append('file', { uri, name: filename, type: mimeType });
 
       await DocumentsAPI.upload(vehicleId, formData);
+      if (docType === 'rc' && checkRcAfterUpload.current) {
+        checkRcAfterUpload.current = false;
+        await fetchVehicleData();
+        setRcConsentVisible(true);
+        return;
+      }
       Alert.alert(
         'Uploaded for Tracking',
         docType === 'rc'

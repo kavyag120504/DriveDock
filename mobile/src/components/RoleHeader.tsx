@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuthStore, UserRole } from '../store/authStore';
+import { NotificationBell } from './NotificationBell';
 import { Colors } from '../theme/colors';
 import { useResponsiveLayout } from '../theme/responsive';
 
@@ -42,6 +43,7 @@ export const RoleHeader: React.FC<RoleHeaderProps> = ({ title, subtitle, onRefre
             </Text>
           </View>
           <View style={styles.actions}>
+            <NotificationBell />
             {onRefresh && (
               <TouchableOpacity
                 accessibilityRole="button"

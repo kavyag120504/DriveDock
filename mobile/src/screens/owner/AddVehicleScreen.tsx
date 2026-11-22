@@ -24,6 +24,8 @@ export const AddVehicleScreen = ({ navigation }: any) => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<{ found: number; warning: string | null } | null>(null);
   const [fromRc, setFromRc] = useState<Set<string>>(new Set());
+  // The photo that was scanned. Only used if the owner chooses to check the RC after saving; it is not uploaded otherwise.
+  const [rcPhoto, setRcPhoto] = useState<{ uri: string; name: string; type: string } | null>(null);
   const edited = (field: string) =>
     setFromRc((prev) => {
       if (!prev.has(field)) return prev;
@@ -60,6 +62,7 @@ export const AddVehicleScreen = ({ navigation }: any) => {
       if (d.fuelType) { setFuelType(d.fuelType); filled.add('fuelType'); }
       if (d.vehicleType) { setVehicleType(d.vehicleType); filled.add('vehicleType'); }
       setFromRc(filled);
+      setRcPhoto(part);
       setScanResult({ found: filled.size, warning: d.warning ?? null });
     } catch (err: any) {
       setScanResult({ found: 0, warning: err.response?.data?.message || 'Couldn\'t reach the server to read the RC. Enter the details manually.' });
@@ -103,7 +106,7 @@ export const AddVehicleScreen = ({ navigation }: any) => {
 
     setIsLoading(true);
     try {
-      await VehiclesAPI.create({
+      const created = await VehiclesAPI.create({
         regNumber: cleanedReg,
         make,
         model,
@@ -112,8 +115,35 @@ export const AddVehicleScreen = ({ navigation }: any) => {
         fuelType,
         region: { state: 'Maharashtra', district },
       });
-      Alert.alert('Success', 'Vehicle added to your passport successfully');
-      navigation.goBack();
+      const vehicleId: string | undefined = created.data?.data?._id;
+      // Offer the registry check only after a scan, and only when this server can actually run one.
+      let checkLabel: string | null = null;
+      if (rcPhoto && vehicleId) {
+        try {
+          const status = await VehiclesAPI.getRcVerification(vehicleId);
+          if (status.data?.data?.enabled) checkLabel = status.data.data.providerLabel ?? 'the RC registry';
+        } catch { /* no offer if the status cannot be read */ }
+      }
+      if (rcPhoto && vehicleId && checkLabel) {
+        Alert.alert(
+          'Vehicle added',
+          `Check this RC with ${checkLabel} now? Your RC photo is saved as an unverified document first, you confirm its dates, and you are asked for consent before anything is sent. It may use one verification credit.`,
+          [
+            { text: 'Not now', style: 'cancel', onPress: () => navigation.goBack() },
+            {
+              text: 'Check RC',
+              onPress: () =>
+                navigation.navigate('Dashboard', {
+                  screen: 'VehicleDetail',
+                  params: { vehicleId, rcPhoto, checkRcAfterUpload: true }
+                })
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Success', 'Vehicle added to your passport successfully');
+        navigation.goBack();
+      }
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.message || 'Failed to register vehicle');
     } finally {

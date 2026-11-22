@@ -3,6 +3,7 @@ import { AuthAPI } from '../api/endpoints';
 import { setSessionExpiredHandler } from '../api/client';
 import { Storage } from '../utils/storage';
 import { registerPushToken } from '../utils/notifications';
+import { useNotificationStore } from './notificationStore';
 
 export type UserRole = 'owner' | 'provider' | 'officer' | 'government' | 'admin';
 
@@ -105,6 +106,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     try { await AuthAPI.logout(); } catch { /* server call is best-effort */ }
+    useNotificationStore.getState().reset();
     await Storage.clearAuth();
     set({
       user: null,

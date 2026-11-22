@@ -3,6 +3,8 @@ import { apiClient, UPLOAD_TIMEOUT_MS } from './client';
 export const AuthAPI = {
   login: (data: { email: string; password: string }) => apiClient.post('/auth/login', data),
   signup: (data: any) => apiClient.post('/auth/signup', data),
+  forgotPassword: (data: { identifier: string; channel?: 'email' | 'sms' }) => apiClient.post('/auth/forgot-password', data),
+  resetPassword: (data: { identifier: string; code: string; newPassword: string }) => apiClient.post('/auth/reset-password', data),
   logout: () => apiClient.post('/auth/logout'),
   getMe: () => apiClient.get('/auth/me'),
   updatePushToken: (token: string) => apiClient.post('/users/push-token', { token })
@@ -75,6 +77,11 @@ export const PaymentsAPI = {
   createOrder: (data: { bookingId: string; amount?: number }) => apiClient.post('/payments/create-order', data),
   verify: (data: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string; bookingId?: string }) =>
     apiClient.post('/payments/verify', data)
+};
+
+export const NotificationsAPI = {
+  list: () => apiClient.get('/notifications'),
+  markRead: (ids?: string[]) => apiClient.post('/notifications/read', ids ? { ids } : {})
 };
 
 export const RemindersAPI = {

@@ -181,6 +181,16 @@ export const LoginScreen = ({ navigation }: any) => {
           accessibilityRole="button"
           onPress={() => {
             clearError();
+            navigation.navigate('ForgotPassword');
+          }}
+          style={styles.signupLink}
+        >
+          <Text style={{ color: Colors.primary, fontWeight: '600', fontSize: 13 }}>Forgot your password?</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => {
+            clearError();
             navigation.navigate('Signup');
           }}
           style={styles.signupLink}
