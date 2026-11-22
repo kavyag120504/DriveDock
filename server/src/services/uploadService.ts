@@ -59,8 +59,22 @@ export const upload = multer({
  * so refused uploads are not left behind in the publicly served uploads folder.
  */
 export const discardUploadedFile = (file?: Express.Multer.File): void => {
-  if (file && fs.existsSync(file.path)) {
-    fs.unlinkSync(file.path);
+  if (!file) return;
+  try {
+    if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+  } catch {
+    // Cleanup is best effort and must never fail a request. On Windows the image library can still hold
+    // the file for a moment after OCR (EBUSY/EPERM); the throw used to escape the error handler and
+    // crash the server. Retry a few times shortly afterwards instead.
+    let attempts = 3;
+    const retry = () => {
+      fs.unlink(file.path, (err) => {
+        if (!err || err.code === 'ENOENT') return;
+        if (--attempts > 0) setTimeout(retry, 500).unref();
+        else console.warn('[UploadService] could not delete a temporary upload:', err.code);
+      });
+    };
+    setTimeout(retry, 500).unref();
   }
 };
 

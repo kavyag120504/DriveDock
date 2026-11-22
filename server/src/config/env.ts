@@ -119,6 +119,9 @@ const envSchema = z.object({
   OCR_SCAN_ENABLED: boolFromEnv(true),
   // Per-scan OCR time limit. Small hosted CPUs (e.g. Render free) need far longer than a laptop.
   OCR_TIMEOUT_MS: numericFromEnv(9000),
+  // Most pixels sent to OCR. OCR time grows with pixel count, so tall gallery images and screenshots
+  // are scaled down to roughly what a landscape camera shot costs (about 1600x1200).
+  OCR_MAX_PIXELS: numericFromEnv(2_000_000),
   // Writable folder for Tesseract's language data (~10 MB), downloaded once and then reused.
   OCR_CACHE_DIR: z.string().default(''),
   // Personal details entered for a vehicle transfer are encrypted with these keys. Format:

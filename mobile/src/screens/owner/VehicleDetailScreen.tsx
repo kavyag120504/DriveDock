@@ -19,6 +19,7 @@ import { Button, Notice, PageHeading, ScreenState } from '../../components/UI';
 import { Colors, Layout } from '../../theme/colors';
 import { DISMISSIBLE_ALERT, withCancelButton } from '../../utils/alerts';
 import { REGISTRY_LABELS } from '../../utils/registryLabels';
+import { imageFilePart } from '../../utils/imageUpload';
 
 const ALL_DOC_TYPES = [
   { key: 'rc', label: 'Registration Certificate (RC)' },
@@ -191,10 +192,8 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
       quality: 0.8,
     });
     if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    const filename = asset.uri.split('/').pop() || `${docType}.jpg`;
-    const ext = /\.(\w+)$/.exec(filename)?.[1] ?? 'jpg';
-    await scanAndPrefill(docType, asset.uri, filename, `image/${ext}`);
+    const part = imageFilePart(result.assets[0], docType);
+    await scanAndPrefill(docType, part.uri, part.name, part.type);
   };
 
   const pickFromCamera = async (docType: string) => {
@@ -205,10 +204,8 @@ export const VehicleDetailScreen = ({ route, navigation }: any) => {
     }
     const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
     if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    const filename = asset.uri.split('/').pop() || `${docType}.jpg`;
-    const ext = /\.(\w+)$/.exec(filename)?.[1] ?? 'jpg';
-    await scanAndPrefill(docType, asset.uri, filename, `image/${ext}`);
+    const part = imageFilePart(result.assets[0], docType);
+    await scanAndPrefill(docType, part.uri, part.name, part.type);
   };
 
   const pickPDF = async (docType: string) => {

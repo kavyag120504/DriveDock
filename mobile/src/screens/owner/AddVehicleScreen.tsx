@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { VehiclesAPI } from '../../api/endpoints';
 import { Button, Field, FormScreen, Notice, PageHeading } from '../../components/UI';
 import { checkRegNumber, normalizeRegNumber } from '../../utils/regNumber';
+import { imageFilePart } from '../../utils/imageUpload';
 import { Colors } from '../../theme/colors';
 import { useResponsiveLayout } from '../../theme/responsive';
 
@@ -42,14 +43,13 @@ export const AddVehicleScreen = ({ navigation }: any) => {
   const canSubmit = regCheck.state === 'valid' && !!make.trim() && !!model.trim() && !!year && !isScanning;
 
   const scanRc = async (asset: ImagePicker.ImagePickerAsset) => {
-    const filename = asset.uri.split('/').pop() || 'rc.jpg';
-    const ext = /\.(\w+)$/.exec(filename)?.[1]?.toLowerCase() ?? 'jpg';
+    const part = imageFilePart(asset, 'rc');
     setIsScanning(true);
     setScanResult(null);
     try {
       const formData = new FormData();
       // @ts-ignore React Native file part
-      formData.append('file', { uri: asset.uri, name: filename, type: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
+      formData.append('file', part);
       const res = await VehiclesAPI.scanRc(formData);
       const d = res.data?.data ?? {};
       const filled = new Set<string>();
