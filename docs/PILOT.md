@@ -16,7 +16,7 @@ A **student pilot / test build** using **synthetic data** and **test payments on
 
 | Piece | Where |
 |---|---|
-| API | https://drivedock-pilot-api.onrender.com (Render free, Singapore, service `drivedock-pilot-api`, blueprint `drivedock-pilot` from `render.yaml`, branch `pilot/20261116`, auto-deploy off: use Manual Deploy) |
+| API | https://drivedock-pilot-api.onrender.com (Render free, Singapore, service `drivedock-pilot-api`, blueprint `drivedock-pilot` from `render.yaml`, branch `master` since 22 Nov (was `pilot/20261116`), auto-deploy off: use Manual Deploy) |
 | Database | MongoDB Atlas project "DriveDock Pilot", free cluster `Cluster0` (Mumbai), database `drivedock_pilot_20261116`; network access 0.0.0.0/0 because Render free has no static IP |
 | Secrets | Render generates the token secrets; `MONGO_URI` and `PAPERWORK_ENCRYPTION_KEYS` were pasted from the git-ignored `server/.env.render` |
 | APK | EAS build `10c8b5f2`, profile `pilot`, from merge `76e5061`: refreshed UI from master plus free OpenStreetMap/CARTO map tiles; calls the Render API (all verified in the bundle) |

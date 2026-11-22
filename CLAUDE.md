@@ -2,12 +2,12 @@
 
 Read this first. It is the shared, current picture of the project for both teammates and for Claude Code sessions. Update it in the same PR whenever you change how the project runs or what it guarantees.
 
-Last updated: 2026-11-19 (hosted pilot on Render + Atlas, RC photo auto-fill, registration-number validation, 25-minute slots, Arya RC registry check committed but not live)
+Last updated: 2026-11-22 (Render pilot now deploys master; Arya branch merged; pluggable RC registry providers, none live yet)
 
-## Current state and handover (19 Nov 2026)
+## Current state and handover (22 Nov 2026)
 
 **Live pilot (student pilot, synthetic data, test payments only)**
-- API: https://drivedock-pilot-api.onrender.com (Render free, service `drivedock-pilot-api`, Singapore). Render deploys the **`pilot/20261116`** branch, not master, through the `render.yaml` blueprint. A `render.yaml` change syncs and deploys by itself; code-only changes need **Manual Deploy → Deploy latest commit** in the Render dashboard. Bring the branch up to master with a PR (base `pilot/20261116`, head `master`).
+- API: https://drivedock-pilot-api.onrender.com (Render free, service `drivedock-pilot-api`, Singapore). Render deploys **`master`** through the `render.yaml` blueprint (switched from `pilot/20261116` on 22 Nov; the blueprint's branch is set in the Render dashboard under Blueprints → drivedock-pilot → Settings). Auto-deploy is off: a push never goes live by itself, so after merging use **Manual Deploy → Deploy latest commit**. A `render.yaml` change syncs the blueprint. For a frozen demo build, cut a branch and point the blueprint at it for that week.
 - Database: MongoDB Atlas project "DriveDock Pilot", free cluster in Mumbai, database `drivedock_pilot_20261116`. Network access is `0.0.0.0/0` because Render free has no fixed IP.
 - Keep-awake: a free UptimeRobot monitor calls `/healthz` every 5 minutes so the free instance does not sleep.
 - Secrets: Render generates the token secrets; `MONGO_URI` and `PAPERWORK_ENCRYPTION_KEYS` are pasted in the Render dashboard (copies are in the git-ignored `server/.env.render` on the original laptop). Never commit them.
@@ -17,12 +17,12 @@ Last updated: 2026-11-19 (hosted pilot on Render + Atlas, RC photo auto-fill, re
 - Runbook (restart, reset demo data, device checklist, demo script): `docs/PILOT.md`.
 
 **Branches**
-- `master`: everything merged up to the RC photo scan and the OCR fix (PRs #8, #10).
-- `feat/arya-rc-verification`: **not merged yet.** Contains the Arya RC registry check, master merged in (two small conflicts already resolved) and the 25-minute slots (`feat/puc-25min-slots`). Server 487/487 tests, both type-checks pass. Open a PR from it into master.
+- `master`: everything, including the Arya RC registry check, the 25-minute slots and the pluggable RC registry providers (merged 22 Nov). Server 550/551 tests (the one failure is the RC scan upload test, which resets the connection on Windows only), both type-checks pass.
+- `pilot/20261116`: the 16 Nov evaluation build. No longer deployed; kept for history.
 
 **Next steps, in order**
-1. Merge `feat/arya-rc-verification` into master, then into `pilot/20261116`, then Manual Deploy on Render.
-2. Arya goes live only after adding `RC_VERIFICATION_ENABLED=true` and `ARYA_API_TOKEN` in Render's environment and testing one lookup on a registration number the team owns (it costs an Arya credit). No live lookup has been made yet. With the V1 Lite plan a match shows "RC record matched", not verified, because that plan returns no RC expiry (see `docs/RC_VERIFICATION.md`).
+1. In Render, point the blueprint at `master`, Sync, then Manual Deploy; check `/api/health`.
+2. RC registry check: `RC_VERIFICATION_ENABLED=true` plus `RC_PROVIDER` (`arya` default, `cashfree`, `idfy`, `apiexpress`) and that provider's key, all backend-only (see `server/.env.example`). Each adapter drops personal data; a vendor sandbox result (Cashfree `CASHFREE_ENV=sandbox`) is shown as a test result and never changes a document. **No provider has completed a live lookup yet:** Arya's account has no credits (RC Verification is also gone from its India catalogue), IDfy on RapidAPI accepts lookups but its result endpoint is not routed on either listing, Cashfree needs business KYC, and API Express's API host does not exist. Arya V1 Lite and IDfy return no RC expiry, so a real match there shows "RC record matched", not verified (see `docs/RC_VERIFICATION.md`).
 3. Clean the hosted data: a test station "Pilot Test PUC Centre (TEST)" and one test e-challan on `DL8CAF5678` were created by end-to-end checks on 18 Nov. Slots already in Atlas are 1 hour; new ones are 25 minutes.
 4. Build a new APK only after the above (`cd mobile && npx eas-cli build --platform android --profile pilot`); the `pilot` profile points at the Render API. Regenerate the install QR and card in `docs/pilot/` for the new download link.
 5. Then the gaps in "Known gaps": real Razorpay checkout, challan payment, push (Firebase project), forgot password, SMS/email providers.
