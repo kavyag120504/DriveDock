@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { verifyQRToken } from '../services/qrService';
 import { Vehicle } from '../models/Vehicle';
 import { DocumentModel } from '../models/Document';
+import { signFileUrl } from '../services/fileAccess';
 import { Challan } from '../models/Challan';
 
 const REQUIRED_DOCUMENTS = ['rc', 'insurance', 'puc', 'license', 'fitness'] as const;
@@ -134,7 +135,7 @@ export const verifyVehicleQR = async (req: Request, res: Response): Promise<void
           registryCheckedAt: d.registryVerification?.checkedAt,
           issueDate: d.issueDate,
           expiryDate: d.expiryDate,
-          fileUrl: d.fileUrl,
+          fileUrl: signFileUrl(d.fileUrl),
           issuedBy: d.issuedByProviderId
         })),
         pendingChallans: pendingChallans.length,

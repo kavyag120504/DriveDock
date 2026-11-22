@@ -1,3 +1,4 @@
+import { objectIdParams } from '../middleware/objectIdParam';
 import { Router } from 'express';
 import {
   getProviders,
@@ -12,6 +13,7 @@ import { validate } from '../middleware/validate';
 import { createProviderBody, createSlotsBody } from '../validators';
 
 const router = Router();
+objectIdParams(router, ['id']);
 
 // Publicly searchable by authenticated users (strictly filtered to status: 'approved' per Trust Rule 3)
 router.get('/', authenticate, getProviders);

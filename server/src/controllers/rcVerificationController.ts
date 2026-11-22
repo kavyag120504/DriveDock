@@ -9,6 +9,7 @@ import { RegistryVehicle } from '../providers/registry';
 import { ownerScope } from '../services/accessService';
 import { recordAudit } from '../services/auditLog';
 import { scheduleDocumentReminders } from '../services/reminderService';
+import { isPaidProvider, RC_PROVIDER_CATALOG } from '../providers/registryCatalog';
 
 const CACHE_MS = 5 * 60 * 1000;
 const inFlight = new Map<string, Promise<RegistryVehicle>>();
@@ -36,7 +37,10 @@ const hasCredentials = (): boolean => {
   if (p === 'stampmitra') return !!ENV.STAMPMITRA_API_KEY.trim();
   return !!(p === 'apiexpress' ? ENV.APIEXPRESS_API_KEY : ENV.ARYA_API_TOKEN).trim();
 };
-const configured = (): boolean => ENV.RC_VERIFICATION_ENABLED && hasCredentials() && providers.registry.mode === 'real';
+/** A paid provider is refused unless RC_ALLOW_PAID_PROVIDERS is true: no credits exist for it in this project. */
+const paidBlocked = (): boolean => isPaidProvider(providerName()) && !ENV.RC_ALLOW_PAID_PROVIDERS;
+const configured = (): boolean =>
+  ENV.RC_VERIFICATION_ENABLED && hasCredentials() && providers.registry.mode === 'real' && !paidBlocked();
 const endOfDay = (date: string): Date => new Date(`${date}T23:59:59.999+05:30`);
 const summary = (doc: any) => {
   const rv = doc?.registryVerification;
@@ -63,6 +67,7 @@ export const getRcVerification = async (req: Request, res: Response): Promise<vo
     const doc = await DocumentModel.findOne({ vehicleId: vehicle._id, type: 'rc' }).sort({ updatedAt: -1 });
     res.json({ success: true, data: {
       enabled: configured(), provider: providerName(), providerLabel: labelOf(providerName()), testMode: testMode(), requiresUploadedRc: true,
+      access: RC_PROVIDER_CATALOG[providerName()].access, paidPlanRequired: paidBlocked(), note: RC_PROVIDER_CATALOG[providerName()].note,
       latest: summary(doc), cacheSeconds: CACHE_MS / 1000
     } });
   } catch {
@@ -77,6 +82,10 @@ export const verifyRc = async (req: Request, res: Response): Promise<void> => {
     if (!vehicle) return;
     if (req.body?.consent !== true) {
       res.status(400).json({ success: false, code: 'RC_CONSENT_REQUIRED', message: `Confirm that this registration number may be sent to ${labelOf(providerName())} for verification.` });
+      return;
+    }
+    if (paidBlocked()) {
+      res.status(503).json({ success: false, code: 'RC_PAID_PLAN_REQUIRED', message: `${labelOf(providerName())} is a paid provider and this project has no credits for it, so real lookups are switched off. The StampMitra sandbox is the provider that can run here.` });
       return;
     }
     if (!configured()) {

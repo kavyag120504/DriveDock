@@ -8,3 +8,5 @@ export * from './Payment';
 export * from './Reminder';
 export * from './Violation';
 export * from './Challan';
+export * from './Notification';
+export * from './PasswordReset';

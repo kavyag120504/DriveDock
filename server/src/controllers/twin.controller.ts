@@ -4,6 +4,7 @@ import { DocumentModel } from '../models/Document';
 import { Booking } from '../models/Booking';
 import { Challan } from '../models/Challan';
 import { Reminder } from '../models/Reminder';
+import { notifyUser } from '../services/notify';
 import { Violation } from '../models/Violation';
 import { OwnershipTransfer } from '../models/OwnershipTransfer';
 import { TwinShare } from '../models/TwinShare';
@@ -248,6 +249,8 @@ export const requestTransfer = async (req: Request, res: Response): Promise<void
       return;
     }
 
+    await notifyUser(transfer.fromOwnerId, { title: 'Transfer request', body: 'A buyer applied to take over your vehicle. Approve or decline within 48 hours.', kind: 'transfer_requested', data: { transferId: String(transfer._id) } });
+
     res.status(200).json({
       success: true,
       message: 'Request sent. The seller must approve it before the vehicle is transferred.',
@@ -373,6 +376,7 @@ export const approveTransfer = async (req: Request, res: Response): Promise<void
       ip: req.ip
     });
 
+    await notifyUser(transfer.toOwnerId, { title: 'Transfer approved', body: 'The seller approved. The vehicle is now in your garage; open the checklist for the RTO and insurer paperwork.', kind: 'transfer_approved', data: { transferId: String(transfer._id), vehicleId: String(transfer.vehicleId) } });
     res.status(200).json({ success: true, message: 'Vehicle transferred successfully', data: { vehicleId: transfer.vehicleId } });
   } catch (err: any) {
     console.error('[TwinController.approveTransfer]', err);
@@ -393,6 +397,7 @@ export const rejectTransfer = async (req: Request, res: Response): Promise<void>
       return;
     }
     await purgePaperworkFor([transfer._id]);
+    await notifyUser(transfer.toOwnerId, { title: 'Transfer declined', body: 'The seller declined your request.', kind: 'transfer_declined', data: { transferId: String(transfer._id) } });
     res.status(200).json({ success: true, message: 'Request declined. The vehicle stays with you.' });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });

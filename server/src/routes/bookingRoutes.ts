@@ -1,3 +1,4 @@
+import { objectIdParams } from '../middleware/objectIdParam';
 import { Router } from 'express';
 import {
   createBooking,
@@ -11,6 +12,7 @@ import { validate } from '../middleware/validate';
 import { createBookingBody } from '../validators';
 
 const router = Router();
+objectIdParams(router, ['id']);
 
 router.use(authenticate);
 

@@ -12,7 +12,8 @@ const SECRET_KEYS = [
   'QR_SECRET',
   'INTERNAL_JOB_SECRET',
   'TRANSFER_SECRET',
-  'TWIN_SHARE_SECRET'
+  'TWIN_SHARE_SECRET',
+  'FILE_URL_SECRET'
 ];
 
 const ORIGINAL = { ...process.env };

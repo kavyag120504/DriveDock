@@ -3,6 +3,7 @@ import { Booking } from '../models/Booking';
 import { todayDateString } from '../models/Slot';
 import { reserveSeat, releaseSeat } from '../services/slotService';
 import { Provider } from '../models/Provider';
+import { notifyUser } from '../services/notify';
 import { Vehicle } from '../models/Vehicle';
 import { DocumentModel, DocumentType } from '../models/Document';
 import { scheduleDocumentReminders } from '../services/reminderService';
@@ -429,6 +430,19 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
     }
 
     await booking.save();
+
+    const docLabel = String(booking.documentType).toUpperCase();
+    const eventData = { bookingId: String(booking._id), vehicleId: String(booking.vehicleId) };
+    if (status === 'completed') {
+      await notifyUser(booking.ownerId, { title: 'Certificate issued', body: `${docLabel} certificate uploaded. Your document is now verified.`, kind: 'booking_completed', data: eventData });
+    } else if (status === 'cancelled') {
+      if (req.user!.role === 'owner') {
+        const centre = await Provider.findById(booking.providerId).select('userId').lean();
+        await notifyUser(centre?.userId, { title: 'Booking cancelled', body: `The owner cancelled a ${docLabel} booking.`, kind: 'booking_cancelled', data: eventData });
+      } else {
+        await notifyUser(booking.ownerId, { title: 'Booking cancelled', body: `Your ${docLabel} booking was cancelled by the station. Please book another slot.`, kind: 'booking_cancelled', data: eventData });
+      }
+    }
 
     res.status(200).json({
       success: true,

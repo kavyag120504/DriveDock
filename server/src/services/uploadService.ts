@@ -4,7 +4,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import mongoose from 'mongoose';
-import type { Request, Response, NextFunction } from 'express';
+import type { Response } from 'express';
 import { ENV } from '../config/env';
 
 // UPLOAD_STORAGE=gridfs keeps uploaded files in MongoDB (GridFS bucket "uploads") so they survive
@@ -143,20 +143,20 @@ export const processUploadedFile = async (
 };
 
 /**
- * Serves /uploads/<name> from GridFS when the file is not on local disk (mounted after express.static).
- * Only names this service generates are accepted, and the stored content type is sent with nosniff.
+ * Sends one stored upload: local disk first, then GridFS (UPLOAD_STORAGE=gridfs). Returns false when there is no
+ * such file. Callers must have checked the signed link already (see controllers/fileController.ts).
  */
-export const serveStoredUpload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const name = req.params.name;
-  if (ENV.UPLOAD_STORAGE !== 'gridfs' || !/^[A-Za-z0-9_-]+\.(jpg|png|webp|pdf)$/.test(name)) return next();
-  try {
-    const [stored] = await gridBucket().find({ filename: name }).sort({ uploadDate: -1 }).limit(1).toArray();
-    if (!stored) return next();
-    res.setHeader('Content-Type', (stored.metadata as any)?.contentType || 'application/octet-stream');
-    res.setHeader('Content-Length', String(stored.length));
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    gridBucket().openDownloadStream(stored._id).on('error', next).pipe(res);
-  } catch (err) {
-    next(err);
+export const sendStoredFile = async (name: string, res: Response): Promise<boolean> => {
+  const onDisk = path.join(uploadDir, name);
+  if (fs.existsSync(onDisk)) {
+    await new Promise<void>((resolve, reject) => res.sendFile(onDisk, (err) => (err ? reject(err) : resolve())));
+    return true;
   }
+  if (ENV.UPLOAD_STORAGE !== 'gridfs') return false;
+  const [stored] = await gridBucket().find({ filename: name }).sort({ uploadDate: -1 }).limit(1).toArray();
+  if (!stored) return false;
+  res.setHeader('Content-Type', (stored.metadata as any)?.contentType || 'application/octet-stream');
+  res.setHeader('Content-Length', String(stored.length));
+  await new Promise<void>((resolve, reject) => gridBucket().openDownloadStream(stored._id).on('error', reject).on('end', resolve).pipe(res));
+  return true;
 };

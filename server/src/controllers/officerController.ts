@@ -6,6 +6,7 @@ import { Vehicle } from '../models/Vehicle';
 import { DocumentModel } from '../models/Document';
 import { isDocumentGood } from '../services/complianceService';
 import { recordAudit } from '../services/auditLog';
+import { notifyUser } from '../services/notify';
 
 const PENALTY_MAP: Record<string, number> = {
   puc: 1000,
@@ -93,6 +94,13 @@ export const logViolation = async (req: Request, res: Response): Promise<void> =
       fields: expiredTypes,
       metadata: { challanId: String(challan._id), amount: totalPenalty },
       ip: req.ip
+    });
+
+    await notifyUser(vehicle.ownerId, {
+      title: 'E-challan issued',
+      body: `An e-challan of ₹${totalPenalty.toLocaleString('en-IN')} was issued for ${expiredTypes.join(', ').toUpperCase()} on your vehicle.`,
+      kind: 'challan_issued',
+      data: { vehicleId: String(vehicle._id), challanId: String(challan._id) }
     });
 
     res.status(201).json({

@@ -13,10 +13,13 @@ import adminRoutes from './adminRoutes';
 import stationRoutes from './stationRoutes';
 import twinRoutes from './twin.routes';
 import demoRoutes from './demoRoutes';
+import notificationRoutes from './notificationRoutes';
 import { updatePushToken } from '../controllers/authController';
 import { publicTwinView } from '../controllers/twin.controller';
 import { getBuyerReport } from '../controllers/buyerReport.controller';
 import { authenticate, authorizeRoles } from '../middleware/auth';
+import { serveSignedFile } from '../controllers/fileController';
+import { rateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -35,6 +38,10 @@ router.use('/violations', violationRoutes);
 router.use('/challans', challanRoutes);
 router.use('/admin', adminRoutes);
 router.use('/twin', twinRoutes);
+router.use('/notifications', notificationRoutes);
+
+// Private files: a signed, expiring link minted inside an authorised response is the credential
+router.get('/files/:name', rateLimiter(300, 60 * 1000), serveSignedFile);
 
 // Buyer report — authenticated owner scans a transfer or share token
 router.get('/twin/buyer-report', authenticate, authorizeRoles('owner'), getBuyerReport);

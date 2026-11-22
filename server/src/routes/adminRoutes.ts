@@ -1,3 +1,4 @@
+import { objectIdParams } from '../middleware/objectIdParam';
 import { Router } from 'express';
 import {
   createStaffUser,
@@ -12,6 +13,7 @@ import { validate } from '../middleware/validate';
 import { createStaffUserBody, updateProviderStatusBody } from '../validators';
 
 const router = Router();
+objectIdParams(router, ['id']);
 
 router.use(authenticate);
 

@@ -7,6 +7,7 @@ import { DocumentModel } from '../models/Document';
 import { Violation } from '../models/Violation';
 import { Challan } from '../models/Challan';
 import { recordAudit } from '../services/auditLog';
+import { notifyUser } from '../services/notify';
 import { isVehicleCompliant } from '../services/complianceService';
 
 const STAFF_ROLES: UserRole[] = ['officer', 'government', 'admin'];
@@ -134,6 +135,15 @@ export const updateProviderStatus = async (req: Request, res: Response): Promise
       metadata: { status },
       ip: req.ip
     });
+
+    if (status === 'approved' || status === 'suspended') {
+      await notifyUser((provider.userId as any)?._id, {
+        title: status === 'approved' ? 'Station approved' : 'Station suspended',
+        body: status === 'approved' ? `${provider.businessName} is approved. You can now take bookings and issue certificates.` : `${provider.businessName} was suspended. It no longer appears in search or takes bookings.`,
+        kind: 'provider_status',
+        data: { providerId: String(provider._id), status }
+      });
+    }
 
     res.status(200).json({
       success: true,

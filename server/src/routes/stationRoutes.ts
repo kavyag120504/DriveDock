@@ -1,8 +1,10 @@
+import { objectIdParams } from '../middleware/objectIdParam';
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { getNearbyStations, getStationDetail, getStationSlots } from '../controllers/stationController';
 
 const router = Router();
+objectIdParams(router, ['id']);
 
 // GET /api/v1/stations?lat=&lng=&radius=&type=
 router.get('/', authenticate, getNearbyStations);

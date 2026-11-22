@@ -1,3 +1,4 @@
+import { objectIdParams } from '../middleware/objectIdParam';
 import { Router } from 'express';
 import { authenticate, authorizeRoles } from '../middleware/auth';
 import {
@@ -31,6 +32,7 @@ const paperworkLimit = rateLimiter(600, 60 * 1000); // per IP; generous for real
 const formLimit = rateLimiter(60, 60 * 1000); // PDF generation costs more than a read
 
 const router = Router();
+objectIdParams(router, ['id']);
 
 // All twin routes require a valid JWT
 router.use(authenticate);

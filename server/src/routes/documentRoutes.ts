@@ -1,3 +1,4 @@
+import { objectIdParams } from '../middleware/objectIdParam';
 import { Router } from 'express';
 import { updateDocument, scanDocument } from '../controllers/documentController';
 import { authenticate } from '../middleware/auth';
@@ -5,6 +6,7 @@ import { upload } from '../services/uploadService';
 import { rateLimiter, userKey } from '../middleware/rateLimiter';
 
 const router = Router();
+objectIdParams(router, ['id']);
 
 router.use(authenticate);
 

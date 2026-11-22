@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Reminder } from '../models/Reminder';
+import { Notification } from '../models/Notification';
 import { User } from '../models/User';
 import { DocumentModel } from '../models/Document';
 import { sendPushNotification } from '../services/notificationService';
@@ -63,6 +64,8 @@ export const runDueRemindersJob = async (): Promise<{ processed: number; sent: n
         rem.sentAt = new Date();
         await rem.save();
         sentCount++;
+        // keep a copy in the in-app inbox, so the reminder is still there when the push is dismissed
+        await Notification.create({ userId: owner._id, title: 'DriveDock Compliance Alert', body: rem.message, kind: 'reminder', data: { vehicleId: String(rem.vehicleId) } }).catch(() => undefined);
       }
       // If dispatched===false the push was rejected; leave sent:false so it retries next run
     }

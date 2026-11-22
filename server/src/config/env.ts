@@ -22,7 +22,8 @@ const INSECURE_SECRET_DEFAULTS = {
   QR_SECRET: 'drivedock_rotating_qr_compliance_secret_key_2026',
   INTERNAL_JOB_SECRET: 'drivedock_internal_cron_job_secure_secret_2026',
   TRANSFER_SECRET: 'drivedock_twin_transfer_secret_key_2026',
-  TWIN_SHARE_SECRET: 'drivedock_twin_share_secret_key_2026'
+  TWIN_SHARE_SECRET: 'drivedock_twin_share_secret_key_2026',
+  FILE_URL_SECRET: 'drivedock_private_file_link_secret_key_2026'
 } as const;
 
 const DEFAULT_MONGO_URI = 'mongodb://127.0.0.1:27017/drivedock';
@@ -74,6 +75,9 @@ const envSchema = z.object({
   INTERNAL_JOB_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.INTERNAL_JOB_SECRET),
   TRANSFER_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.TRANSFER_SECRET),
   TWIN_SHARE_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.TWIN_SHARE_SECRET),
+  // Private file storage: uploads are served only through signed links that expire after this many seconds.
+  FILE_URL_SECRET: z.string().min(1).default(INSECURE_SECRET_DEFAULTS.FILE_URL_SECRET),
+  FILE_URL_TTL_SECONDS: numericFromEnv(900),
 
   // 'gridfs' stores uploads in MongoDB instead of the local disk (for hosts whose disk is temporary)
   UPLOAD_STORAGE: z.enum(['disk', 'gridfs']).default('disk'),
@@ -83,6 +87,9 @@ const envSchema = z.object({
   ARYA_RC_DAILY_LIMIT: numericFromEnv(50),
   // Which RC registry to use when RC_VERIFICATION_ENABLED is true.
   RC_PROVIDER: z.enum(['arya', 'apiexpress', 'cashfree', 'idfy', 'stampmitra']).default('arya'),
+  // Paid RC providers (everything except the StampMitra sandbox) are refused unless this is true. This project has
+  // no credits at any paid provider, so it stays false; see providers/registryCatalog.ts.
+  RC_ALLOW_PAID_PROVIDERS: boolFromEnv(false),
   // StampMitra Verify Vehicle RC. An sk_test_ key is the free sandbox (sample data, never changes a document).
   STAMPMITRA_API_KEY: z.string().default(''),
   STAMPMITRA_BASE_URL: z.string().default(''),
@@ -113,6 +120,22 @@ const envSchema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().default(PLACEHOLDER_RAZORPAY_WEBHOOK_SECRET),
 
   EXPO_ACCESS_TOKEN: z.string().default(''),
+
+  // Password reset codes. SMS_PROVIDER / EMAIL_PROVIDER pick the sender: 'log' (default, sends nothing) or
+  // 'twilio' / 'smtp'. A provider with missing credentials falls back to 'log'.
+  SMS_PROVIDER: z.enum(['log', 'twilio']).default('log'),
+  TWILIO_ACCOUNT_SID: z.string().default(''),
+  TWILIO_AUTH_TOKEN: z.string().default(''),
+  TWILIO_FROM: z.string().default(''),
+  EMAIL_PROVIDER: z.enum(['log', 'smtp']).default('log'),
+  SMTP_HOST: z.string().default(''),
+  SMTP_PORT: numericFromEnv(587),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  SMTP_FROM: z.string().default(''),
+  PASSWORD_RESET_TTL_MINUTES: numericFromEnv(15),
+  // Pilot/demo only: return the reset code in the API response, because no SMS/email account exists. Refused in production.
+  RESET_CODE_IN_RESPONSE: boolFromEnv(false),
   GOOGLE_MAPS_API_KEY: z.string().default(''),
 
   // Lets ops disable OCR document-scanning (CPU-heavy per request) without a redeploy.
@@ -173,6 +196,9 @@ export function validateProductionSecrets(): void {
   // Demo-only endpoints (station login switcher, demo logins) must never be live in prod.
   if (process.env.DEMO_MODE === 'true') {
     errors.push('DEMO_MODE must not be enabled in production');
+  }
+  if (process.env.RESET_CODE_IN_RESPONSE === 'true') {
+    errors.push('RESET_CODE_IN_RESPONSE must not be enabled in production');
   }
   // Transfer paperwork PII cannot be encrypted without a real keyring in production.
   if (!process.env.PAPERWORK_ENCRYPTION_KEYS) {

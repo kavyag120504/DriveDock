@@ -45,6 +45,17 @@ export const refreshBody = z.object({
   refreshToken: z.string().min(1)
 });
 
+export const forgotPasswordBody = z.object({
+  identifier: z.string().min(1), // the account's email address or mobile number
+  channel: z.enum(['email', 'sms']).optional()
+});
+
+export const resetPasswordBody = z.object({
+  identifier: z.string().min(1),
+  code: z.string().min(1),
+  newPassword: z.string().min(1)
+});
+
 export const pushTokenBody = z.object({
   token: z.string().optional() // logout/clear sends an empty/omitted token
 });

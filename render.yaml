@@ -43,6 +43,8 @@ services:
         generateValue: true
       - key: TWIN_SHARE_SECRET
         generateValue: true
+      - key: FILE_URL_SECRET
+        generateValue: true
       - key: PAPERWORK_ENCRYPTION_KEYS
         sync: false # "pilot1:<base64 of 32 random bytes>" from server/.env.render
       - key: PAPERWORK_ENCRYPTION_ACTIVE_KEY_ID

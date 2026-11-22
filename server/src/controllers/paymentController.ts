@@ -14,6 +14,8 @@ import { isOwnerOrAdmin } from '../services/accessService';
 import { recordAudit } from '../services/auditLog';
 import { isProduction, hasRealRazorpayWebhookSecret } from '../config/env';
 import { logger } from '../config/logger';
+import { notifyUser } from '../services/notify';
+import { Provider } from '../models/Provider';
 
 /**
  * Move a booking to `confirmed` after its payment is proven paid. Idempotent and
@@ -56,6 +58,14 @@ const settleBookingAfterPayment = async (
         }
       }
     }
+  }
+
+  if (updatedBooking) {
+    const doc = String(updatedBooking.documentType).toUpperCase();
+    const centre = await Provider.findById(updatedBooking.providerId).select('userId businessName').lean();
+    const data = { bookingId: String(updatedBooking._id) };
+    await notifyUser(updatedBooking.ownerId, { title: 'Booking confirmed', body: `Your ${doc} slot is booked${centre ? ' at ' + centre.businessName : ''}.`, kind: 'booking_confirmed', data });
+    await notifyUser(centre?.userId, { title: 'New booking', body: `A ${doc} booking was paid and confirmed.`, kind: 'booking_confirmed', data });
   }
 
   return updatedBooking;

@@ -327,7 +327,7 @@ describe('document uploads', () => {
       .field('expiryDate', '2027-01-01')
       .attach('file', Buffer.from('not really an image'), { filename, contentType });
 
-  const remember = (fileUrl: string) => stored.push(path.join(process.cwd(), 'uploads', path.basename(fileUrl)));
+  const remember = (fileUrl: string) => stored.push(path.join(process.cwd(), 'uploads', path.basename(fileUrl.split('?')[0])));
 
   it('stores a real image under a safe extension', async () => {
     const owner = await makeUser('owner');
@@ -337,7 +337,7 @@ describe('document uploads', () => {
     if (res.body.data?.fileUrl) remember(res.body.data.fileUrl);
 
     expect(res.status).toBe(201);
-    expect(res.body.data.fileUrl).toMatch(/\.png$/);
+    expect(res.body.data.fileUrl).toMatch(/\.png(\?|$)/);
   });
 
   it('accepts the image/jpg type the mobile app sends, and names it .jpg', async () => {
@@ -348,7 +348,7 @@ describe('document uploads', () => {
     if (res.body.data?.fileUrl) remember(res.body.data.fileUrl);
 
     expect(res.status).toBe(201);
-    expect(res.body.data.fileUrl).toMatch(/\.jpg$/);
+    expect(res.body.data.fileUrl).toMatch(/\.jpg(\?|$)/);
   });
 
   it('accepts a photo whose name has no extension', async () => {
@@ -359,7 +359,7 @@ describe('document uploads', () => {
     if (res.body.data?.fileUrl) remember(res.body.data.fileUrl);
 
     expect(res.status).toBe(201);
-    expect(res.body.data.fileUrl).toMatch(/\.jpg$/);
+    expect(res.body.data.fileUrl).toMatch(/\.jpg(\?|$)/);
   });
 
   it('never stores a web page, even when it claims to be an image', async () => {

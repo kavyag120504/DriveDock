@@ -1,4 +1,5 @@
 import mongoose, { Schema, Types } from 'mongoose';
+import { signFileUrl } from '../services/fileAccess';
 
 export type DocumentType = 'insurance' | 'puc' | 'rc' | 'license' | 'fitness';
 export type DocumentStatus = 'valid' | 'expiring_soon' | 'expired';
@@ -89,7 +90,9 @@ const DocumentSchema = new Schema<IDocument>(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    // Private file storage: the stored link never leaves the server as-is; JSON gets a short-lived signed link.
+    toJSON: { transform: (_doc, ret: any) => { if (ret.fileUrl) ret.fileUrl = signFileUrl(ret.fileUrl); return ret; } }
   }
 );
 

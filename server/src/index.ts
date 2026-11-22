@@ -14,7 +14,6 @@ import { razorpayWebhook } from './controllers/paymentController';
 import { errorHandler } from './middleware/errorHandler';
 import { initCronJobs } from './cron/reminderCron';
 import { assertPaperworkKeyring } from './services/fieldCrypto';
-import { serveStoredUpload } from './services/uploadService';
 
 const app = express();
 
@@ -53,12 +52,11 @@ app.use(express.urlencoded({ extended: true, limit: ENV.REQUEST_BODY_LIMIT }));
 // Strip MongoDB-operator / prototype-pollution keys from every parsed request.
 app.use(sanitizeRequest);
 
-// Serve local uploads statically
-app.use('/uploads', express.static(uploadsDir, {
-  setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff')
-}));
-// Files kept in GridFS (UPLOAD_STORAGE=gridfs) when they are not on this host's disk
-app.get('/uploads/:name', serveStoredUpload);
+// Uploads are private: there is no public /uploads path. Files are reachable only through the short-lived signed
+// links the API puts in its responses (GET /api/v1/files/:name, see services/fileAccess.ts).
+app.use('/uploads', (_req: Request, res: Response) => {
+  res.status(404).json({ success: false, message: 'Not found' });
+});
 
 // Liveness: the process is up. Must never touch the database.
 app.get('/healthz', (_req: Request, res: Response) => {

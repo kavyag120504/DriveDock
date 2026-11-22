@@ -1,3 +1,4 @@
+import { signFileUrl } from '../services/fileAccess';
 import mongoose, { Schema, Types } from 'mongoose';
 import { DocumentType } from './Document';
 
@@ -44,7 +45,9 @@ const BookingSchema = new Schema<IBooking>(
     cancellationReason: { type: String, enum: ['payment_timeout', 'cancelled', null], default: null }
   },
   {
-    timestamps: true
+    timestamps: true,
+    // Private file storage: JSON carries a short-lived signed link, never the stored one.
+    toJSON: { transform: (_doc, ret: any) => { if (ret.certificateUrl) ret.certificateUrl = signFileUrl(ret.certificateUrl); return ret; } }
   }
 );
 

@@ -23,7 +23,7 @@ import { RegistryProvider, SandboxRegistryProvider, UnconfiguredRegistryProvider
 import { PaymentProvider, RazorpayPaymentProvider } from './payment';
 import { PushProvider, ExpoPushProvider } from './push';
 import { StorageProvider, FileStorageProvider } from './storage';
-import { SmsProvider, EmailProvider, LogOnlySmsProvider, LogOnlyEmailProvider } from './messaging';
+import { SmsProvider, EmailProvider, LogOnlySmsProvider, LogOnlyEmailProvider, TwilioSmsProvider, SmtpEmailProvider } from './messaging';
 import { GeocodingProvider, SandboxGeocodingProvider } from './maps';
 import { OcrProvider, TesseractOcrProvider } from './ocr';
 
@@ -56,13 +56,21 @@ const registry: RegistryProvider = ENV.RC_VERIFICATION_ENABLED
     : new AryaRegistryProvider({ token: ENV.ARYA_API_TOKEN, dailyLimit: ENV.ARYA_RC_DAILY_LIMIT })
   : isProduction() ? new UnconfiguredRegistryProvider() : new SandboxRegistryProvider();
 
+const sms: SmsProvider = ENV.SMS_PROVIDER === 'twilio' && ENV.TWILIO_ACCOUNT_SID && ENV.TWILIO_AUTH_TOKEN && ENV.TWILIO_FROM
+  ? new TwilioSmsProvider({ accountSid: ENV.TWILIO_ACCOUNT_SID, authToken: ENV.TWILIO_AUTH_TOKEN, from: ENV.TWILIO_FROM })
+  : new LogOnlySmsProvider();
+
+const email: EmailProvider = ENV.EMAIL_PROVIDER === 'smtp' && ENV.SMTP_HOST && ENV.SMTP_FROM
+  ? new SmtpEmailProvider({ host: ENV.SMTP_HOST, port: ENV.SMTP_PORT, user: ENV.SMTP_USER, pass: ENV.SMTP_PASS, from: ENV.SMTP_FROM })
+  : new LogOnlyEmailProvider();
+
 export const providers: Providers = {
   registry,
   payment: new RazorpayPaymentProvider(),
   push: new ExpoPushProvider(),
   storage: new FileStorageProvider(),
-  sms: new LogOnlySmsProvider(),
-  email: new LogOnlyEmailProvider(),
+  sms,
+  email,
   geocoding: new SandboxGeocodingProvider(),
   // Local Tesseract engine; the OCR_SCAN_ENABLED toggle is applied in the controller.
   ocr: new TesseractOcrProvider()

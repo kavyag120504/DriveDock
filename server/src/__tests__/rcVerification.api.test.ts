@@ -23,12 +23,13 @@ app.use('/documents', documentRoutes);
 app.use('/public', verificationRoutes);
 app.use(errorHandler);
 
-const original = { enabled: ENV.RC_VERIFICATION_ENABLED, token: ENV.ARYA_API_TOKEN };
+const original = { enabled: ENV.RC_VERIFICATION_ENABLED, token: ENV.ARYA_API_TOKEN, paid: ENV.RC_ALLOW_PAID_PROVIDERS };
 beforeAll(setupTestDB);
 beforeEach(() => {
   // Only this isolated test process is configured. No env files or real API keys are used.
   ENV.RC_VERIFICATION_ENABLED = true;
   ENV.ARYA_API_TOKEN = 'mock-test-token';
+  ENV.RC_ALLOW_PAID_PROVIDERS = true; // the controller tests exercise Arya, a paid provider; the guard has its own tests below
   lookup.mockReset();
   lookup.mockImplementation(async (registrationNumber) => activeRecord(registrationNumber));
 });
@@ -36,6 +37,7 @@ afterEach(clearDB);
 afterAll(async () => {
   ENV.RC_VERIFICATION_ENABLED = original.enabled;
   ENV.ARYA_API_TOKEN = original.token;
+  ENV.RC_ALLOW_PAID_PROVIDERS = original.paid;
   await teardownTestDB();
 });
 
@@ -91,7 +93,7 @@ test('requires explicit consent; cannot be enabled by client input', async () =>
 test('requires an uploaded RC and rejects invalid vehicle IDs without a paid call', async () => {
   const { owner, post } = await fixture(false);
   expect((await post()).status).toBe(409);
-  expect((await request(app).post('/vehicles/bad-id/rc-verification').set('Authorization', authHeader(owner)).send({ consent: true })).status).toBe(400);
+  expect((await request(app).post('/vehicles/bad-id/rc-verification').set('Authorization', authHeader(owner)).send({ consent: true })).status).toBe(404); // a malformed id is stopped by the route's id guard
   expect(lookup).not.toHaveBeenCalled();
 });
 
@@ -231,5 +233,44 @@ describe('vendor sandbox (testMode) results', () => {
     expect(res.body.data.cached).toBe(false);
     expect(res.body.data.result.testMode).toBe(false);
     expect(lookup).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('paid RC providers are switched off in this project', () => {
+  const restore = { provider: ENV.RC_PROVIDER, paid: ENV.RC_ALLOW_PAID_PROVIDERS, stamp: ENV.STAMPMITRA_API_KEY };
+  afterEach(() => {
+    ENV.RC_PROVIDER = restore.provider;
+    ENV.RC_ALLOW_PAID_PROVIDERS = restore.paid;
+    ENV.STAMPMITRA_API_KEY = restore.stamp;
+  });
+
+  test('a paid provider reports paidPlanRequired, is not enabled, and a check is refused before any lookup', async () => {
+    ENV.RC_PROVIDER = 'arya';
+    ENV.RC_ALLOW_PAID_PROVIDERS = false;
+    const { owner, url, post } = await fixture();
+    const info = await request(app).get(url).set('Authorization', authHeader(owner));
+    expect(info.body.data).toMatchObject({ provider: 'arya', access: 'paid', paidPlanRequired: true, enabled: false });
+    const res = await post();
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe('RC_PAID_PLAN_REQUIRED');
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  test.each(['cashfree', 'idfy', 'apiexpress'] as const)('%s is paid too', async (id) => {
+    ENV.RC_PROVIDER = id;
+    ENV.RC_ALLOW_PAID_PROVIDERS = false;
+    const { post } = await fixture();
+    expect((await post()).body.code).toBe('RC_PAID_PLAN_REQUIRED');
+  });
+
+  test('the StampMitra sandbox is not blocked', async () => {
+    ENV.RC_PROVIDER = 'stampmitra';
+    ENV.RC_ALLOW_PAID_PROVIDERS = false;
+    ENV.STAMPMITRA_API_KEY = 'sk_test_mock';
+    const { owner, url, post } = await fixture();
+    const info = await request(app).get(url).set('Authorization', authHeader(owner));
+    expect(info.body.data).toMatchObject({ provider: 'stampmitra', access: 'free-sandbox', paidPlanRequired: false, enabled: true });
+    expect((await post()).status).toBe(200);
+    expect(lookup).toHaveBeenCalledTimes(1);
   });
 });
