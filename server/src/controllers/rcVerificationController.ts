@@ -12,11 +12,11 @@ import { scheduleDocumentReminders } from '../services/reminderService';
 
 const CACHE_MS = 5 * 60 * 1000;
 const inFlight = new Map<string, Promise<RegistryVehicle>>();
-type RcProviderName = 'arya' | 'apiexpress' | 'cashfree' | 'idfy';
-const REGISTRY_SOURCES = ['arya', 'apiexpress', 'cashfree', 'idfy'];
+type RcProviderName = 'arya' | 'apiexpress' | 'cashfree' | 'idfy' | 'stampmitra';
+const REGISTRY_SOURCES = ['arya', 'apiexpress', 'cashfree', 'idfy', 'stampmitra'];
 const providerName = (): RcProviderName => ENV.RC_PROVIDER;
 const labelOf = (provider: string): string =>
-  provider === 'apiexpress' ? 'API Express' : provider === 'cashfree' ? 'Cashfree' : provider === 'idfy' ? 'IDfy' : 'Arya';
+  provider === 'apiexpress' ? 'API Express' : provider === 'cashfree' ? 'Cashfree' : provider === 'idfy' ? 'IDfy' : provider === 'stampmitra' ? 'StampMitra' : 'Arya';
 /** Vendor sandbox: canned data, so the result is shown but never changes the document. */
 const testMode = (): boolean => providers.registry.testMode === true;
 const TEST_PREFIX = 'TEST RESULT ONLY: this came from the provider\'s sandbox with sample data, not real registry records. Nothing on your document was changed. ';
@@ -33,6 +33,7 @@ const hasCredentials = (): boolean => {
   const p = providerName();
   if (p === 'cashfree') return !!ENV.CASHFREE_CLIENT_ID.trim() && !!ENV.CASHFREE_CLIENT_SECRET.trim();
   if (p === 'idfy') return !!ENV.RAPIDAPI_KEY.trim();
+  if (p === 'stampmitra') return !!ENV.STAMPMITRA_API_KEY.trim();
   return !!(p === 'apiexpress' ? ENV.APIEXPRESS_API_KEY : ENV.ARYA_API_TOKEN).trim();
 };
 const configured = (): boolean => ENV.RC_VERIFICATION_ENABLED && hasCredentials() && providers.registry.mode === 'real';

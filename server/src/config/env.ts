@@ -82,7 +82,11 @@ const envSchema = z.object({
   ARYA_API_TOKEN: z.string().default(''),
   ARYA_RC_DAILY_LIMIT: numericFromEnv(50),
   // Which RC registry to use when RC_VERIFICATION_ENABLED is true.
-  RC_PROVIDER: z.enum(['arya', 'apiexpress', 'cashfree', 'idfy']).default('arya'),
+  RC_PROVIDER: z.enum(['arya', 'apiexpress', 'cashfree', 'idfy', 'stampmitra']).default('arya'),
+  // StampMitra Verify Vehicle RC. An sk_test_ key is the free sandbox (sample data, never changes a document).
+  STAMPMITRA_API_KEY: z.string().default(''),
+  STAMPMITRA_BASE_URL: z.string().default(''),
+  STAMPMITRA_RC_DAILY_LIMIT: numericFromEnv(50),
   // IDfy ind_rc_plus through RapidAPI (individual signup; Basic plan = 40 requests/month, hard limit).
   RAPIDAPI_KEY: z.string().default(''),
   IDFY_RC_HOST: z.string().default('vehicle-rc-verification-advanced.p.rapidapi.com'),

@@ -51,7 +51,7 @@ export interface DocReport {
   label:                string;
   present:              boolean;
   verified:             boolean;
-  verificationSource?: 'provider' | 'arya' | 'apiexpress' | 'cashfree' | 'idfy' | null;
+  verificationSource?: 'provider' | 'arya' | 'apiexpress' | 'cashfree' | 'idfy' | 'stampmitra' | null;
   expired:              boolean;
   expiryDate:           Date | null;
   issuedByBusinessName: string | null;

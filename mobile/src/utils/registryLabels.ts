@@ -3,5 +3,6 @@ export const REGISTRY_LABELS: Record<string, string> = {
   arya: 'Arya',
   apiexpress: 'API Express',
   cashfree: 'Cashfree',
-  idfy: 'IDfy'
+  idfy: 'IDfy',
+  stampmitra: 'StampMitra'
 };

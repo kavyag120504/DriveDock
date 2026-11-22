@@ -17,6 +17,7 @@ import { AryaRegistryProvider } from './aryaRegistry';
 import { ApiExpressRegistryProvider } from './apiExpressRegistry';
 import { CashfreeRegistryProvider } from './cashfreeRegistry';
 import { IdfyRegistryProvider } from './idfyRegistry';
+import { StampmitraRegistryProvider } from './stampmitraRegistry';
 import { AdapterMode } from './types';
 import { RegistryProvider, SandboxRegistryProvider, UnconfiguredRegistryProvider } from './registry';
 import { PaymentProvider, RazorpayPaymentProvider } from './payment';
@@ -39,7 +40,9 @@ export interface Providers {
 
 // Explicit opt-in prevents uploads or ordinary screen loads from consuming paid credits.
 const registry: RegistryProvider = ENV.RC_VERIFICATION_ENABLED
-  ? ENV.RC_PROVIDER === 'idfy'
+  ? ENV.RC_PROVIDER === 'stampmitra'
+    ? new StampmitraRegistryProvider({ key: ENV.STAMPMITRA_API_KEY, baseUrl: ENV.STAMPMITRA_BASE_URL, dailyLimit: ENV.STAMPMITRA_RC_DAILY_LIMIT })
+    : ENV.RC_PROVIDER === 'idfy'
     ? new IdfyRegistryProvider({ rapidApiKey: ENV.RAPIDAPI_KEY, host: ENV.IDFY_RC_HOST, dailyLimit: ENV.IDFY_RC_DAILY_LIMIT })
     : ENV.RC_PROVIDER === 'cashfree'
     ? new CashfreeRegistryProvider({
