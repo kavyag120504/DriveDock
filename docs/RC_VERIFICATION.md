@@ -12,6 +12,8 @@ DriveDock can check an owner's registration number against a registry provider f
 | `idfy` | IDfy `ind_rc_plus` via RapidAPI | `RAPIDAPI_KEY`, `IDFY_RC_HOST` | No | The submit call is accepted (HTTP 202) but `GET /v3/tasks` answers "Endpoint does not exist" on both IDfy listings, so no result can be fetched. |
 | `apiexpress` | API Express | `APIEXPRESS_API_KEY`, `APIEXPRESS_BASE_URL` | n/a | Their documented API host `api.apiexpress.in` does not resolve (NXDOMAIN). Keep only if they fix it. |
 
+**Paid providers are blocked (23 Nov 2026).** The project has no credits or business account for Arya, Cashfree, IDfy or API Express, so `server/src/providers/registryCatalog.ts` marks them `paid` and the server refuses to use them unless `RC_ALLOW_PAID_PROVIDERS=true`. With the default (`false`), `POST /vehicles/:id/rc-verification` answers 503 `RC_PAID_PLAN_REQUIRED` before it reads anything or spends a call, and `GET` reports `access: 'paid'` and `paidPlanRequired: true` so the app can say so. Only the StampMitra sandbox (`sk_test_`) runs. Set the flag only once an account with credits exists.
+
 Rules shared by every adapter (`server/src/providers/*Registry.ts`, shared error type and date parser in `aryaRegistry.ts`):
 - Only allow-listed fields leave the adapter. Owner and father's name, addresses, mobile, chassis, engine, financer and policy numbers are never stored, logged or returned.
 - One request per check (IDfy: one submit plus at most three result polls), a bounded timeout, no automatic retries, and a per-provider daily limit (`*_DAILY_LIMIT` env).
@@ -45,6 +47,8 @@ The daily limit counts outbound attempts per server process over a rolling 24-ho
 2. Select **Verify RC with Arya** and confirm consent to send that vehicle's registration number. The backend derives the number from the authorised vehicle, not the request body.
 3. The backend makes one POST to `https://ping.arya.ai/api/v1/rc-verification` with the private `token` header and JSON `{ "rc_num": "...", "req_id": "..." }`. No automatic retries are made; the timeout is 15 seconds.
 4. Read the result and its check time. A recent result for the same upload is reused for five minutes. Re-uploading or manually editing dates removes the previous registry proof.
+
+**Shortcut after an RC scan.** Scanning an RC photo on Add Vehicle only fills the form; it never contacts a registry. After the vehicle is saved, the app offers "Check this RC now?" only when a scan was used and this server can run a check (`enabled` on the GET above; false while paid providers are blocked). Choosing it opens the Vehicle Passport and starts the normal steps: the photo becomes an unverified RC document, the owner confirms its dates, and the usual consent screen appears. "Not now" adds nothing.
 
 `GET /api/v1/vehicles/:id/rc-verification` reads configuration availability and the last result without contacting Arya. `POST` to that endpoint requires authentication, owner/admin scope and `{ "consent": true }`. It requires an RC upload with a file hash. In-flight upload changes are rejected rather than certifying a replacement file.
 

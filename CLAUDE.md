@@ -2,7 +2,7 @@
 
 Read this first. It is the shared, current picture of the project for both teammates and for Claude Code sessions. Update it in the same PR whenever you change how the project runs or what it guarantees.
 
-Last updated: 22 Nov 2026 (Android pilot APK built from master; phone testing pending)
+Last updated: 23 Nov 2026 (push inbox, password reset, private file links, paid-RC guard; Android only; phone testing pending)
 
 ## Current state and handover (22 Nov 2026)
 
@@ -77,9 +77,9 @@ server/   Node.js + Express + TypeScript + MongoDB (Mongoose) API
 | Backend | Express + TypeScript, run with ts-node-dev |
 | Database | MongoDB via Mongoose |
 | Auth | JWT access token (15 min) + refresh token (7 days); expo-secure-store on device, localStorage on web. Refresh tokens are **stateful and single-use**: each is recorded server-side by hash (`RefreshToken` model), rotated on every `/auth/refresh`, and reusing an already-rotated/revoked token revokes the whole rotation family (theft defence). `POST /auth/logout` revokes the presented token; `POST /auth/logout-all` revokes every session; `GET /auth/sessions` lists active sessions with a device label. DPDP: `GET /auth/export` returns a machine-readable copy of the caller's own data (no password hash, no other-party PII); `DELETE /auth/account` erases an **owner** account but refuses while they still hold vehicles (enforcement records must survive — Trust Rule 8 — so delete/transfer first; accepted-transfer ledger rows are never touched). The app refreshes only on a `TOKEN_EXPIRED` 401; a refused refresh token returns the user to the login screen, but a network failure keeps the saved session. Requests time out after 30 s (2 min for uploads). |
-| Uploads | Local `server/uploads/` (AWS S3 if AWS keys are set; MongoDB GridFS when `UPLOAD_STORAGE=gridfs`, which the hosted pilot uses). Only JPEG, PNG, WEBP and PDF are accepted, judged by content type; the stored extension comes from that type, never from the file name. Files are served with `nosniff`. Oversized files return 413. |
+| Uploads | Local `server/uploads/` (AWS S3 if AWS keys are set; MongoDB GridFS when `UPLOAD_STORAGE=gridfs`, which the hosted pilot uses). Only JPEG, PNG, WEBP and PDF are accepted, judged by content type; the stored extension comes from that type, never from the file name. Files are served with `nosniff`. Oversized files return 413. **Files are private:** `/uploads` is closed (404). Every `fileUrl` / `certificateUrl` the API returns is a signed, expiring link (`/api/v1/files/:name?exp&sig`, HMAC with `FILE_URL_SECRET`, `FILE_URL_TTL_SECONDS` default 900), signed when the record is serialised; the database keeps the plain stored path. |
 | Payments | Razorpay test flow with server-side HMAC verification (see "Known gaps") |
-| Push | expo-notifications + Expo Push API |
+| Push | expo-notifications + Expo Push API (Android, via FCM). Every notification is also saved to an in-app inbox (`Notification` model, `GET /notifications`, `POST /notifications/read`) shown by the bell in the header, so nothing is lost when a push is not delivered. Server events: booking confirmed / completed / cancelled, payment, challan issued, transfer requested / approved / declined, provider approved, reminders. A dead device token (`DeviceNotRegistered`) is cleared. Setup: `docs/PUSH_NOTIFICATIONS.md`. |
 | Maps | react-native-maps on phones; without a real Google Maps key the stations map draws free OpenStreetMap/CARTO tiles (with attribution). A placeholder on web (`src/components/Map.web.tsx`) |
 | OCR | Tesseract.js on the server: document date suggestions (`POST /documents/scan`) and RC photo auto-fill for Add Vehicle (`POST /vehicles/scan-rc`). Suggestions only, never verification; the image is deleted after reading and personal data is never returned. `OCR_TIMEOUT_MS`, `OCR_CACHE_DIR`, `OCR_SCAN_ENABLED`, `OCR_MAX_PIXELS` (default 2,000,000: tall gallery images and screenshots are scaled down to about the cost of a landscape camera shot, because OCR time grows with pixel count and timed out on Render free) |
 | QR | react-native-qrcode-svg to show, expo-camera to scan |
@@ -219,7 +219,7 @@ These are the product's core promise. Don't weaken them without discussing it wi
 - `POST /vehicles` requires a valid Indian registration number (state code + RTO number + series + 4 digits, e.g. MH01AB1234, DL3CAB1234, or Bharat series 22BH1234AB); anything else returns 400 `INVALID_REG_NUMBER`. The rule lives in `server/src/services/regNumber.ts` and is mirrored for live feedback in `mobile/src/utils/regNumber.ts`; keep them in step.
 - Station slot templates (Manage Slots) create back-to-back 25-minute slots: Morning 9–12, Afternoon 1–5, Full Day both.
 
-- Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/public/verify`, `/public/twin`, `/reminders/trigger-job` (internal secret instead) and `/payments/webhook` (Razorpay HMAC over the raw body instead).
+- Base path `/api/v1`. Everything needs `Authorization: Bearer <token>` except `/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/forgot-password`, `/auth/reset-password`, `/public/verify`, `/public/twin`, `/reminders/trigger-job` (internal secret instead) and `/payments/webhook` (Razorpay HMAC over the raw body instead).
 - Violations live at both `/api/v1/violations` (the path the app uses) and `/api/v1/officer/violations`. `documentTypeExpired` must list known document types (capitals accepted, stored lowercase), a non-blank `location` is required, and a document that is verified, valid and unexpired can't be cited (400).
 - `POST /auth/logout` clears the user's push token.
 - Every response carries helmet security headers; every request is run through a sanitiser that strips `$`-prefixed, dotted and `__proto__` keys from the body, query and params (NoSQL-operator injection + prototype-pollution guard) before controllers read it. Browser CORS is limited to `CORS_ALLOWED_ORIGINS` when that env is set (comma-separated); left empty the server reflects any Origin (dev default). The native app sends no `Origin`, so the allowlist never affects it. See `server/src/middleware/security.ts`.
@@ -267,17 +267,17 @@ Remember the APK talks to whatever `EXPO_PUBLIC_API_URL` was at build time.
 - ~~**`PATCH /vehicles/:id` writes the request body straight to the record**~~ — fixed: only type, make, model, year, fuelType, region are accepted.
 - ~~**Slots are never released** when a booking is cancelled or left unpaid~~ — fixed: cancellation releases the slot immediately; a cron every 5 min cancels bookings unpaid for >30 min.
 - **Challans:** `PATCH /challans/:id/pay` marks a challan paid without any payment.
-- **Push notifications are not delivered.** No Firebase project / FCM credentials are set up in EAS (the previous Google account hit its Cloud project limit). Token registration fails quietly; no reminder pushes arrive.
-- **No forgot-password flow**, and SMS/email adapters only log. Needs an email or SMS provider.
+- **Push is built but not connected.** The server sends, stores an inbox entry and clears dead tokens; the app registers, shows the bell and handles foreground pushes. What is missing is a Firebase project: add `google-services.json` as the EAS file variable `GOOGLE_SERVICES_JSON` and upload the FCM service-account key to Expo (`docs/PUSH_NOTIFICATIONS.md`). Until then pushes do not arrive, but the inbox still works.
+- **Forgot password is built, sender not connected.** `POST /auth/forgot-password` and `/auth/reset-password` (6-digit code, 15 minutes, 5 wrong tries, session sign-out on success, same answer for unknown accounts). Email goes over SMTP (`EMAIL_PROVIDER=smtp`, `SMTP_*`), SMS over Twilio (`SMS_PROVIDER=twilio`, `TWILIO_*`; India needs a DLT-registered sender and template for a real SMS). With neither set the adapters only log, so the hosted pilot can set `RESET_CODE_IN_RESPONSE=true` to show the code in the app (refused in production).
 - **Production mode cannot start yet:** `assertProductionReady()` refuses while the registry, SMS, email and geocoding adapters are sandboxes, so the hosted pilot runs with `NODE_ENV=development` and random secrets. Don't weaken that check.
 - **RC scan is slow on Render free** (~20 s per photo). A paid instance or on-device OCR would fix it.
 - **No RC registry provider has completed a live lookup** (see "Current state and handover" and `docs/RC_VERIFICATION.md`).
-- **No iOS build.**
+- **Android only, by decision (23 Nov 2026).** No iOS build is planned; the `ios` block in `app.json` is left as is. Code stays cross-platform where free, but nothing is tested on iOS.
 - ~~**Officers can send any `penaltyAmount`**~~ — fixed: server always computes penalty from PENALTY_MAP; client input ignored.
 - ~~**Public exposure:** `/public/verify` returns the owner's phone~~ — fixed: phone removed from public response.
 - ~~**Expiry date:** a provider can set any `expiryDate`~~ — fixed: server rejects past dates and dates > 10 years out.
 - ~~**Reminders:** the job marks a reminder sent even when the owner has no push token~~ — fixed: skips silently, retries next run.
-- **Officer and government roles** may need read access to vehicles. That's a product decision.
+- ~~**Officer and government roles** may need read access to vehicles~~ — decided 23 Nov 2026: they keep empty vehicle and booking lists **by design**. Officers reach a vehicle only through the owner's rotating QR (`/public/verify`) and see their own violations; government sees aggregates only. A blanket vehicle list would expose every owner's records without consent. A test (`routeGuards.api.test.ts`) locks this in.
 - **Transfer deadlines for Form 29 and Form 30 are unresolved**, and the worksheets are unchecked against the official forms (see "Transfer deadlines").
 - ~~**Encoding:** some mobile source files saved as Windows-1252~~ — fixed: `LoginScreen.tsx`, `ScanQRScreen.tsx`, `StationMapScreen.tsx` converted to UTF-8; garbled chars replaced.
 
@@ -329,7 +329,7 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 - [ ] Provider sign-up → pending → admin approves — API and screens exist; requires end-to-end test on real devices after Phase 0 hosting is live.
 - [x] Centre profile: after signup a provider must fill in `CentreProfileScreen` (real GPS location, address, services, working hours, service bays) before seeing the rest of the app; it stays available as the "Centre" tab. Saved with `PATCH /providers/me`, which never changes `status`. Signup still creates the centre with placeholder location and `profileCompleted: false`.
 - [x] Password rules on signup: min 8 chars, must have a letter and a number.
-- [ ] "Forgot password" needs an email or SMS provider (decide which).
+- [x] "Forgot password": built for both email (SMTP) and SMS (Twilio); needs an account for each to send real messages (see Known gaps).
 
 ### Phase 3: owner screens use real input
 
@@ -358,7 +358,7 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 ### Phase 6: notifications, storage and privacy
 
 - [x] Push reminders: job only marks sent when Expo Push accepts; skips silently when no push token (retries next run).
-- [ ] Uploads go to private S3; the app gets short-lived signed URLs.
+- [x] Uploads are private: signed, expiring links for every file (works on disk, GridFS and S3 storage). A bucket-level private S3 policy is still a hosting step if S3 is ever used.
 - [x] `/public/verify` no longer returns owner phone number.
 - [x] Rate-limit login and signup (in-memory limiter, no extra package): 10 failed logins and, separately, 10 sign-ups per IP per 15 minutes. Successful logins are never counted, so switching demo roles can't lock anyone out. Keyed on `req.ip`, so set `TRUST_PROXY` when hosted behind a proxy; client-sent `X-Forwarded-For` values are ignored otherwise.
 - [x] `PATCH /vehicles/:id` restricted to type, make, model, year, fuelType, region — ownerId, regNumber, qrCodeId are blocked.
@@ -378,7 +378,7 @@ Razorpay's native checkout, push notifications on Android and Google Maps don't 
 
 ## Transfer deadlines (what is and is not known)
 
-`server/src/config/transferRules.ts` is the only place deadlines live. A number goes in only when the sources agree; otherwise `days` is `null` and the app says "complete this as soon as possible" with no date. Checked 2026-10-28:
+`server/src/config/transferRules.ts` is the only place deadlines live. A number goes in only when the sources agree; otherwise `days` is `null` and the app says "complete this as soon as possible" with no date. Checked 2026-10-28, and again 2026-11-23 (nothing changed: India Code returned HTTP 403 to the fetch tool, the Parivahan page loaded with an empty body, and the Form 29/30 PDFs found online are scanned images with no readable text):
 
 | Duty | Status |
 |---|---|
